@@ -1,0 +1,80 @@
+# Copilot Instructions — NewsGator
+
+> **Maintenance rule (mandatory):** whenever a change alters architecture, stack,
+> conventions, data model, API surface, pipeline behavior, or any rule stated in this
+> file, **update this file in the same change**. Stale instructions are worse than none.
+> Also keep [SPEC.md](../SPEC.md) (normative spec) and
+> [IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md) (milestone checklist) in sync.
+
+## What this project is
+
+Self-hosted, multi-user news reader. RSS feeds are ingested, full-text is fetched,
+articles are summarized/categorized/embedded via an **external OpenAI-compatible LLM
+server**, and articles covering the same event are **clustered into Stories** with a
+merged summary. The GUI shows stories, not article lists. See [SPEC.md](../SPEC.md) for
+the full normative spec — **read it before non-trivial changes**.
+
+## Stack (do not deviate without updating SPEC.md §2)
+
+- **Backend**: Python 3.12, FastAPI, SQLAlchemy 2.0 + Alembic, SQLite (default),
+  APScheduler, feedparser, trafilatura (+ readability fallback).
+- **Frontend**: SvelteKit SPA (TypeScript) talking to the REST API only.
+- **LLM**: external OpenAI-compatible server via `LLM_BASE_URL` / `EMBED_BASE_URL`.
+  Never add model-serving code to this repo; never hardcode a provider (works with
+  oMLX, Ollama, llama.cpp, LM Studio…).
+- **Vectors**: `sqlite-vec` by default; external Qdrant as an alternative behind the
+  `VectorStore` abstraction. Never couple pipeline code to one backend.
+- **Deployment**: Docker / docker-compose. No Qdrant service in compose.
+
+## Invariants — never break these
+
+1. **Language**: all summaries are written in the configured `SUMMARY_LANGUAGE`
+   (default English, per-user override). Never hardcode English. GUI chrome is
+   English-only for now.
+2. **Embeddings consistency**: embeddings are computed from `SUMMARY_LANGUAGE` text
+   with the configured `EMBED_MODEL`. All embeddings must be produced the same way.
+   Changing language or embedding model requires the full reprocessing job.
+3. **Story versioning**: `story.version` bumps **only** on real content change
+   (new facts). A source-only attachment updates `last_updated_at` but not `version`.
+4. **Read state is per-user**: `STORY_STATE(user_id, story_id, read_at_version)`.
+   `updated_since_read = is_read AND story.version > read_at_version`. Never surface a
+   read story as unread again — badge it "updated".
+5. **Configurability**: thresholds, freeze window, retention days, poll intervals,
+   failure policy, categories — all live in settings/env, never hardcoded. Categories
+   are a customizable taxonomy stored in the DB; the LLM prompt is built from the
+   current taxonomy at call time.
+6. **Activity events**: every pipeline stage transition (feed poll, full-text fetch
+   path used, LLM start/done + latency, clustering decision + similarity, story update,
+   feed disabled) emits a structured event to `ACTIVITY_LOG` and the SSE stream
+   (`/activity/stream`). When adding a pipeline step, emit an event.
+7. **Resumability**: articles carry `processing_state`
+   (`fetched → fulltext → summarized → embedded → clustered`). Every LLM result is
+   persisted immediately; pipeline steps must be safe to re-run after a crash.
+8. **No paywall circumvention**: full-text fallback chain is direct → archive.is →
+   per-feed user credentials → RSS excerpt flagged `partial` with a visible
+   "requires credentials" warning. Do not add anything beyond this.
+9. **Manual overrides**: merge/split/move corrections are stored as labeled pairs —
+   they feed the threshold-tuning report. Never silently discard them.
+
+## Conventions
+
+- **Backend layout** (created in Milestone 1): `backend/app/` with `api/` (routers),
+  `core/` (config, security), `models/`, `services/` (ingest, llm, cluster, activity),
+  `workers/` (scheduler jobs). Business logic in services, not routers.
+- **LLM calls**: go through the single client wrapper (timeouts, retries, JSON-mode
+  validation with one retry). Prompts live in one prompts module; always request
+  structured JSON.
+- **Async**: FastAPI handlers and LLM/HTTP I/O are async; blocking work (feedparser,
+  trafilatura) runs via `anyio.to_thread`.
+- **Tests**: pytest + httpx AsyncClient; mock the LLM client in tests. Run `pytest`
+  before declaring a milestone done.
+- **Lint/typing**: ruff + mypy; keep them clean.
+- **Migrations**: every schema change = one Alembic revision, committed with the code.
+- **API changes**: update the endpoint table in SPEC.md §6.
+
+## Current status
+
+Implementation has **not started**. Follow
+[IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md) milestone by milestone, in order;
+mark checkboxes there as work completes. Currently only `SPEC.md` and the plan exist —
+no code yet.
