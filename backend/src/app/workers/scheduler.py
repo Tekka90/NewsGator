@@ -7,6 +7,7 @@ from sqlalchemy import select
 
 from app.core.db import get_session
 from app.models import Feed
+from app.services import activity
 from app.services.cluster import freeze_old_stories
 from app.services.ingest import is_due, poll_feed
 
@@ -24,9 +25,11 @@ async def poll_due_feeds() -> None:
 
 
 async def freeze_sweep() -> None:
-    """Hourly: freeze stories past the freeze window (SPEC §5 cluster aging)."""
+    """Hourly: freeze stories past the freeze window + prune the activity ring buffer."""
     async for session in get_session():
         await freeze_old_stories(session)
+        await activity.prune(session)
+        await session.commit()
         break
 
 

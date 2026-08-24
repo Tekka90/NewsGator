@@ -7,6 +7,7 @@
 
   let { children } = $props();
   let ready = $state(false);
+  let queueDepth = $state(0);
   let isPublic = $derived(
     page.url.pathname === '/login' || page.url.pathname === '/setup'
   );
@@ -24,6 +25,7 @@
       }
       if (!isPublic) {
         $currentUser = await api.me();
+        connectActivity();
       }
     } catch {
       if (!isPublic) await goto('/login');
@@ -31,6 +33,15 @@
       ready = true;
     }
   });
+
+  // SPEC §7: 'now processing' indicator — LLM queue depth via SSE
+  function connectActivity() {
+    const source = new EventSource('/api/activity/stream');
+    source.onmessage = (msg) => {
+      const payload = JSON.parse(msg.data);
+      if (payload.llm_queue_depth !== undefined) queueDepth = payload.llm_queue_depth;
+    };
+  }
 
   async function logout() {
     await api.logout();
@@ -51,8 +62,12 @@
       <strong>NewsGator</strong>
       <a href="/">Stories</a>
       <a href="/feeds">Feeds</a>
+      <a href="/activity">Activity</a>
       <a href="/settings">Settings</a>
       <span class="spacer"></span>
+      {#if queueDepth > 0}
+        <span class="processing">⚙ {queueDepth} processing…</span>
+      {/if}
       <span class="user">{$currentUser?.username}</span>
       <button onclick={logout}>Log out</button>
     </nav>
@@ -93,6 +108,10 @@
   .user {
     color: #9aa0a8;
     font-size: 0.9em;
+  }
+  .processing {
+    color: #ffd97a;
+    font-size: 0.85em;
   }
   main {
     max-width: 960px;
