@@ -1,0 +1,25 @@
+services:
+  newsgator:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"   # GUI
+      - "8000:8000"   # API (optional exposure; GUI proxies /api)
+    volumes:
+      - newsgator-data:/data
+    environment:
+      # External OpenAI-compatible LLM server (oMLX/Ollama/…). REQUIRED.
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:8080/v1}
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5-32b-instruct}
+      LLM_API_KEY: ${LLM_API_KEY:-not-needed}
+      EMBED_MODEL: ${EMBED_MODEL:-bge-m3}
+      SUMMARY_LANGUAGE: ${SUMMARY_LANGUAGE:-en}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+      # Optional external Qdrant (never spun up by this compose file):
+      # VECTOR_BACKEND: qdrant
+      # QDRANT_URL: http://qdrant.lan:6333
+    restart: unless-stopped
+
+volumes:
+  newsgator-data:

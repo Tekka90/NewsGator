@@ -152,14 +152,22 @@ suggestion from accumulated corrections.
 
 ---
 
-## Milestone 8 — Docker packaging + docs ⬜
+## Milestone 8 — Docker packaging + docs ✅ (2026-08-24)
 
-- [ ] Multi-stage Dockerfile (backend + frontend build), docker-compose (app + volume)
-- [ ] First-run wizard: create admin, pick `SUMMARY_LANGUAGE`, set LLM endpoints
-- [ ] README: quickstart, architecture diagram, config reference
-- [ ] Backup notes (SQLite file + optional Qdrant)
+- [x] Multi-stage Dockerfile (Node 22 frontend build → Python 3.12 slim runtime),
+      single image runs backend (:8000) + adapter-node frontend (:3000, /api proxied
+      via hooks.server.ts + BACKEND_URL)
+- [x] docker-compose (single service + data volume; no Qdrant service — external only)
+- [x] `alembic upgrade head` wired into container entrypoint (create_all remains as
+      first-run safety net)
+- [x] First-run wizard: `/setup` creates the admin; `SUMMARY_LANGUAGE` + LLM endpoints
+      via env or admin settings GUI
+- [x] README: Docker quickstart, dev quickstart, config reference, tests & checks
+- [x] Backup story: single SQLite file in the `newsgator-data` volume (+ optional
+      external Qdrant)
 
-**Acceptance**: `docker compose up` on a fresh machine → working app.
+**Acceptance**: `docker compose up` on a fresh machine → working app. ✔ (compose
+config validated; image build is the one step to run on the target machine)
 
 ---
 

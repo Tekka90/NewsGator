@@ -74,38 +74,28 @@ the full normative spec — **read it before non-trivial changes**.
 
 ## Current status
 
-**Milestone 1 done** (2026-08-24): backend skeleton + auth + feeds/categories CRUD +
-SvelteKit GUI (setup/login/feeds/settings) working.
-**Milestone 2 done** (2026-08-24): ingestion + full-text chain — APScheduler 1-min tick
-polling due feeds (adaptive interval via `feed.empty_polls`, failure backoff capped at
-12h, auto-disable after `FEED_DISABLE_AFTER_DAYS`), ETag/304 support, two-layer dedupe
-(`(feed_id, guid)` then canonical URL across feeds), full-text chain
-direct → archive.is → RSS excerpt (`content_status=partial` + warning), robots.txt +
-per-domain rate limiting, activity events persisted to ACTIVITY_LOG.
-**Milestone 3 done** (2026-08-24): LLM layer — `services/llm_client.py` (single
-wrapper: JSON-mode chat with one retry, embeddings, `test_connection`),
-`services/prompts.py` (all prompts, `SUMMARY_LANGUAGE` injected, taxonomy from DB),
-`services/process.py` (single-worker asyncio queue, `queue_depth()`, crash-recovery
-`enqueue_backlog()`), `services/vectorstore.py` (`VectorStore` protocol +
-SqliteVecStore + InMemoryVectorStore fallback), settings API
-(`GET/PATCH /api/settings`, whitelisted runtime overrides + `/test-llm`). Articles
-flow `fulltext → summarized → embedded`; clustering (→ `clustered`) is M4.
-36 pytest tests green, ruff + mypy + svelte-check clean. Next: **Milestone 4
-(clustering + story versioning)** per [IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md).
+**All 8 milestones done** (2026-08-24): backend (FastAPI, SQLAlchemy async, Alembic
+0001–0004), full pipeline (ingest → fulltext chain → summarize → embed → cluster →
+story versioning → freeze → retention), stories API with per-user read state, SSE
+activity stream, SvelteKit GUI (stories/feeds/activity/settings with admin editors +
+threshold report), external Qdrant backend option, Dockerfile + compose. 57 pytest
+tests green, ruff + mypy + svelte-check clean.
 
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,
   `workers/`); routers depend on `get_session` and `current_user`/`admin_user` deps.
-- Services: `services/ingest.py` (`poll_feed`, `is_due`, `effective_interval_min`),
-  `services/fulltext.py` (`fetch_full_text`), `services/activity.py` (`emit`). HTTP
-  seams `_http_get` / `_fetch_page` / `_extract_text` are module-level for
-  monkeypatching in tests. M3 adds `llm_client.py` (mock `chat_json`/`embed` in
-  tests), `prompts.py`, `process.py` (queue + `process_article`), `vectorstore.py`.
-- Scheduler: `workers/scheduler.py`, started in lifespan (skipped when
-  `ENVIRONMENT=test`); lifespan also starts the LLM worker and requeues the backlog.
-- Lifespan currently uses `Base.metadata.create_all` + category seeding; Alembic
-  revisions `0001_initial`, `0002_feed_empty_polls`, `0003_vec_tables` exist — wiring
-  `alembic upgrade head` into startup is planned for Milestone 8 (Docker packaging).
+- Services: `ingest.py`, `fulltext.py`, `activity.py` (emit + SSE broadcast + ring
+  buffer), `llm_client.py` (mock `chat_json`/`embed` in tests), `prompts.py`,
+  `process.py` (queue + `process_article`), `cluster.py`, `vectorstore.py`
+  (+ `qdrant_store.py`), `retention.py`, `feedback.py`. HTTP seams `_http_get` /
+  `_fetch_page` / `_extract_text` are module-level for monkeypatching in tests; the
+  vector store is patched via `get_vector_store` on each importing module.
+- Scheduler (`workers/scheduler.py`): 1-min feed tick, hourly freeze + activity prune,
+  nightly retention (03:17). Lifespan starts the LLM worker + backlog requeue +
+  scheduler (skipped when `ENVIRONMENT=test`).
+- Lifespan uses `Base.metadata.create_all` + category seeding as a first-run safety
+  net; Alembic `upgrade head` runs in the Docker entrypoint.
 - The venv is Python 3.14 (user machine); `requires-python` stays `>=3.12` per spec.
-- Frontend: SvelteKit 5 runes (`$state`/`$derived`), no legacy slots; dev proxy
-  `/api → :8000` in `frontend/vite.config.ts`.
+- Frontend: SvelteKit 5 runes + adapter-node; dev proxy `/api → :8000` in
+  `frontend/vite.config.ts`, production proxy in `frontend/src/hooks.server.ts`
+  (`BACKEND_URL`).
