@@ -176,6 +176,11 @@ async def _poll_feed_inner(session: AsyncSession, feed: Feed) -> int:
             await fetch_full_text(session, article, feed)
         else:
             article.processing_state = "fulltext"
+        # Hand off to the LLM queue (summarize → embed; cluster in M4)
+        if article.processing_state == "fulltext":
+            from app.services.process import enqueue_article
+
+            enqueue_article(article.id)
         new_count += 1
 
     await session.commit()

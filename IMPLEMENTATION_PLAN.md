@@ -60,22 +60,29 @@ land in DB with full text where available, partial flag visible. ✔ (12 new tes
 
 ---
 
-## Milestone 3 — LLM summarization + embeddings ⬜
+## Milestone 3 — LLM summarization + embeddings ✅ (2026-08-24)
 
-- [ ] OpenAI-compatible client wrapper (chat + embeddings), timeouts, retries,
-      JSON-mode output validation with one retry
-- [ ] Prompt module: summarize (source lang → `SUMMARY_LANGUAGE`), headline, category
-      (taxonomy injected from DB), novelty check, pairwise same-event check
-- [ ] In-process LLM work queue (asyncio) with depth metric
-- [ ] Vector store abstraction `VectorStore` protocol + `sqlite-vec` implementation
-- [ ] Embed `title + summary` per article; store vector
-- [ ] Language detection (`langdetect` or `fasttext` lid)
-- [ ] Admin settings: LLM endpoints/models, test-connection button
-- [ ] Background reprocessing job scaffold (for language/model changes; UI later)
+- [x] OpenAI-compatible client wrapper (`services/llm_client.py`): chat + embeddings,
+      timeouts, retries, JSON-mode validation with one retry; `test_connection()` probe
+- [x] Prompt module (`services/prompts.py`): summarize (source lang →
+      `SUMMARY_LANGUAGE`, taxonomy injected), story headline, novelty check, merge
+      summary, pairwise same-event — language name injected, never hardcoded
+- [x] In-process LLM work queue (`services/process.py`): single asyncio worker,
+      `queue_depth()` for the GUI, crash-recovery backlog sweep at startup
+- [x] Vector store abstraction (`VectorStore` protocol) + `SqliteVecStore` (vec0 tables,
+      Alembic rev 0003) + `InMemoryVectorStore` fallback for tests; Qdrant impl in M4
+- [x] Embed `title + summary` per article into the store
+- [x] Language detection (`langdetect`, via `anyio.to_thread`)
+- [x] Admin settings API: `GET/PATCH /api/settings` (whitelisted runtime overrides
+      persisted in SETTING table, applied live), `POST /api/settings/test-llm`
+- [x] Background reprocessing: `enqueue_backlog()` scaffold (full reprocess UI in M7)
+- [x] Bug found & fixed by tests: LLM summarize failure no longer advances the article
+      to `embedded` — it stays retryable in `fulltext`
 
 **Acceptance**: articles get summaries in `SUMMARY_LANGUAGE`, categories from the
 customizable taxonomy, embeddings stored; works against an external OpenAI-compatible
-server with nothing but env config.
+server with nothing but env config. ✔ (15 new tests, 36 total green, ruff + mypy
+clean; sqlite-vec extension verified working natively)
 
 ---
 

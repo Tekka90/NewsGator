@@ -81,9 +81,17 @@ polling due feeds (adaptive interval via `feed.empty_polls`, failure backoff cap
 12h, auto-disable after `FEED_DISABLE_AFTER_DAYS`), ETag/304 support, two-layer dedupe
 (`(feed_id, guid)` then canonical URL across feeds), full-text chain
 direct → archive.is → RSS excerpt (`content_status=partial` + warning), robots.txt +
-per-domain rate limiting, activity events persisted to ACTIVITY_LOG. 21 pytest tests
-green, ruff + mypy + svelte-check clean. Next: **Milestone 3 (LLM summarization +
-embeddings)** per [IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md).
+per-domain rate limiting, activity events persisted to ACTIVITY_LOG.
+**Milestone 3 done** (2026-08-24): LLM layer — `services/llm_client.py` (single
+wrapper: JSON-mode chat with one retry, embeddings, `test_connection`),
+`services/prompts.py` (all prompts, `SUMMARY_LANGUAGE` injected, taxonomy from DB),
+`services/process.py` (single-worker asyncio queue, `queue_depth()`, crash-recovery
+`enqueue_backlog()`), `services/vectorstore.py` (`VectorStore` protocol +
+SqliteVecStore + InMemoryVectorStore fallback), settings API
+(`GET/PATCH /api/settings`, whitelisted runtime overrides + `/test-llm`). Articles
+flow `fulltext → summarized → embedded`; clustering (→ `clustered`) is M4.
+36 pytest tests green, ruff + mypy + svelte-check clean. Next: **Milestone 4
+(clustering + story versioning)** per [IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md).
 
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,
@@ -91,11 +99,12 @@ Notes on the current code:
 - Services: `services/ingest.py` (`poll_feed`, `is_due`, `effective_interval_min`),
   `services/fulltext.py` (`fetch_full_text`), `services/activity.py` (`emit`). HTTP
   seams `_http_get` / `_fetch_page` / `_extract_text` are module-level for
-  monkeypatching in tests.
+  monkeypatching in tests. M3 adds `llm_client.py` (mock `chat_json`/`embed` in
+  tests), `prompts.py`, `process.py` (queue + `process_article`), `vectorstore.py`.
 - Scheduler: `workers/scheduler.py`, started in lifespan (skipped when
-  `ENVIRONMENT=test`).
+  `ENVIRONMENT=test`); lifespan also starts the LLM worker and requeues the backlog.
 - Lifespan currently uses `Base.metadata.create_all` + category seeding; Alembic
-  revisions `0001_initial`, `0002_feed_empty_polls` exist — wiring
+  revisions `0001_initial`, `0002_feed_empty_polls`, `0003_vec_tables` exist — wiring
   `alembic upgrade head` into startup is planned for Milestone 8 (Docker packaging).
 - The venv is Python 3.14 (user machine); `requires-python` stays `>=3.12` per spec.
 - Frontend: SvelteKit 5 runes (`$state`/`$derived`), no legacy slots; dev proxy
