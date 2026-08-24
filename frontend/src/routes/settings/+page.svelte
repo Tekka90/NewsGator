@@ -11,7 +11,12 @@
   let sys = $state<Record<string, string | number>>({});
   let overridden = $state<string[]>([]);
   let sysSaved = $state(false);
-  let llmTest = $state<{ chat: boolean; embeddings: boolean; errors: string[] } | null>(null);
+  let llmTest = $state<{
+    chat: boolean;
+    embeddings: boolean;
+    errors: string[];
+    api_key_hint?: string;
+  } | null>(null);
   let report = $state<{
     current: { tau_attach: number; tau_gray: number };
     labeled_pairs: number;
@@ -20,9 +25,10 @@
     suggested_tau_attach: number | null;
   } | null>(null);
 
-  const sysFields: { key: string; label: string }[] = [
+  const sysFields: { key: string; label: string; secret?: boolean }[] = [
     { key: 'llm_base_url', label: 'LLM base URL' },
     { key: 'llm_model', label: 'LLM model' },
+    { key: 'llm_api_key', label: 'LLM API key', secret: true },
     { key: 'embed_base_url', label: 'Embeddings base URL (empty = same as LLM)' },
     { key: 'embed_model', label: 'Embedding model' },
     { key: 'summary_language', label: 'Summary language (global default)' },
@@ -41,13 +47,23 @@
       categories = await api.categories.list();
       const s = await api.settings.get();
       sys = s.values;
+      original = { ...s.values };
       overridden = s.overridden;
     }
   });
 
+  // Only send fields the user actually changed — otherwise saving would persist
+  // (and DB-store) every env-provided value, including the LLM key.
+  let original = $state<Record<string, string | number>>({});
+
   async function saveSystem() {
-    const res = await api.settings.patch(sys);
+    const changed: Record<string, string | number> = {};
+    for (const [k, v] of Object.entries(sys)) {
+      if (String(v) !== String(original[k] ?? '')) changed[k] = v;
+    }
+    const res = await api.settings.patch(changed);
     sys = res.values;
+    original = { ...res.values };
     sysSaved = true;
     setTimeout(() => (sysSaved = false), 2000);
   }
@@ -127,7 +143,7 @@
         <label>
           {f.label}
           {#if overridden.includes(f.key)}<span class="ovr">overridden</span>{/if}
-          <input bind:value={sys[f.key]} />
+          <input type={f.secret ? 'password' : 'text'} bind:value={sys[f.key]} autocomplete="off" />
         </label>
       {/each}
     </div>
@@ -140,6 +156,7 @@
     {#if llmTest}
       <p class:ok={llmTest.chat && llmTest.embeddings} class:bad={!llmTest.chat || !llmTest.embeddings}>
         chat: {llmTest.chat ? '✓' : '✗'} · embeddings: {llmTest.embeddings ? '✓' : '✗'}
+        {#if llmTest.api_key_hint}· key in use: {llmTest.api_key_hint}{/if}
         {#each llmTest.errors as err}<br /><small>{err}</small>{/each}
       </p>
     {/if}

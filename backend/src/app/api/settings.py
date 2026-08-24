@@ -103,6 +103,9 @@ async def test_llm(session: AsyncSession = Depends(get_session)) -> dict[str, ob
     result["llm_base_url"] = env_settings.llm_base_url
     result["llm_model"] = env_settings.llm_model
     result["embed_model"] = env_settings.embed_model
+    # Debuggability: report which key is in effect without leaking it
+    key = env_settings.llm_api_key
+    result["api_key_hint"] = f"…{key[-4:]}" if key and len(key) > 4 else "(short/empty)"
     return result
 
 

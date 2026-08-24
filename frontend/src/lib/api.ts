@@ -87,7 +87,7 @@ export const api = {
         body: { values }
       }),
     testLlm: () =>
-      req<{ chat: boolean; embeddings: boolean; errors: string[] }>(
+      req<{ chat: boolean; embeddings: boolean; errors: string[]; api_key_hint?: string }>(
         '/settings/test-llm',
         { method: 'POST' }
       ),
