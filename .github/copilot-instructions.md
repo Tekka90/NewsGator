@@ -75,17 +75,28 @@ the full normative spec — **read it before non-trivial changes**.
 ## Current status
 
 **Milestone 1 done** (2026-08-24): backend skeleton + auth + feeds/categories CRUD +
-SvelteKit GUI (setup/login/feeds/settings) working; 9 pytest tests green, ruff + mypy +
-svelte-check clean. Next: **Milestone 2 (ingestion + full-text chain)** per
-[IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md); mark checkboxes there as work
-completes.
+SvelteKit GUI (setup/login/feeds/settings) working.
+**Milestone 2 done** (2026-08-24): ingestion + full-text chain — APScheduler 1-min tick
+polling due feeds (adaptive interval via `feed.empty_polls`, failure backoff capped at
+12h, auto-disable after `FEED_DISABLE_AFTER_DAYS`), ETag/304 support, two-layer dedupe
+(`(feed_id, guid)` then canonical URL across feeds), full-text chain
+direct → archive.is → RSS excerpt (`content_status=partial` + warning), robots.txt +
+per-domain rate limiting, activity events persisted to ACTIVITY_LOG. 21 pytest tests
+green, ruff + mypy + svelte-check clean. Next: **Milestone 3 (LLM summarization +
+embeddings)** per [IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md).
 
 Notes on the current code:
-- Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`); routers depend on
-  `get_session` and `current_user`/`admin_user` deps.
+- Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,
+  `workers/`); routers depend on `get_session` and `current_user`/`admin_user` deps.
+- Services: `services/ingest.py` (`poll_feed`, `is_due`, `effective_interval_min`),
+  `services/fulltext.py` (`fetch_full_text`), `services/activity.py` (`emit`). HTTP
+  seams `_http_get` / `_fetch_page` / `_extract_text` are module-level for
+  monkeypatching in tests.
+- Scheduler: `workers/scheduler.py`, started in lifespan (skipped when
+  `ENVIRONMENT=test`).
 - Lifespan currently uses `Base.metadata.create_all` + category seeding; Alembic
-  revision `0001_initial` exists — wiring `alembic upgrade head` into startup is
-  planned for Milestone 8 (Docker packaging).
+  revisions `0001_initial`, `0002_feed_empty_polls` exist — wiring
+  `alembic upgrade head` into startup is planned for Milestone 8 (Docker packaging).
 - The venv is Python 3.14 (user machine); `requires-python` stays `>=3.12` per spec.
 - Frontend: SvelteKit 5 runes (`$state`/`$derived`), no legacy slots; dev proxy
   `/api → :8000` in `frontend/vite.config.ts`.

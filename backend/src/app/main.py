@@ -17,7 +17,16 @@ from app.models import SEED_CATEGORIES, Category
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     init_engine(settings.database_url)
     await _ensure_schema_and_seed()
-    yield
+    if settings.environment != "test":
+        from app.workers.scheduler import start_scheduler, stop_scheduler
+
+        start_scheduler()
+        try:
+            yield
+        finally:
+            stop_scheduler()
+    else:
+        yield
 
 
 def create_app() -> FastAPI:

@@ -35,22 +35,28 @@
 
 ---
 
-## Milestone 2 — Ingestion + full-text chain ⬜
+## Milestone 2 — Ingestion + full-text chain ✅ (2026-08-24)
 
-- [ ] `feedparser` fetcher with ETag / Last-Modified support
-- [ ] APScheduler: per-feed adaptive polling (15–60 min), jitter
-- [ ] Dedupe: `(feed_id, guid)` → canonical URL (strip `utm_*` etc.)
-- [ ] Full-text chain: trafilatura direct → archive.is (`/newest/<url>`) → per-feed
-      credentials → RSS excerpt + `content_status=partial` + `content_warning`
-- [ ] Paywall/insufficient-text heuristics (min length, paywall markers)
-- [ ] Per-domain rate limiting, robots.txt respect, archive.is probe cache (24h)
-- [ ] `processing_state` transitions persisted per article
-- [ ] Feed failure policy: exponential backoff (→ ~12h cap), auto-disable after
-      `FEED_DISABLE_AFTER_DAYS` (default 7), manual re-enable in GUI
-- [ ] Feed page shows backoff/disabled state + last error
+- [x] `feedparser` fetcher with ETag / Last-Modified support (304 honored)
+- [x] APScheduler: per-feed adaptive polling (doubles on empty polls up to max), 1-min tick
+- [x] Dedupe: `(feed_id, guid)` → canonical URL (strip `utm_*`, fbclid, gclid…) — also
+      dedupes the same URL across different feeds
+- [x] Full-text chain: trafilatura direct → archive.is (`/newest/<url>`) → RSS excerpt +
+      `content_status=partial` + `content_warning` (per-feed cookies used on direct fetch)
+- [x] Paywall/insufficient-text heuristics (min length, marker phrases)
+- [x] Per-domain rate limiting (2s), robots.txt respect (1h cache), archive.is failure
+      cache (24h)
+- [x] `processing_state` transitions persisted per article (`fetched → fulltext`)
+- [x] Feed failure policy: exponential backoff (→ 12h cap), auto-disable after
+      `FEED_DISABLE_AFTER_DAYS` (default 7), re-enable resets counters (M1 GUI)
+- [x] Feed page shows backoff/disabled state + last error (M1)
+- [x] Activity events for poll start/done/error, fulltext path used, feed disabled
+      (persisted to ACTIVITY_LOG; SSE stream is M6)
+- [x] Live-validated against BBC News RSS: 31 articles, full text extracted
 
 **Acceptance**: add 3–5 real feeds (incl. one excerpt-only, one paywalled), articles
-land in DB with full text where available, partial flag visible.
+land in DB with full text where available, partial flag visible. ✔ (12 new tests,
+21 total green, ruff + mypy clean)
 
 ---
 

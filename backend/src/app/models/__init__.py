@@ -42,6 +42,8 @@ class Feed(Base):
     first_failure_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Adaptive polling: consecutive polls that produced zero new articles (SPEC §9)
+    empty_polls: Mapped[int] = mapped_column(Integer, default=0)
     # Optional per-feed credentials for the user's own subscriptions (SPEC §9)
     auth_cookies: Mapped[str | None] = mapped_column(Text, nullable=True)
     fetch_fulltext: Mapped[bool] = mapped_column(Boolean, default=True)
