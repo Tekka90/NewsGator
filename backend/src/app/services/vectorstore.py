@@ -22,6 +22,10 @@ class VectorStore(Protocol):
 
     async def upsert_story_centroid(self, story_id: int, vector: list[float]) -> None: ...
 
+    async def get_story_centroid(self, story_id: int) -> list[float] | None:
+        """Return the stored centroid vector, or None."""
+        ...
+
     async def search_story_centroids(
         self, vector: list[float], *, limit: int = 5
     ) -> list[tuple[int, float]]:
@@ -91,6 +95,15 @@ class SqliteVecStore:
         # exact cosine re-rank happens on candidates if needed.
         return [(int(r[0]), 1.0 / (1.0 + float(r[1]))) for r in rows]
 
+    async def get_story_centroid(self, story_id: int) -> list[float] | None:
+        rows = await self.session.execute(
+            text("SELECT embedding FROM vec_story WHERE rowid = :id"), {"id": story_id}
+        )
+        row = rows.first()
+        if row is None:
+            return None
+        return np.frombuffer(row[0], dtype=np.float32).tolist()
+
     async def delete_article(self, article_id: int) -> None:
         await self._exec("DELETE FROM vec_article WHERE rowid = :id", {"id": article_id})
 
@@ -113,6 +126,10 @@ class InMemoryVectorStore:
 
     async def upsert_story_centroid(self, story_id: int, vector: list[float]) -> None:
         self.centroids[story_id] = np.asarray(vector, dtype=np.float32)
+
+    async def get_story_centroid(self, story_id: int) -> list[float] | None:
+        vec = self.centroids.get(story_id)
+        return None if vec is None else vec.tolist()
 
     async def search_story_centroids(
         self, vector: list[float], *, limit: int = 5
@@ -139,6 +156,11 @@ _store: VectorStore | None = None
 def get_vector_store(session: AsyncSession | None = None) -> VectorStore:
     global _store
     if _store is not None:
+        return _store
+    if settings.vector_backend == "qdrant":
+        from app.services.qdrant_store import QdrantVectorStore
+
+        _store = QdrantVectorStore()
         return _store
     if settings.vector_backend == "sqlite_vec" and session is not None:
         return SqliteVecStore(session)

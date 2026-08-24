@@ -1,8 +1,4 @@
-"""APScheduler worker: polls due feeds every minute (staggered by due-time check).
-
-A single tick job scanning `is_due(feed)` keeps scheduling trivial and avoids
-re-registering jobs on every feed CRUD operation.
-"""
+"""APScheduler worker: polls due feeds every minute + nightly-ish freeze sweep."""
 
 from datetime import UTC, datetime
 
@@ -11,6 +7,7 @@ from sqlalchemy import select
 
 from app.core.db import get_session
 from app.models import Feed
+from app.services.cluster import freeze_old_stories
 from app.services.ingest import is_due, poll_feed
 
 scheduler = AsyncIOScheduler()
@@ -26,12 +23,27 @@ async def poll_due_feeds() -> None:
         break
 
 
+async def freeze_sweep() -> None:
+    """Hourly: freeze stories past the freeze window (SPEC §5 cluster aging)."""
+    async for session in get_session():
+        await freeze_old_stories(session)
+        break
+
+
 def start_scheduler() -> None:
     scheduler.add_job(
         poll_due_feeds,
         trigger="interval",
         minutes=1,
         id="poll_due_feeds",
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        freeze_sweep,
+        trigger="interval",
+        hours=1,
+        id="freeze_sweep",
         max_instances=1,
         coalesce=True,
     )

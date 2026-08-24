@@ -159,3 +159,31 @@ class ActivityEvent(Base):
     component: Mapped[str] = mapped_column(String(32), index=True)
     action: Mapped[str] = mapped_column(String(64), index=True)
     detail: Mapped[str] = mapped_column(Text, default="{}")  # JSON
+
+
+class ClusterDecision(Base):
+    """Every clustering decision, for the threshold-tuning report (SPEC §5)."""
+
+    __tablename__ = "cluster_decision"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    article_id: Mapped[int] = mapped_column(ForeignKey("article.id"), index=True)
+    story_id: Mapped[int | None] = mapped_column(ForeignKey("story.id"), nullable=True)
+    similarity: Mapped[float | None] = mapped_column(nullable=True)
+    decision: Mapped[str] = mapped_column(String(24))  # new|attach|attach_confirmed
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class OverridePair(Base):
+    """Manual merge/split/move corrections as labeled pairs (SPEC invariant 9).
+
+    label: 'same' (user merged) or 'different' (user split/moved out).
+    """
+
+    __tablename__ = "override_pair"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    article_id: Mapped[int] = mapped_column(ForeignKey("article.id"), index=True)
+    story_id: Mapped[int] = mapped_column(ForeignKey("story.id"))
+    label: Mapped[str] = mapped_column(String(16))  # same|different
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

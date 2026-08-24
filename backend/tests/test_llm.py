@@ -10,16 +10,19 @@ from tests.test_ingest import _make_feed
 
 from app.core.config import settings
 from app.models import SEED_CATEGORIES, ActivityEvent, Article, Category
-from app.services import llm_client, process, prompts
+from app.services import cluster, llm_client, process, prompts
 from app.services.vectorstore import InMemoryVectorStore, cosine_similarity
 
 _feed_counter = itertools.count(1)
 
 
 @pytest.fixture(autouse=True)
-def _fresh_queue(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Process queue is module-global; isolate it per test."""
+def _isolate(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Process queue and vector store are module-global; isolate per test."""
     monkeypatch.setattr(process, "_queue", asyncio.Queue())
+    store = InMemoryVectorStore()
+    monkeypatch.setattr(process, "get_vector_store", lambda session=None: store)
+    monkeypatch.setattr(cluster, "get_vector_store", lambda session=None: store)
 
 
 # --- LLM client ---
@@ -152,8 +155,13 @@ async def test_process_article_summarize_and_embed(
     db_session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _mock_llm(monkeypatch)
-    store = InMemoryVectorStore()  # isolate vector store
-    monkeypatch.setattr(process, "get_vector_store", lambda session=None: store)
+
+    async def fake_chat_json(system: str, user: str, model: str | None = None):
+        if "headline" in user.lower():
+            return {"headline": "Story headline"}, 5
+        return {"summary": "A summary.", "category": "Tech"}, 42
+
+    monkeypatch.setattr(process.llm_client, "chat_json", fake_chat_json)
 
     async with db_session() as s:
         if await s.scalar(select(Category.id).limit(1)) is None:
@@ -168,19 +176,19 @@ async def test_process_article_summarize_and_embed(
         assert a is not None
         assert a.summary == "A summary."
         assert a.category == "Tech"
-        assert a.processing_state == "embedded"
+        assert a.processing_state == "clustered"  # M4: pipeline runs through clustering
         assert a.language != ""
+        assert a.story_id is not None
 
         actions = (
             await s.scalars(
-                select(ActivityEvent.action).where(ActivityEvent.component == "llm")
+                select(ActivityEvent.action)
             )
         ).all()
         assert "summarize_start" in actions
         assert "summarize_done" in actions
         assert "embed_done" in actions
-
-    assert article.id in store.articles
+        assert "cluster_new" in actions
 
 
 async def test_process_article_skips_wrong_state(db_session) -> None:

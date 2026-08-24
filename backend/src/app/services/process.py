@@ -82,6 +82,9 @@ async def process_article(session: AsyncSession, article_id: int) -> None:
     if not summarized:
         return  # LLM failed — article stays in 'fulltext', retried on next sweep
     await embed_article(session, article)
+    from app.services.cluster import cluster_article  # avoid import cycle at module load
+
+    await cluster_article(session, article_id)
     await session.commit()
 
 
