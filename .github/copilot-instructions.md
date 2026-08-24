@@ -78,8 +78,10 @@ the full normative spec — **read it before non-trivial changes**.
 0001–0004), full pipeline (ingest → fulltext chain → summarize → embed → cluster →
 story versioning → freeze → retention), stories API with per-user read state, SSE
 activity stream, SvelteKit GUI (stories/feeds/activity/settings with admin editors +
-threshold report), external Qdrant backend option, Dockerfile + compose. 57 pytest
-tests green, ruff + mypy + svelte-check clean.
+threshold report), external Qdrant backend option, Dockerfile + compose. 60 pytest
+tests green, ruff + mypy + svelte-check clean. Post-release additions: OPML feed
+import (`POST /api/feeds/import-opml` + Feeds-page upload), LLM key handling fixes
+(GUI only persists changed fields; test-llm shows key hint).
 
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,

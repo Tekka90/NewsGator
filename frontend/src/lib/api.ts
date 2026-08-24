@@ -41,7 +41,26 @@ export const api = {
       req<Feed>('/feeds', { method: 'POST', body: f }),
     update: (id: number, patch: Partial<Feed>) =>
       req<Feed>(`/feeds/${id}`, { method: 'PATCH', body: patch }),
-    remove: (id: number) => req<void>(`/feeds/${id}`, { method: 'DELETE' })
+    remove: (id: number) => req<void>(`/feeds/${id}`, { method: 'DELETE' }),
+    importOpml: async (file: File) => {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/feeds/import-opml', {
+        method: 'POST',
+        credentials: 'include',
+        body: form
+      });
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        throw new Error(detail.detail ?? `HTTP ${res.status}`);
+      }
+      return res.json() as Promise<{
+        added: number;
+        skipped_existing: number;
+        invalid: number;
+        feeds: Feed[];
+      }>;
+    }
   },
 
   categories: {

@@ -26,6 +26,23 @@ TRACKING_PARAMS_EXACT = {"fbclid", "gclid", "mc_cid", "mc_eid", "igshid", "ref"}
 USER_AGENT = "NewsGator/0.1 (+self-hosted feed reader)"
 
 
+def parse_opml(content: bytes) -> list[tuple[str, str]]:
+    """Extract (title, xmlUrl) pairs from an OPML subscription list.
+
+    Runs synchronously — call via anyio.to_thread for large files.
+    """
+    import xml.etree.ElementTree as ET
+
+    root = ET.fromstring(content)
+    feeds: list[tuple[str, str]] = []
+    for outline in root.iter("outline"):
+        url = outline.get("xmlUrl")
+        if url:
+            title = outline.get("title") or outline.get("text") or ""
+            feeds.append((title, url))
+    return feeds
+
+
 def canonicalize_url(url: str) -> str:
     """Strip tracking params and normalize — used for cross-feed dedupe (SPEC §9)."""
     parts = urlparse(url)

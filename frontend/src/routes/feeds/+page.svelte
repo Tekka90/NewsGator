@@ -7,11 +7,33 @@
   let url = $state('');
   let error = $state('');
   let adding = $state(false);
+  let importResult = $state('');
+  let importing = $state(false);
 
   onMount(load);
 
   async function load() {
     feeds = await api.feeds.list();
+  }
+
+  async function importOpml(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    importing = true;
+    importResult = '';
+    try {
+      const r = await api.feeds.importOpml(file);
+      importResult = `Imported ${r.added} feed${r.added === 1 ? '' : 's'}` +
+        (r.skipped_existing ? `, ${r.skipped_existing} already existed` : '') +
+        (r.invalid ? `, ${r.invalid} invalid entries` : '');
+      await load();
+    } catch (err) {
+      importResult = err instanceof Error ? err.message : 'Import failed';
+    } finally {
+      importing = false;
+      input.value = '';
+    }
   }
 
   async function add(e: SubmitEvent) {
@@ -52,6 +74,14 @@
   <button type="submit" disabled={adding}>{adding ? 'Adding…' : 'Add feed'}</button>
   {#if error}<span class="error">{error}</span>{/if}
 </form>
+
+<div class="card import">
+  <label class="import-label">
+    📥 Import OPML (subscription list export from another reader)
+    <input type="file" accept=".opml,.xml" onchange={importOpml} disabled={importing} />
+  </label>
+  {#if importResult}<p class="small">{importResult}</p>{/if}
+</div>
 
 {#each feeds as feed (feed.id)}
   <div class="card feed">
@@ -103,4 +133,6 @@
   .error { color: #c00; }
   .small { font-size: 0.85em; margin: 0.4rem 0 0; }
   .danger { color: #a12727; }
+  .import-label { display: block; margin: 0; cursor: pointer; }
+  .import input[type='file'] { margin-top: 0.4rem; }
 </style>
