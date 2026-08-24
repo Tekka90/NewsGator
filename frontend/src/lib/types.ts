@@ -23,3 +23,40 @@ export interface Category {
   id: number;
   name: string;
 }
+
+export interface StoryListItem {
+  id: number;
+  title: string;
+  summary: string;
+  category: string;
+  version: number;
+  is_frozen: boolean;
+  source_count: number;
+  last_updated_at: string;
+  is_read: boolean;
+  updated_since_read: boolean;
+}
+
+export interface StoryArticle {
+  id: number;
+  title: string;
+  url: string;
+  language: string;
+  summary: string | null;
+  content_status: string;
+  content_warning: string | null;
+  published_at: string | null;
+  feed_id: number;
+}
+
+export interface StoryRevision {
+  version: number;
+  summary: string;
+  created_at: string;
+}
+
+export interface StoryDetail extends StoryListItem {
+  first_seen_at: string;
+  articles: StoryArticle[];
+  revisions: StoryRevision[];
+}
