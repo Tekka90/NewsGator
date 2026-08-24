@@ -45,10 +45,15 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
 
 
 class SqliteVecStore:
-    """sqlite-vec backed store, sharing the app's SQLite database file."""
+    """sqlite-vec backed store, sharing the app's SQLite database file.
+
+    Tables are created at app startup (main._ensure_schema_and_seed). We still try
+    once per instance as a safety net for direct service use in tests/scripts.
+    """
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+        self._ensured = False
 
     async def _exec(self, sql: str, params: dict[str, object] | None = None) -> None:
         await self.session.execute(text(sql), params or {})

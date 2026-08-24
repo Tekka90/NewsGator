@@ -57,17 +57,55 @@ def create_app() -> FastAPI:
     return app
 
 
-async def _ensure_schema_and_seed() -> None:
-    """Milestone 1 simplification: create_all + seed categories.
+def _create_vec_tables_sync(database_url: str) -> None:
+    """Create vec0 tables via a synchronous sqlite3 connection to the DB file.
 
-    Alembic revision shipped alongside; create_all keeps first-run trivial and is
-    removed once `alembic upgrade head` is wired into startup (Milestone 8).
+    Skipped for in-memory DBs (tests use the in-memory vector store anyway).
     """
+    import logging
+
+    prefix = "sqlite+aiosqlite:///"
+    if not database_url.startswith(prefix):
+        return
+    path = database_url[len(prefix):]
+    if path == ":memory:":
+        return
+    try:
+        import sqlite3
+
+        import sqlite_vec
+
+        from app.services.vectorstore import EMBED_DIM
+
+        conn = sqlite3.connect(path)
+        conn.enable_load_extension(True)
+        sqlite_vec.load(conn)
+        for table in ("vec_article", "vec_story"):
+            conn.execute(
+                f"CREATE VIRTUAL TABLE IF NOT EXISTS {table} "
+                f"USING vec0(embedding float[{EMBED_DIM}])"
+            )
+        conn.commit()
+        conn.close()
+    except Exception as exc:
+        logging.getLogger(__name__).warning(
+            "sqlite-vec unavailable, vector store falls back to in-memory: %s", exc
+        )
+
+
+async def _ensure_schema_and_seed() -> None:
+    """create_all + vec0 tables + seed categories (Alembic owns upgrades in Docker)."""
     from app.core.db import Base
 
     engine = get_engine()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # vec0 virtual tables (sqlite-vec) — create_all can't express these.
+        # aiosqlite thread routing makes per-connection extension loading
+        # unreliable, so create them with a direct synchronous connection to the
+        # DB file. If the URL is in-memory or loading fails, the in-memory vector
+        # fallback keeps the app running.
+        _create_vec_tables_sync(settings.database_url)
     async for session in get_session():
         existing = await session.scalar(select(Category.id).limit(1))
         if existing is None:
