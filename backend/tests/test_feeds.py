@@ -46,3 +46,37 @@ async def test_feed_not_found(client: AsyncClient) -> None:
     await setup_admin(client)
     assert (await client.patch("/api/feeds/999", json={"title": "x"})).status_code == 404
     assert (await client.delete("/api/feeds/999")).status_code == 404
+
+
+async def test_manual_refresh(client: AsyncClient, db_session, monkeypatch) -> None:
+    """Force-refresh endpoints bypass the schedule (SPEC §6)."""
+    from tests.test_ingest import RSS, _ok_http
+
+    from app.services import ingest
+
+    monkeypatch.setattr(ingest, "_http_get", _ok_http(RSS))
+    await setup_admin(client)
+    r = await client.post("/api/feeds", json={"url": "https://example.com/feed", "title": "T"})
+    feed_id = r.json()["id"]
+
+    # Per-feed refresh
+    r = await client.post(f"/api/feeds/{feed_id}/refresh")
+    assert r.status_code == 200
+    assert r.json()["new_articles"] == 2
+
+    # Idempotent on second call (dedupe)
+    r = await client.post(f"/api/feeds/{feed_id}/refresh")
+    assert r.json()["new_articles"] == 0
+
+    # Refresh-all
+    r = await client.post("/api/feeds/refresh")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["feeds_polled"] == 1
+
+    # Disabled feed cannot be refreshed individually
+    await client.patch(f"/api/feeds/{feed_id}", json={"is_enabled": False})
+    assert (await client.post(f"/api/feeds/{feed_id}/refresh")).status_code == 400
+
+    # Not found
+    assert (await client.post("/api/feeds/999/refresh")).status_code == 404

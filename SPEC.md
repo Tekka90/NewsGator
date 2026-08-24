@@ -282,6 +282,7 @@ v1 is **data-first, no online learning**:
 | `GET /stories/{id}/diff?from={version}` | what changed |
 | `CRUD /feeds` | feed management (admin) |
 | `POST /feeds/import-opml` | bulk-import feeds from an OPML subscription export (admin) |
+| `POST /feeds/{id}/refresh`, `POST /feeds/refresh` | force-poll one/all feeds now, bypassing the adaptive schedule (admin) |
 | `GET/PATCH /settings` | global: retention days, freeze window, thresholds, vector backend (admin) |
 | `POST /stories/{id}/merge` / `POST /articles/{id}/move` | manual override when clustering is wrong (important for trust) |
 | `GET /health`, `GET /stats` | ops |

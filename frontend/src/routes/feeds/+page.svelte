@@ -9,6 +9,8 @@
   let adding = $state(false);
   let importResult = $state('');
   let importing = $state(false);
+  let refreshing = $state(false);
+  let refreshingId = $state<number | null>(null);
 
   onMount(load);
 
@@ -56,6 +58,26 @@
     await load();
   }
 
+  async function refresh(feed: Feed) {
+    refreshingId = feed.id;
+    try {
+      await api.feeds.refresh(feed.id);
+    } finally {
+      refreshingId = null;
+      await load();
+    }
+  }
+
+  async function refreshAll() {
+    refreshing = true;
+    try {
+      await api.feeds.refreshAll();
+    } finally {
+      refreshing = false;
+      await load();
+    }
+  }
+
   async function remove(feed: Feed) {
     if (!confirm(`Delete ${feed.title || feed.url}?`)) return;
     await api.feeds.remove(feed.id);
@@ -81,6 +103,11 @@
     <input type="file" accept=".opml,.xml" onchange={importOpml} disabled={importing} />
   </label>
   {#if importResult}<p class="small">{importResult}</p>{/if}
+  <div class="row" style="margin-top: 0.6rem">
+    <button onclick={refreshAll} disabled={refreshing}>
+      {refreshing ? 'Refreshing…' : '↻ Refresh all feeds now'}
+    </button>
+  </div>
 </div>
 
 {#each feeds as feed (feed.id)}
@@ -94,6 +121,9 @@
         <span class="badge warn">{feed.consecutive_failures} failures</span>
       {/if}
       <span class="spacer"></span>
+      <button onclick={() => refresh(feed)} disabled={!feed.is_enabled || refreshingId === feed.id}>
+        {refreshingId === feed.id ? '…' : '↻ Refresh'}
+      </button>
       <button onclick={() => toggle(feed)}>{feed.is_enabled ? 'Disable' : 'Enable'}</button>
       <button class="danger" onclick={() => remove(feed)}>Delete</button>
     </div>

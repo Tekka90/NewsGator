@@ -10,7 +10,7 @@ from app.api.deps import admin_user
 from app.api.schemas import FeedIn, FeedOut, FeedPatch
 from app.core.db import get_session
 from app.models import Feed
-from app.services.ingest import parse_opml
+from app.services.ingest import parse_opml, poll_feed
 
 router = APIRouter(prefix="/feeds", tags=["feeds"], dependencies=[Depends(admin_user)])
 
@@ -27,6 +27,33 @@ def _fetch_feed_title(url: str) -> str:
 async def list_feeds(session: AsyncSession = Depends(get_session)) -> list[FeedOut]:
     rows = await session.scalars(select(Feed).order_by(Feed.id))
     return [FeedOut.model_validate(f) for f in rows]
+
+
+class RefreshResult(BaseModel):
+    new_articles: int
+
+
+@router.post("/refresh")
+async def refresh_all(session: AsyncSession = Depends(get_session)) -> dict[str, int]:
+    """Force-poll every enabled feed now (ignores the adaptive schedule)."""
+    feeds = (await session.scalars(select(Feed).where(Feed.is_enabled))).all()
+    total = 0
+    for feed in feeds:
+        total += await poll_feed(session, feed)
+    return {"feeds_polled": len(feeds), "new_articles": total}
+
+
+@router.post("/{feed_id}/refresh")
+async def refresh_feed(
+    feed_id: int, session: AsyncSession = Depends(get_session)
+) -> RefreshResult:
+    """Force-poll one feed now."""
+    feed = await session.get(Feed, feed_id)
+    if feed is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Feed not found")
+    if not feed.is_enabled:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Feed is disabled")
+    return RefreshResult(new_articles=await poll_feed(session, feed))
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)

@@ -42,6 +42,12 @@ export const api = {
     update: (id: number, patch: Partial<Feed>) =>
       req<Feed>(`/feeds/${id}`, { method: 'PATCH', body: patch }),
     remove: (id: number) => req<void>(`/feeds/${id}`, { method: 'DELETE' }),
+    refresh: (id: number) =>
+      req<{ new_articles: number }>(`/feeds/${id}/refresh`, { method: 'POST' }),
+    refreshAll: () =>
+      req<{ feeds_polled: number; new_articles: number }>('/feeds/refresh', {
+        method: 'POST'
+      }),
     importOpml: async (file: File) => {
       const form = new FormData();
       form.append('file', file);
