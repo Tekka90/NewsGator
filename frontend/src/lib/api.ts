@@ -74,5 +74,30 @@ export const api = {
         method: 'POST',
         body: { story_id: storyId }
       })
+  },
+
+  settings: {
+    get: () =>
+      req<{ values: Record<string, string | number>; overridden: string[]; llm_queue_depth: number }>(
+        '/settings'
+      ),
+    patch: (values: Record<string, string | number>) =>
+      req<{ values: Record<string, string | number> }>('/settings', {
+        method: 'PATCH',
+        body: { values }
+      }),
+    testLlm: () =>
+      req<{ chat: boolean; embeddings: boolean; errors: string[] }>(
+        '/settings/test-llm',
+        { method: 'POST' }
+      ),
+    thresholdReport: () =>
+      req<{
+        current: { tau_attach: number; tau_gray: number };
+        labeled_pairs: number;
+        decisions_logged: number;
+        candidates: { tau: number; precision: number; recall: number; f1: number }[];
+        suggested_tau_attach: number | null;
+      }>('/settings/threshold-report')
   }
 };

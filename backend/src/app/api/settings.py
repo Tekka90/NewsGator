@@ -106,6 +106,18 @@ async def test_llm(session: AsyncSession = Depends(get_session)) -> dict[str, ob
     return result
 
 
+@router.get("/threshold-report")
+async def threshold_report(
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, object]:
+    """Offline threshold-tuning report (SPEC §5): precision/recall vs candidate τ,
+    built from logged decisions + user corrections. Suggestion only — never
+    auto-applied."""
+    from app.services.feedback import threshold_report as build_report
+
+    return await build_report(session)
+
+
 async def _load_overrides(session: AsyncSession) -> dict[str, str]:
     rows = await session.scalars(select(Setting))
     return {r.key: r.value for r in rows if r.key in OVERRIDABLE}

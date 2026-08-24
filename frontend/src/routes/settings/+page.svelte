@@ -8,13 +8,58 @@
   let saved = $state(false);
   let categories = $state<Category[]>([]);
   let newCategory = $state('');
+  let sys = $state<Record<string, string | number>>({});
+  let overridden = $state<string[]>([]);
+  let sysSaved = $state(false);
+  let llmTest = $state<{ chat: boolean; embeddings: boolean; errors: string[] } | null>(null);
+  let report = $state<{
+    current: { tau_attach: number; tau_gray: number };
+    labeled_pairs: number;
+    decisions_logged: number;
+    candidates: { tau: number; precision: number; recall: number; f1: number }[];
+    suggested_tau_attach: number | null;
+  } | null>(null);
+
+  const sysFields: { key: string; label: string }[] = [
+    { key: 'llm_base_url', label: 'LLM base URL' },
+    { key: 'llm_model', label: 'LLM model' },
+    { key: 'embed_base_url', label: 'Embeddings base URL (empty = same as LLM)' },
+    { key: 'embed_model', label: 'Embedding model' },
+    { key: 'summary_language', label: 'Summary language (global default)' },
+    { key: 'tau_attach', label: 'Clustering threshold τ_attach' },
+    { key: 'tau_gray', label: 'Gray-zone threshold τ_gray' },
+    { key: 'freeze_after_hours', label: 'Story freeze window (hours)' },
+    { key: 'retention_days', label: 'Retention (days)' },
+    { key: 'feed_disable_after_days', label: 'Disable feed after N days of failures' },
+    { key: 'vector_backend', label: 'Vector backend (sqlite_vec | qdrant)' },
+    { key: 'qdrant_url', label: 'Qdrant URL (external)' }
+  ];
 
   onMount(async () => {
     language = $currentUser?.summary_language ?? '';
     if ($currentUser?.is_admin) {
       categories = await api.categories.list();
+      const s = await api.settings.get();
+      sys = s.values;
+      overridden = s.overridden;
     }
   });
+
+  async function saveSystem() {
+    const res = await api.settings.patch(sys);
+    sys = res.values;
+    sysSaved = true;
+    setTimeout(() => (sysSaved = false), 2000);
+  }
+
+  async function testLlm() {
+    llmTest = null;
+    llmTest = await api.settings.testLlm();
+  }
+
+  async function loadReport() {
+    report = await api.settings.thresholdReport();
+  }
 
   async function saveLanguage() {
     $currentUser = await api.me(); // refresh after patch below
@@ -77,10 +122,59 @@
 
   <div class="card">
     <h2>System (admin)</h2>
-    <p>
-      LLM endpoints, clustering thresholds, freeze window, retention days and vector
-      backend will be configurable here in Milestones 3–7.
+    <div class="grid">
+      {#each sysFields as f (f.key)}
+        <label>
+          {f.label}
+          {#if overridden.includes(f.key)}<span class="ovr">overridden</span>{/if}
+          <input bind:value={sys[f.key]} />
+        </label>
+      {/each}
+    </div>
+    <div class="row">
+      <button onclick={saveSystem}>Save system settings</button>
+      {#if sysSaved}<span class="ok">Saved ✓</span>{/if}
+      <span class="spacer"></span>
+      <button onclick={testLlm}>Test LLM connection</button>
+    </div>
+    {#if llmTest}
+      <p class:ok={llmTest.chat && llmTest.embeddings} class:bad={!llmTest.chat || !llmTest.embeddings}>
+        chat: {llmTest.chat ? '✓' : '✗'} · embeddings: {llmTest.embeddings ? '✓' : '✗'}
+        {#each llmTest.errors as err}<br /><small>{err}</small>{/each}
+      </p>
+    {/if}
+  </div>
+
+  <div class="card">
+    <h2>Clustering feedback (admin)</h2>
+    <p class="hint">
+      Replays logged clustering decisions + your merge/split corrections against
+      candidate thresholds. Suggestions are applied only if you confirm them above.
     </p>
+    <button onclick={loadReport}>Generate report</button>
+    {#if report}
+      <p>
+        {report.decisions_logged} decisions logged · {report.labeled_pairs} labeled corrections
+        · current τ_attach = {report.current.tau_attach}
+        {#if report.suggested_tau_attach}
+          · <strong>suggested τ_attach = {report.suggested_tau_attach}</strong>
+        {:else}
+          · not enough labeled data for a suggestion
+        {/if}
+      </p>
+      {#if report.candidates.length}
+        <table>
+          <thead><tr><th>τ</th><th>precision</th><th>recall</th><th>F1</th></tr></thead>
+          <tbody>
+            {#each report.candidates as c (c.tau)}
+              <tr class:best={c.tau === report.suggested_tau_attach}>
+                <td>{c.tau}</td><td>{c.precision}</td><td>{c.recall}</td><td>{c.f1}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      {/if}
+    {/if}
   </div>
 {/if}
 
@@ -96,4 +190,21 @@
     padding: 0;
   }
   code { background: #eee; padding: 0 0.25rem; border-radius: 4px; }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 1.5rem;
+  }
+  .row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.6rem; }
+  .spacer { flex: 1; }
+  .ovr {
+    font-size: 0.72em; color: #8a5a00; background: #fff3d6;
+    border-radius: 999px; padding: 0 0.4rem; margin-left: 0.3rem;
+  }
+  .ok { color: #1d6b2a; }
+  .bad { color: #a12727; }
+  .hint { color: #777; font-size: 0.9em; }
+  table { border-collapse: collapse; margin-top: 0.5rem; }
+  td, th { border: 1px solid #e0e0e0; padding: 0.25rem 0.8rem; text-align: right; }
+  tr.best td { background: #e3f2e5; font-weight: 600; }
 </style>

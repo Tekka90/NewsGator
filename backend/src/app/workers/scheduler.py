@@ -1,4 +1,4 @@
-"""APScheduler worker: polls due feeds every minute + nightly-ish freeze sweep."""
+"""APScheduler worker: feed polling, freeze sweep, nightly retention."""
 
 from datetime import UTC, datetime
 
@@ -10,6 +10,7 @@ from app.models import Feed
 from app.services import activity
 from app.services.cluster import freeze_old_stories
 from app.services.ingest import is_due, poll_feed
+from app.services.retention import purge_old_data
 
 scheduler = AsyncIOScheduler()
 
@@ -50,7 +51,23 @@ def start_scheduler() -> None:
         max_instances=1,
         coalesce=True,
     )
+    scheduler.add_job(
+        retention_sweep,
+        trigger="cron",
+        hour=3,
+        minute=17,
+        id="retention_sweep",
+        max_instances=1,
+        coalesce=True,
+    )
     scheduler.start()
+
+
+async def retention_sweep() -> None:
+    """Nightly retention job (SPEC §9, RETENTION_DAYS)."""
+    async for session in get_session():
+        await purge_old_data(session)
+        break
 
 
 def stop_scheduler() -> None:
