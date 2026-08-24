@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+*.db
+node_modules/
+.svelte-kit/
+build/
+.env
+.vscode/

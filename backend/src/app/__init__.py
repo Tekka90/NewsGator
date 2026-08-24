@@ -1,0 +1,1 @@
+"""NewsGator backend application package."""

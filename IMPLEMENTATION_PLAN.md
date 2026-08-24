@@ -7,27 +7,31 @@
 
 ---
 
-## Milestone 1 — Project skeleton, auth, feeds CRUD ⬜
+## Milestone 1 — Project skeleton, auth, feeds CRUD ✅ (2026-08-24)
 
 **Backend**
-- [ ] Repo layout: `backend/` (FastAPI app), `frontend/` (SvelteKit), `docker/`, `docs/`
-- [ ] Python project with `pyproject.toml` (uv or pip-tools), ruff + mypy config
-- [ ] FastAPI app factory, settings via `pydantic-settings` (env-driven:
+- [x] Repo layout: `backend/` (FastAPI app), `frontend/` (SvelteKit), `docker/`, `docs/`
+- [x] Python project with `pyproject.toml` (pip), ruff + mypy config
+- [x] FastAPI app factory, settings via `pydantic-settings` (env-driven:
       `DATABASE_URL`, `LLM_BASE_URL`, `LLM_MODEL`, `EMBED_BASE_URL`, `EMBED_MODEL`,
       `SUMMARY_LANGUAGE`, `RETENTION_DAYS`, `FREEZE_AFTER_HOURS`, thresholds)
-- [ ] SQLAlchemy 2.0 models + Alembic init (SQLite default); tables: `USER`, `FEED`,
-      `CATEGORY` (seeded taxonomy), settings table
-- [ ] Auth: register first user = admin; login/logout with session cookie (argon2)
-- [ ] Feeds CRUD endpoints + validation (fetch feed title on add)
-- [ ] Category CRUD endpoints (admin)
-- [ ] Tests: pytest + httpx AsyncClient against a test FastAPI app
+- [x] SQLAlchemy 2.0 models + Alembic init (SQLite default); tables: `USER`, `FEED`,
+      `CATEGORY` (seeded taxonomy), settings table — **plus full M2+ schema**
+      (ARTICLE, STORY, STORY_STATE, STORY_REVISION, ACTIVITY_LOG) declared upfront
+- [x] Auth: register first user = admin; login/logout with session cookie (argon2)
+- [x] Feeds CRUD endpoints + validation (fetch feed title on add)
+- [x] Category CRUD endpoints (admin; `Uncategorized` delete-protected)
+- [x] Tests: pytest + httpx AsyncClient against a test FastAPI app — **9 tests green,
+      ruff + mypy clean**
 
 **Frontend**
-- [ ] SvelteKit scaffold (TypeScript), API client wrapper, login page, session store
-- [ ] Feeds management page (list/add/remove, last-fetched status, error display)
-- [ ] Settings shell page (will grow in later milestones)
+- [x] SvelteKit scaffold (TypeScript), API client wrapper, login page, session store
+- [x] Feeds management page (list/add/remove, last-fetched status, error display)
+- [x] Settings shell page (per-user summary language + admin category management)
+- [x] First-run setup page (creates admin); svelte-check 0 errors, `vite build` green;
+      E2E smoke-tested against live backend
 
-**Acceptance**: create admin → login → add a feed → it appears in DB. `pytest` green.
+**Acceptance**: create admin → login → add a feed → it appears in DB. `pytest` green. ✔
 
 ---
 

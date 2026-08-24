@@ -74,7 +74,18 @@ the full normative spec — **read it before non-trivial changes**.
 
 ## Current status
 
-Implementation has **not started**. Follow
-[IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md) milestone by milestone, in order;
-mark checkboxes there as work completes. Currently only `SPEC.md` and the plan exist —
-no code yet.
+**Milestone 1 done** (2026-08-24): backend skeleton + auth + feeds/categories CRUD +
+SvelteKit GUI (setup/login/feeds/settings) working; 9 pytest tests green, ruff + mypy +
+svelte-check clean. Next: **Milestone 2 (ingestion + full-text chain)** per
+[IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md); mark checkboxes there as work
+completes.
+
+Notes on the current code:
+- Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`); routers depend on
+  `get_session` and `current_user`/`admin_user` deps.
+- Lifespan currently uses `Base.metadata.create_all` + category seeding; Alembic
+  revision `0001_initial` exists — wiring `alembic upgrade head` into startup is
+  planned for Milestone 8 (Docker packaging).
+- The venv is Python 3.14 (user machine); `requires-python` stays `>=3.12` per spec.
+- Frontend: SvelteKit 5 runes (`$state`/`$derived`), no legacy slots; dev proxy
+  `/api → :8000` in `frontend/vite.config.ts`.
