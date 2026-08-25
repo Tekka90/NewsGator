@@ -61,8 +61,22 @@ def create_app() -> FastAPI:
     return app
 
 
-ALEMBIC_DIR = Path(__file__).resolve().parents[2] / "alembic"
-BACKEND_DIR = ALEMBIC_DIR.parent
+def _find_backend_dir() -> Path:
+    """Locate the directory holding alembic.ini + the alembic/ scripts dir.
+
+    The installed package's location differs between dev (backend/src/app) and
+    containers (site-packages/app), so a fixed parents[N] offset breaks. Search
+    upward from this file for a directory that actually contains both, then fall
+    back to the historical parents[2] assumption.
+    """
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "alembic.ini").is_file() and (parent / "alembic").is_dir():
+            return parent
+    return Path(__file__).resolve().parents[2]
+
+
+BACKEND_DIR = _find_backend_dir()
+ALEMBIC_DIR = BACKEND_DIR / "alembic"
 
 # Legacy detection: databases created by create_all (pre-Alembic adoption) have
 # no alembic_version table. Each entry maps schema markers that must ALL be

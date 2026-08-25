@@ -21,6 +21,10 @@ async def engine_url(tmp_path, monkeypatch) -> AsyncIterator[str]:
     from app.core.config import settings
 
     monkeypatch.setattr(settings, "database_url", url)
+    # conftest globally sets environment="test", which makes _ensure_schema_and_seed
+    # skip _migrate_schema(). These tests specifically exercise the migration path,
+    # so run them as a non-test environment (restored by monkeypatch afterwards).
+    monkeypatch.setattr(settings, "environment", "migration-test")
     yield url
     if db._engine is not None:
         await db._engine.dispose()
