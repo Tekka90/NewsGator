@@ -77,6 +77,11 @@
 {/if}
 
 <style>
+  :global(html) {
+    /* opaque backdrop so iOS 26 liquid-glass status bar blends into the dark
+       nav instead of showing a blurred page behind it */
+    background: #1c1e21;
+  }
   :global(body) {
     font-family: system-ui, sans-serif;
     margin: 0;

@@ -33,17 +33,25 @@
   let pullStartY = 0;
   let pulling = false;
 
-  function onPullStart(e: PointerEvent) {
-    // only when scrolled to the very top and not mid horizontal swipe
-    if (!isMobile || refreshing || window.scrollY > 0) return;
-    pulling = true;
-    pullStartY = e.clientY;
+  function atTop(): boolean {
+    // layout+visual viewport tolerance — iOS rubber-banding makes exact 0 rare
+    return (window.scrollY ?? document.documentElement.scrollTop ?? 0) <= 2;
   }
 
-  function onPullMove(e: PointerEvent) {
+  function onPullStart(e: TouchEvent) {
+    if (!isMobile || refreshing || !atTop()) return;
+    const t = e.touches[0];
+    if (!t) return;
+    pulling = true;
+    pullStartY = t.clientY;
+  }
+
+  function onPullMove(e: TouchEvent) {
     if (!pulling) return;
-    const dy = e.clientY - pullStartY;
-    if (dy > 0 && window.scrollY <= 0) pullDist = Math.min(dy * 0.5, 90);
+    const t = e.touches[0];
+    if (!t) return;
+    const dy = t.clientY - pullStartY;
+    if (dy > 0 && atTop()) pullDist = Math.min(dy * 0.5, 90);
   }
 
   async function onPullEnd() {
@@ -78,16 +86,16 @@
       await load();
     })();
     // pull-to-refresh on touch devices (no browser chrome in standalone PWA)
-    window.addEventListener('pointerdown', onPullStart, { passive: true });
-    window.addEventListener('pointermove', onPullMove, { passive: true });
-    window.addEventListener('pointerup', onPullEnd);
-    window.addEventListener('pointercancel', onPullEnd);
+    window.addEventListener('touchstart', onPullStart, { passive: true });
+    window.addEventListener('touchmove', onPullMove, { passive: true });
+    window.addEventListener('touchend', onPullEnd);
+    window.addEventListener('touchcancel', onPullEnd);
     return () => {
       mq.removeEventListener('change', onMq);
-      window.removeEventListener('pointerdown', onPullStart);
-      window.removeEventListener('pointermove', onPullMove);
-      window.removeEventListener('pointerup', onPullEnd);
-      window.removeEventListener('pointercancel', onPullEnd);
+      window.removeEventListener('touchstart', onPullStart);
+      window.removeEventListener('touchmove', onPullMove);
+      window.removeEventListener('touchend', onPullEnd);
+      window.removeEventListener('touchcancel', onPullEnd);
     };
   });
 
@@ -206,24 +214,26 @@
       </button>
     {/each}
   </div>
-  {#if categories.length}
-    <select bind:value={category} onchange={load}>
-      <option value="">All categories</option>
-      {#each categories as c (c.id)}<option value={c.name}>{c.name}</option>{/each}
+  <div class="tools">
+    {#if categories.length}
+      <select bind:value={category} onchange={load}>
+        <option value="">All categories</option>
+        {#each categories as c (c.id)}<option value={c.name}>{c.name}</option>{/each}
+      </select>
+    {/if}
+    <select bind:value={sort} onchange={() => { savePrefs(); load(); }}>
+      <option value="published">Article date</option>
+      <option value="updated">Processing date</option>
+      <option value="sources">Source count</option>
     </select>
-  {/if}
-  <select bind:value={sort} onchange={() => { savePrefs(); load(); }}>
-    <option value="published">Article date</option>
-    <option value="updated">Processing date</option>
-    <option value="sources">Source count</option>
-  </select>
-  <button
-    class="dir"
-    title={order === 'desc' ? 'Newest / most first — click to reverse' : 'Oldest / least first — click to reverse'}
-    onclick={() => { order = order === 'desc' ? 'asc' : 'desc'; savePrefs(); load(); }}
-  >
-    {order === 'desc' ? '↓' : '↑'}
-  </button>
+    <button
+      class="dir"
+      title={order === 'desc' ? 'Newest / most first — click to reverse' : 'Oldest / least first — click to reverse'}
+      onclick={() => { order = order === 'desc' ? 'asc' : 'desc'; savePrefs(); load(); }}
+    >
+      {order === 'desc' ? '↓' : '↑'}
+    </button>
+  </div>
 </div>
 
 {#if loading}
@@ -329,13 +339,21 @@
 {/if}
 
 <style>
-  .toolbar { display: flex; gap: 0.5rem; align-items: center; }
-  .filters { display: flex; gap: 0.25rem; flex: 1; }
+  .toolbar { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+  .filters { display: flex; gap: 0.25rem; flex: 1; min-width: 0; }
   .filters button {
     border: 1px solid #d0d3d9; background: #fff; border-radius: 999px;
     padding: 0.25rem 0.9rem;
   }
   .filters button.active { background: #1c1e21; color: #fff; border-color: #1c1e21; }
+  .tools { display: flex; gap: 0.4rem; align-items: center; }
+  .tools select { max-width: 10rem; }
+  @media (max-width: 700px) {
+    /* two tidy rows: filters on one line, selects+dir on the next */
+    .filters { flex: 1 1 100%; }
+    .tools { flex: 1 1 auto; }
+    .tools select { flex: 1 1 auto; min-width: 0; max-width: none; }
+  }
   .dir {
     border: 1px solid #d0d3d9; background: #fff; border-radius: 6px;
     padding: 0.25rem 0.6rem; font-size: 1rem; line-height: 1; cursor: pointer;
