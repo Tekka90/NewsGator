@@ -102,7 +102,8 @@ card meta rows: `GET /api/stories` returns `source_hosts` (distinct article
 hosts per story, ≤5) and the GUI renders them via a cached, auth-protected
 favicon proxy `GET /api/favicon?host=` (`api/favicons.py`; `_fetch_favicon`
 is the monkeypatch seam; `FAVICON_CACHE_HOURS`, failures cached 1h) — never a
-third-party favicon service.
+third-party favicon service (the story detail page uses it too; `faviconUrl`
+in `lib/api.ts` appends the session token since `<img>` can't send headers).
 
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,

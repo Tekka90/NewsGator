@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/state';
-  import { api } from '$lib/api';
+  import { api, faviconUrl } from '$lib/api';
   import type { StoryDetail, StoryListItem } from '$lib/types';
 
   let story = $state<StoryDetail | null>(null);
@@ -72,16 +72,25 @@
     }
   }
 
+  /** Compact timestamp — no seconds; wraps better on narrow screens. */
   function fmt(iso: string) {
-    return new Date(iso).toLocaleString();
+    return new Date(iso).toLocaleString(undefined, {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    });
   }
 
+  /** Source logo via our own cached favicon proxy (never a third-party service). */
   function favicon(url: string): string {
     try {
-      return `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}&sz=32`;
+      return faviconUrl(new URL(url).hostname ?? '');
     } catch {
       return '';
     }
+  }
+
+  function hideFav(e: Event) {
+    (e.currentTarget as HTMLImageElement).style.visibility = 'hidden';
   }
 </script>
 
@@ -127,7 +136,7 @@
     {#each story.articles as article (article.id)}
       <div class="source">
         <div class="row">
-          <img class="favicon" src={favicon(article.url)} alt="" loading="lazy" />
+          <img class="favicon" src={favicon(article.url)} alt="" loading="lazy" onerror={hideFav} />
           <span class="srcname">{article.feed_title || 'Unknown source'}</span>
           {#if article.published_at}<span class="age">{fmt(article.published_at)}</span>{/if}
           <span class="lang">{article.language || '?'}</span>
@@ -135,7 +144,7 @@
             <span class="badge partial" title={article.content_warning ?? ''}>partial</span>
           {/if}
         </div>
-        <a href={article.url} target="_blank" rel="noopener noreferrer">{article.title}</a>
+        <a class="link" href={article.url} target="_blank" rel="noopener noreferrer">{article.title}</a>
         {#if article.summary}<p class="small">{article.summary}</p>{/if}
         {#if article.content_warning}<p class="warn small">⚠ {article.content_warning}</p>{/if}
         <div class="row small">
@@ -145,7 +154,7 @@
           {#if reprocessMsg[article.id]}<span class="small">{reprocessMsg[article.id]}</span>{/if}
           <span class="spacer"></span>
           <span>move to:</span>
-          <select bind:value={moveTargets[article.id]}>
+          <select class="target" bind:value={moveTargets[article.id]}>
             <option value="">…</option>
             {#each allStories.filter((s) => s.id !== story!.id) as s (s.id)}
               <option value={s.id}>{s.title}</option>
@@ -161,7 +170,7 @@
     <h2>Merge another story into this one</h2>
     {#if error}<p class="warn">{error}</p>{/if}
     <div class="row">
-      <select bind:value={mergeTarget}>
+      <select class="target" bind:value={mergeTarget}>
         <option value="">Select story…</option>
         {#each allStories.filter((s) => s.id !== story!.id) as s (s.id)}
           <option value={s.id}>{s.title}</option>
@@ -175,16 +184,16 @@
 {/if}
 
 <style>
-  .row { display: flex; align-items: center; gap: 0.5rem; }
+  .row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
   .spacer { flex: 1; }
-  h1 { font-size: 1.5rem; margin: 0.5rem 0; }
+  h1 { font-size: 1.5rem; margin: 0.5rem 0; overflow-wrap: anywhere; }
   h2 { font-size: 1.05rem; margin-top: 0; }
   .lead {
     width: 100%; max-height: 320px; object-fit: cover;
     border-radius: 8px; margin-bottom: 0.5rem;
   }
-  .summary { font-size: 1.05rem; }
-  .meta { display: flex; gap: 1rem; color: #888; font-size: 0.85em; }
+  .summary { font-size: 1.05rem; overflow-wrap: anywhere; }
+  .meta { display: flex; gap: 0.4rem 1rem; color: #888; font-size: 0.85em; flex-wrap: wrap; }
   .chip {
     font-size: 0.75em; background: #e8edf5; color: #294a7a;
     padding: 0.1rem 0.5rem; border-radius: 999px;
@@ -195,11 +204,22 @@
   .badge.partial { background: #fde7e7; color: #a12727; }
   .source { border-top: 1px solid #eee; padding: 0.7rem 0; }
   .source:first-of-type { border-top: none; }
-  .favicon { width: 16px; height: 16px; border-radius: 3px; }
+  .favicon { width: 16px; height: 16px; border-radius: 3px; flex-shrink: 0; }
   .srcname { font-weight: 600; font-size: 0.9em; }
   .lang { color: #999; font-size: 0.8em; text-transform: uppercase; }
   .small { font-size: 0.88em; color: #555; }
   .warn { color: #a12727; }
   .age { color: #888; font-size: 0.85em; margin-left: 0.4rem; }
   .revision p { margin: 0.3rem 0 0.8rem; color: #444; }
+  .link { overflow-wrap: anywhere; }
+  /* long story titles must never push the card wider than the screen */
+  .target { max-width: 100%; min-width: 0; flex: 1 1 14rem; }
+
+  @media (max-width: 700px) {
+    h1 { font-size: 1.25rem; }
+    .lead { max-height: 40vh; }
+    .summary { font-size: 1rem; }
+    .row { gap: 0.4rem; }
+    .spacer { flex-basis: 100%; } /* actions start on their own line */
+  }
 </style>
