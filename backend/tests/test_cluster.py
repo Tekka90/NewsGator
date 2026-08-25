@@ -451,14 +451,21 @@ async def test_stories_list_sort(client: AsyncClient, db_session) -> None:
 
     r = await client.get("/api/stories?sort=updated")
     assert [i["id"] for i in r.json()] == [ids["S1"], ids["S3"], ids["S2"]]
+    r = await client.get("/api/stories?sort=updated&order=asc")
+    assert [i["id"] for i in r.json()] == [ids["S2"], ids["S3"], ids["S1"]]
 
     r = await client.get("/api/stories?sort=published")
     assert [i["id"] for i in r.json()] == [ids["S2"], ids["S1"], ids["S3"]]
+    r = await client.get("/api/stories?sort=published&order=asc")
+    assert [i["id"] for i in r.json()] == [ids["S1"], ids["S2"], ids["S3"]]
 
     r = await client.get("/api/stories?sort=sources")
     assert [i["id"] for i in r.json()] == [ids["S2"], ids["S1"], ids["S3"]]
+    r = await client.get("/api/stories?sort=sources&order=asc")
+    assert [i["id"] for i in r.json()] == [ids["S3"], ids["S1"], ids["S2"]]
 
     assert (await client.get("/api/stories?sort=bogus")).status_code == 422
+    assert (await client.get("/api/stories?order=sideways")).status_code == 422
 
 
 async def test_story_detail_and_diff(client: AsyncClient, db_session) -> None:

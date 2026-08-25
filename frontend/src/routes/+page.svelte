@@ -8,6 +8,7 @@
   let filter = $state<'all' | 'unread' | 'updated'>('all');
   let category = $state('');
   let sort = $state<'updated' | 'published' | 'sources'>('updated');
+  let order = $state<'desc' | 'asc'>('desc');
   let loading = $state(true);
 
   onMount(async () => {
@@ -21,7 +22,7 @@
 
   async function load() {
     loading = true;
-    stories = await api.stories.list(filter, category || undefined, sort);
+    stories = await api.stories.list(filter, category || undefined, sort, order);
     loading = false;
   }
 
@@ -54,10 +55,17 @@
     </select>
   {/if}
   <select bind:value={sort} onchange={load}>
-    <option value="updated">Recently processed</option>
+    <option value="updated">Processing date</option>
     <option value="published">Article date</option>
-    <option value="sources">Most sources</option>
+    <option value="sources">Source count</option>
   </select>
+  <button
+    class="dir"
+    title={order === 'desc' ? 'Newest / most first — click to reverse' : 'Oldest / least first — click to reverse'}
+    onclick={() => { order = order === 'desc' ? 'asc' : 'desc'; load(); }}
+  >
+    {order === 'desc' ? '↓' : '↑'}
+  </button>
 </div>
 
 {#if loading}
@@ -103,6 +111,10 @@
     padding: 0.25rem 0.9rem;
   }
   .filters button.active { background: #1c1e21; color: #fff; border-color: #1c1e21; }
+  .dir {
+    border: 1px solid #d0d3d9; background: #fff; border-radius: 6px;
+    padding: 0.25rem 0.6rem; font-size: 1rem; line-height: 1; cursor: pointer;
+  }
   .story { display: block; text-decoration: none; color: inherit; }
   .story:hover { border-color: #b9bec6; }
   .story.read { opacity: 0.62; }

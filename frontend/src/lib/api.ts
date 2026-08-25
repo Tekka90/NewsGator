@@ -78,8 +78,8 @@ export const api = {
   },
 
   stories: {
-    list: (filter: string = 'all', category?: string, sort: string = 'updated') => {
-      const params = new URLSearchParams({ filter, sort });
+    list: (filter: string = 'all', category?: string, sort: string = 'updated', order: string = 'desc') => {
+      const params = new URLSearchParams({ filter, sort, order });
       if (category) params.set('category', category);
       return req<StoryListItem[]>(`/stories?${params}`);
     },

@@ -277,7 +277,7 @@ v1 is **data-first, no online learning**:
 |---|---|
 | `POST /auth/login`, `POST /auth/logout` | session-cookie auth |
 | `GET/PATCH /me` | profile + per-user summary-language preference |
-| `GET /stories?filter=all\|unread\|updated&category=&sort=updated\|published\|sources` | story list with **per-user** flags; sort by last update (default), article publication date, or source count |
+| `GET /stories?filter=all\|unread\|updated&category=&sort=updated\|published\|sources&order=asc\|desc` | story list with **per-user** flags; sort by last update (default), article publication date, or source count, ascending or descending (default desc; unknown dates always last) |
 | `GET /stories/{id}` | story detail: merged summary + source articles + revision history |
 | `POST /stories/{id}/read` | sets `read_at_version = story.version` (per user) |
 | `POST /stories/{id}/unread` | |

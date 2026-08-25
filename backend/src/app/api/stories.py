@@ -113,11 +113,17 @@ async def list_stories(
     filter: str = Query(default="all", pattern="^(all|unread|updated)$"),
     category: str | None = None,
     sort: str = Query(default="updated", pattern="^(updated|published|sources)$"),
+    order: str = Query(default="desc", pattern="^(asc|desc)$"),
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[StoryListItem]:
+    reverse = order == "desc"
     stories = (
-        await session.scalars(select(Story).order_by(Story.last_updated_at.desc()))
+        await session.scalars(
+            select(Story).order_by(
+                Story.last_updated_at.desc() if reverse else Story.last_updated_at
+            )
+        )
     ).all()
     states = {
         s.story_id: s
@@ -166,10 +172,13 @@ async def list_stories(
             )
         )
     if sort == "published":
-        # newest article publication date first; unknown dates last
+        # article publication date; unknown dates always last regardless of order
         out.sort(key=lambda s: (s.published_at is not None, s.published_at), reverse=True)
+        if not reverse:
+            known = [s for s in out if s.published_at is not None]
+            out = known[::-1] + [s for s in out if s.published_at is None]
     elif sort == "sources":
-        out.sort(key=lambda s: (s.source_count, s.last_updated_at), reverse=True)
+        out.sort(key=lambda s: (s.source_count, s.last_updated_at), reverse=reverse)
     return out
 
 
