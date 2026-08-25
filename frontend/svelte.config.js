@@ -7,10 +7,12 @@ const config = {
   kit: {
     adapter: adapter(),
     csrf: {
-      // Browsers legitimately send `Origin: null` (file-picked OPML uploads,
-      // privacy modes, sandboxed contexts). Trust it — the session cookie is
-      // SameSite=Lax, so real cross-site posts can't carry auth anyway.
-      trustedOrigins: ['null']
+      // Self-hosted, single-origin app. Session auth uses a SameSite=Lax +
+      // HttpOnly cookie, which already prevents cross-site POSTs from carrying
+      // credentials. SvelteKit's Origin header check 403s legit multipart
+      // uploads (OPML import) when the computed request origin differs from
+      // the browser-visible one behind the adapter/proxy. Disable it.
+      checkOrigin: false
     }
   }
 };
