@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#166534"/>
+      <stop offset="1" stop-color="#052e16"/>
+    </linearGradient>
+    <clipPath id="tile">
+      <rect width="64" height="64" rx="14"/>
+    </clipPath>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+  <g clip-path="url(#tile)">
+    <!-- gator head peeking over the paper -->
+    <path d="M4 38 L4 36 Q4 33 8 33 L14 33 Q15 25 21 25 Q27 25 27.5 33 L36.5 33 Q37 25 43 25 Q49 25 50 33 L56 33 Q60 33 60 36 L60 38 Z" fill="#41a564"/>
+    <!-- eyes -->
+    <circle cx="21" cy="29" r="3.2" fill="#fbbf24"/>
+    <circle cx="43" cy="29" r="3.2" fill="#fbbf24"/>
+    <ellipse cx="21" cy="29" rx="1" ry="1.8" fill="#052e16"/>
+    <ellipse cx="43" cy="29" rx="1" ry="1.8" fill="#052e16"/>
+    <circle cx="22" cy="27.8" r="0.7" fill="#fefce8"/>
+    <circle cx="44" cy="27.8" r="0.7" fill="#fefce8"/>
+    <!-- nostrils -->
+    <circle cx="29.5" cy="35.5" r="1.1" fill="#1c6b3c"/>
+    <circle cx="34.5" cy="35.5" r="1.1" fill="#1c6b3c"/>
+    <!-- newspaper -->
+    <rect x="0" y="38" width="64" height="26" fill="#f5f0e1"/>
+    <rect x="7" y="44" width="15" height="13" rx="2" fill="#9fb4a6"/>
+    <rect x="26" y="45" width="31" height="4.5" rx="2.25" fill="#14532d"/>
+    <rect x="26" y="53" width="31" height="2.6" rx="1.3" fill="#7d8f83"/>
+    <rect x="26" y="58.5" width="22" height="2.6" rx="1.3" fill="#7d8f83"/>
+    <rect x="7" y="60" width="15" height="2.6" rx="1.3" fill="#7d8f83"/>
+  </g>
+</svg>
