@@ -45,5 +45,8 @@ class Settings(BaseSettings):
     fulltext_min_chars: int = 400  # below this → try archive.is fallback
     archive_failure_cache_hours: int = 24
 
+    # GUI: source favicon proxy cache (hours)
+    favicon_cache_hours: int = 168
+
 
 settings = Settings()

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api } from '$lib/api';
+  import { api, faviconUrl } from '$lib/api';
   import { currentUser } from '$lib/stores';
   import type { Category, StoryListItem } from '$lib/types';
 
@@ -68,6 +68,11 @@
     const h = Math.floor(mins / 60);
     if (h < 24) return `${h}h ago`;
     return `${Math.floor(h / 24)}d ago`;
+  }
+
+  /** Broken/missing favicon → drop the img, revealing the host-letter fallback. */
+  function hideFav(e: Event) {
+    (e.currentTarget as HTMLImageElement).remove();
   }
 
   // --- swipe deck handlers ---
@@ -194,6 +199,11 @@
       <h2><a href="/stories/{current.id}">{current.title}</a></h2>
       <p class="decksummary">{current.summary}</p>
       <div class="meta">
+        {#each current.source_hosts.slice(0, 4) as host}
+          <span class="fav" title={host}
+            >{host[0]}<img src={faviconUrl(host)} alt="" loading="lazy" onerror={hideFav} /></span
+          >
+        {/each}
         <span>{current.source_count} source{current.source_count === 1 ? '' : 's'}</span>
         <span>v{current.version}</span>
         <a href="/stories/{current.id}">Full story &amp; sources →</a>
@@ -219,6 +229,16 @@
           <h2>{story.title}</h2>
           <p class="summary">{story.summary}</p>
           <div class="meta">
+            {#each story.source_hosts.slice(0, 4) as host}
+              <span class="fav" title={host}
+                >{host[0]}<img
+                  src={faviconUrl(host)}
+                  alt=""
+                  loading="lazy"
+                  onerror={hideFav}
+                /></span
+              >
+            {/each}
             <span>{story.source_count} source{story.source_count === 1 ? '' : 's'}</span>
             <span>v{story.version}</span>
           </div>
@@ -261,7 +281,14 @@
   .badge.frozen { background: #eee; color: #777; }
   .spacer { flex: 1; }
   .age { color: #888; font-size: 0.85em; }
-  .meta { display: flex; gap: 1rem; color: #888; font-size: 0.85em; margin-top: 0.5rem; }
+  .meta { display: flex; gap: 1rem; color: #888; font-size: 0.85em; margin-top: 0.5rem; align-items: center; }
+  .fav {
+    position: relative; display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; border-radius: 4px; overflow: hidden; flex-shrink: 0;
+    background: #e8edf5; color: #294a7a; font-size: 0.72em; font-weight: 700;
+    text-transform: uppercase;
+  }
+  .fav img { position: absolute; inset: 0; width: 100%; height: 100%; }
   .toolbar { flex-wrap: wrap; }
 
   /* --- mobile story deck --- */

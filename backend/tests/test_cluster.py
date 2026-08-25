@@ -389,6 +389,8 @@ async def test_stories_list_and_read_state(client: AsyncClient, db_session) -> N
     item = next(i for i in r.json() if i["id"] == story_id)
     assert item["is_read"] is False
     assert item["source_count"] == 1
+    # article URL host surfaced for favicons (www. stripped, deduped)
+    assert item["source_hosts"] == ["news.example.com"]
 
     # mark read at version 2
     assert (await client.post(f"/api/stories/{story_id}/read")).status_code == 204

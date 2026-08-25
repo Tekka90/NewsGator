@@ -288,6 +288,7 @@ v1 is **data-first, no online learning**:
 | `GET/PATCH /settings` | global: retention days, freeze window, thresholds, vector backend (admin) |
 | `POST /stories/{id}/merge` / `POST /articles/{id}/move` | manual override when clustering is wrong (important for trust) |
 | `GET /health`, `GET /stats` | ops |
+| `GET /favicon?host=` | cached favicon proxy for source logos in story cards (auth required; never a third-party favicon service — cache TTL via `FAVICON_CACHE_HOURS`) |
 
 Manual merge/split is a deliberate feature: clustering *will* be wrong sometimes, and the
 user must be able to fix it. Corrections can later feed threshold tuning.
@@ -297,7 +298,7 @@ user must be able to fix it. Corrections can later feed threshold tuning.
 ## 7. Web GUI (concept)
 
 - **Main view**: story cards (headline, lead image thumbnail, merged summary,
-  category chip, source logos
+  category chip, source favicons/logos (via the cached `/favicon` proxy)
   ×N, age, badges: `NEW` / `UPDATED`), default-sorted by article publication date
   (oldest first — per-user overridable, persisted server-side) with read stories
   dimmed or in a separate tab. All story content is in the configured `SUMMARY_LANGUAGE`;

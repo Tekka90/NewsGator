@@ -1,6 +1,7 @@
 """Stories API (SPEC §6): list with per-user flags, detail, read/unread, diff,
 manual merge/move (logged as labeled pairs — invariant 9)."""
 
+from collections.abc import Iterable
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -36,6 +37,8 @@ class StoryListItem(BaseModel):
     version: int
     is_frozen: bool
     source_count: int
+    # distinct hosts of member article URLs (≤5) — for source favicons in the GUI
+    source_hosts: list[str]
     # earliest article publication date in the story (None if unknown)
     published_at: datetime | None
     last_updated_at: datetime
@@ -108,6 +111,23 @@ def _flags(state: StoryState | None, story: Story) -> tuple[bool, bool]:
     return is_read, updated
 
 
+def _source_hosts(rows: Iterable[tuple[int | None, str]]) -> dict[int, list[str]]:
+    """story_id → distinct article hosts (≤5, first-seen order, www. stripped)."""
+    from urllib.parse import urlparse
+
+    hosts: dict[int, list[str]] = {}
+    for story_id, url in rows:
+        if story_id is None:
+            continue
+        host = urlparse(url).hostname or ""
+        if host.startswith("www."):
+            host = host[4:]
+        per_story = hosts.setdefault(story_id, [])
+        if host and host not in per_story and len(per_story) < 5:
+            per_story.append(host)
+    return hosts
+
+
 @router.get("")
 async def list_stories(
     filter: str = Query(default="all", pattern="^(all|unread|updated)$"),
@@ -143,6 +163,18 @@ async def list_stories(
             )
         ).all()
     }
+    hosts = _source_hosts(
+        [
+            (story_id, url)
+            for story_id, url in (
+                await session.execute(
+                    select(Article.story_id, Article.url).where(
+                        Article.story_id.is_not(None)
+                    )
+                )
+            ).all()
+        ]
+    )
 
     out: list[StoryListItem] = []
     for story in stories:
@@ -165,6 +197,7 @@ async def list_stories(
                 version=story.version,
                 is_frozen=story.is_frozen,
                 source_count=source_count,
+                source_hosts=hosts.get(story.id, []),
                 published_at=published_at,
                 last_updated_at=story.last_updated_at,
                 is_read=is_read,

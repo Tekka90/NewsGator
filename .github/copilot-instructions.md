@@ -97,7 +97,12 @@ Story-list ordering defaults to article publication date, oldest first, and the
 user's sort/order choice is persisted server-side (`user.story_sort` /
 `story_order`, Alembic 0006, `PATCH /auth/me`) so every device follows. On
 screens ≤700px the Stories page renders a swipeable card deck instead of the
-list: swipe left = mark read + next, swipe right = previous.
+list: swipe left = mark read + next, swipe right = previous. Source logos in
+card meta rows: `GET /api/stories` returns `source_hosts` (distinct article
+hosts per story, ≤5) and the GUI renders them via a cached, auth-protected
+favicon proxy `GET /api/favicon?host=` (`api/favicons.py`; `_fetch_favicon`
+is the monkeypatch seam; `FAVICON_CACHE_HOURS`, failures cached 1h) — never a
+third-party favicon service.
 
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,

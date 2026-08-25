@@ -12,6 +12,16 @@ export function getToken(): string {
   return typeof localStorage === 'undefined' ? '' : (localStorage.getItem(TOKEN_KEY) ?? '');
 }
 
+/** Favicon proxy URL for a source host. <img> can't send Authorization
+ * headers, so the session token goes in the query string when present. */
+export function faviconUrl(host: string): string {
+  const token = getToken();
+  return (
+    `/api/favicon?host=${encodeURIComponent(host)}` +
+    (token ? `&token=${encodeURIComponent(token)}` : '')
+  );
+}
+
 function setToken(token: string) {
   if (typeof localStorage === 'undefined') return;
   if (token) localStorage.setItem(TOKEN_KEY, token);
