@@ -71,6 +71,18 @@
     return `${Math.floor(h / 24)}d ago`;
   }
 
+  // Track hero-image load per story so a swiping change never shows the
+  // previous story's image while the new one downloads.
+  let heroLoaded = $state(false);
+
+  /** Preload a story's hero image so swiping to it is instant. */
+  function preload(story: StoryListItem | undefined) {
+    if (story?.image_url) {
+      const img = new Image();
+      img.src = story.image_url;
+    }
+  }
+
   /** Broken/missing favicon → drop the img, revealing the host-letter fallback. */
   function hideFav(e: Event) {
     (e.currentTarget as HTMLImageElement).remove();
@@ -115,12 +127,19 @@
         story.is_read = true;
         api.stories.read(story.id).catch(() => {});
       }
+      heroLoaded = false; // next image starts hidden until it loads
       index += dir === 'left' ? 1 : -1;
       snap = true;
       dx = 0;
       requestAnimationFrame(() => requestAnimationFrame(() => (snap = false)));
     }, 220);
   }
+
+  // Preload adjacent story images so swipes feel instant.
+  $effect(() => {
+    preload(stories[index + 1]);
+    preload(stories[index - 1]);
+  });
 </script>
 
 <h1>Stories</h1>
@@ -195,7 +214,16 @@
         <span class="age">{ago(current.published_at ?? current.last_updated_at)}</span>
       </div>
       {#if current.image_url}
-        <img class="hero" src={current.image_url} alt="" loading="lazy" />
+        {#key current.id}
+          <img
+            class="hero"
+            class:heroloading={!heroLoaded}
+            src={current.image_url}
+            alt=""
+            onload={() => (heroLoaded = true)}
+            onerror={() => (heroLoaded = true)}
+          />
+        {/key}
       {/if}
       <h2><a href="/stories/{current.id}">{current.title}</a></h2>
       <p class="decksummary">{current.summary}</p>
@@ -325,6 +353,7 @@
   .deckcard .hero {
     width: 100%; max-height: 30vh; object-fit: cover; border-radius: 6px;
   }
+  .deckcard .hero.heroloading { visibility: hidden; height: 0; }
   .decksummary {
     margin: 0; color: #333; line-height: 1.5; font-size: 1rem;
     overflow-y: auto; flex: 1;
