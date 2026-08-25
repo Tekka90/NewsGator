@@ -60,17 +60,17 @@
 {:else}
   <div class="shell">
     <nav>
-      <strong>NewsGator</strong>
-      <a href="/">Stories</a>
-      <a href="/feeds">Feeds</a>
-      <a href="/activity">Activity</a>
-      <a href="/settings">Settings</a>
+      <strong class="brand">NewsGator</strong>
+      <a href="/" class:active={page.url.pathname === '/'}>Stories</a>
+      <a href="/feeds" class:active={page.url.pathname.startsWith('/feeds')}>Feeds</a>
+      <a href="/activity" class:active={page.url.pathname.startsWith('/activity')}>Activity</a>
+      <a href="/settings" class:active={page.url.pathname.startsWith('/settings')}>Settings</a>
       <span class="spacer"></span>
       {#if queueDepth > 0}
-        <span class="processing">⚙ {queueDepth} processing…</span>
+        <span class="processing">⚙ {queueDepth}</span>
       {/if}
       <span class="user">{$currentUser?.username}</span>
-      <button onclick={logout}>Log out</button>
+      <button class="logoutbtn" onclick={logout}>Log out</button>
     </nav>
     <main>{@render children()}</main>
   </div>
@@ -100,13 +100,22 @@
     background: #1c1e21;
     color: #fff;
   }
+  .shell nav a.active { color: #fff; font-weight: 600; }
+  .logoutbtn { white-space: nowrap; }
   @media (max-width: 700px) {
+    /* single compact line — no wrapping to a second row, no empty bands */
     .shell nav {
-      flex-wrap: wrap;
-      gap: 0.5rem 0.9rem;
-      padding-bottom: calc(0.6rem + env(safe-area-inset-bottom, 0px));
-      font-size: 0.95rem;
+      flex-wrap: nowrap;
+      gap: 0.6rem;
+      padding: 0.45rem 0.6rem;
+      padding-top: calc(0.45rem + env(safe-area-inset-top, 0px));
+      font-size: 0.88rem;
     }
+    .shell nav .brand { display: none; }       /* links say where you are */
+    .shell nav .user { display: none; }        /* username hidden on mobile */
+    .shell nav .spacer { display: none; }
+    .shell nav a { flex: 1 0 auto; text-align: center; }
+    .shell nav .logoutbtn { flex: 0 0 auto; padding: 0.2rem 0.55rem; font-size: 0.85rem; }
   }
   .shell nav a {
     color: #cfd3da;
