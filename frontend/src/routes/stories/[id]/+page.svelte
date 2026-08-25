@@ -9,6 +9,8 @@
   let mergeTarget = $state('');
   let moveTargets = $state<Record<number, string>>({});
   let error = $state('');
+  let reprocessing = $state<number | null>(null);
+  let reprocessMsg = $state<Record<number, string>>({});
 
   const id = Number(page.params.id);
 
@@ -53,8 +55,33 @@
     }
   }
 
+  async function reprocessArticle(articleId: number) {
+    reprocessing = articleId;
+    delete reprocessMsg[articleId];
+    try {
+      const r = await api.stories.reprocessArticle(articleId);
+      reprocessMsg[articleId] =
+        r.content_status === 'full'
+          ? `✓ full text fetched (${r.chars} chars)${r.requeued ? ' — re-summarizing' : ''}`
+          : `still partial: ${r.content_warning ?? 'unknown reason'}`;
+      await load();
+    } catch (e) {
+      reprocessMsg[articleId] = e instanceof Error ? e.message : 'Reprocess failed';
+    } finally {
+      reprocessing = null;
+    }
+  }
+
   function fmt(iso: string) {
     return new Date(iso).toLocaleString();
+  }
+
+  function favicon(url: string): string {
+    try {
+      return `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}&sz=32`;
+    } catch {
+      return '';
+    }
   }
 </script>
 
@@ -100,15 +127,23 @@
     {#each story.articles as article (article.id)}
       <div class="source">
         <div class="row">
-          <a href={article.url} target="_blank" rel="noopener noreferrer">{article.title}</a>
+          <img class="favicon" src={favicon(article.url)} alt="" loading="lazy" />
+          <span class="srcname">{article.feed_title || 'Unknown source'}</span>
+          {#if article.published_at}<span class="age">{fmt(article.published_at)}</span>{/if}
           <span class="lang">{article.language || '?'}</span>
           {#if article.content_status === 'partial'}
             <span class="badge partial" title={article.content_warning ?? ''}>partial</span>
           {/if}
         </div>
+        <a href={article.url} target="_blank" rel="noopener noreferrer">{article.title}</a>
         {#if article.summary}<p class="small">{article.summary}</p>{/if}
         {#if article.content_warning}<p class="warn small">⚠ {article.content_warning}</p>{/if}
         <div class="row small">
+          <button onclick={() => reprocessArticle(article.id)} disabled={reprocessing === article.id}>
+            {reprocessing === article.id ? 'Reprocessing…' : 'Reprocess'}
+          </button>
+          {#if reprocessMsg[article.id]}<span class="small">{reprocessMsg[article.id]}</span>{/if}
+          <span class="spacer"></span>
           <span>move to:</span>
           <select bind:value={moveTargets[article.id]}>
             <option value="">…</option>
@@ -160,6 +195,8 @@
   .badge.partial { background: #fde7e7; color: #a12727; }
   .source { border-top: 1px solid #eee; padding: 0.7rem 0; }
   .source:first-of-type { border-top: none; }
+  .favicon { width: 16px; height: 16px; border-radius: 3px; }
+  .srcname { font-weight: 600; font-size: 0.9em; }
   .lang { color: #999; font-size: 0.8em; text-transform: uppercase; }
   .small { font-size: 0.88em; color: #555; }
   .warn { color: #a12727; }

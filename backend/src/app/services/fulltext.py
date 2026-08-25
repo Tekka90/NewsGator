@@ -11,10 +11,10 @@ cached for `archive_failure_cache_hours`. All extraction runs via anyio.to_threa
 
 import time
 from urllib.parse import quote, urlparse
-from urllib.robotparser import RobotFileParser
 
 import anyio
 import httpx
+import robots
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -34,7 +34,7 @@ PAYWALL_MARKERS = (
 USER_AGENT = "NewsGator/0.1 (+self-hosted feed reader)"
 MIN_INTERVAL_S = 2.0  # per-domain rate limit
 
-_robots_cache: dict[str, tuple[RobotFileParser, float]] = {}
+_robots_cache: dict[str, tuple[robots.RobotsParser, float]] = {}
 _domain_last_fetch: dict[str, float] = {}
 _archive_failures: dict[str, float] = {}  # url → epoch of failure
 
@@ -52,7 +52,23 @@ async def _rate_limit(url: str) -> None:
     _domain_last_fetch[domain] = time.monotonic()
 
 
+def _fetch_robots_sync(robots_url: str) -> str | None:
+    try:
+        with httpx.Client(timeout=10, follow_redirects=True) as client:
+            resp = client.get(robots_url, headers={"User-Agent": USER_AGENT})
+        return resp.text if resp.status_code < 400 else None
+    except httpx.HTTPError:
+        return None
+
+
 def _robots_allowed_sync(url: str) -> bool:
+    """True unless robots.txt disallows this URL for our agent (or *).
+
+    Uses the `robots` package (robotspy): it matches our UA against its own
+    group, else the `*` group. stdlib robotparser instead merges every group
+    and is confused by sites that add explicit `Allow: /` for known bots
+    (numerama.com), denying everyone else.
+    """
     domain = _domain(url)
     parts = urlparse(url)
     robots_url = f"{parts.scheme}://{domain}/robots.txt"
@@ -60,13 +76,12 @@ def _robots_allowed_sync(url: str) -> bool:
     if cached and time.monotonic() - cached[1] < 3600:
         rp = cached[0]
     else:
-        rp = RobotFileParser(robots_url)
-        try:
-            rp.read()
-        except Exception:
+        body = _fetch_robots_sync(robots_url)
+        if body is None:
             return True  # unreachable robots.txt → allowed
+        rp = robots.RobotsParser.from_string(body)
         _robots_cache[domain] = (rp, time.monotonic())
-    return rp.can_fetch(USER_AGENT, url)
+    return bool(rp.can_fetch(USER_AGENT, url))
 
 
 async def _fetch_page(url: str, cookies: dict[str, str] | None = None) -> str | None:
@@ -128,15 +143,21 @@ async def fetch_full_text(session: AsyncSession, article: Article, feed: Feed) -
     cookies = _parse_cookies(feed.auth_cookies)
     path = "rss_only"
     text: str | None = None
+    reason: str | None = None
 
     # 1. direct
     html = await _fetch_page(article.url, cookies=cookies)
     if html:
         candidate = await anyio.to_thread.run_sync(_extract_text, html)
-        if candidate and len(candidate) >= settings.fulltext_min_chars and not _looks_paywalled(
-            candidate
-        ):
-            text, path = candidate, "direct"
+        if candidate and len(candidate) >= settings.fulltext_min_chars:
+            if not _looks_paywalled(candidate):
+                text, path = candidate, "direct"
+            else:
+                reason = "paywall detected"
+        elif candidate is not None:
+            reason = "extracted text too short"
+    else:
+        reason = "blocked by robots.txt or site unreachable"
 
     # 2. archive.is (with per-URL failure cache)
     if text is None:
@@ -160,7 +181,7 @@ async def fetch_full_text(session: AsyncSession, article: Article, feed: Feed) -
         text = article.raw_content
         article.content_status = "partial"
         # SPEC §9: visible warning so partial summaries are marked in the story view
-        article.content_warning = (
+        article.content_warning = reason or (
             "source does not provide full articles; requires credentials"
         )
     else:
@@ -172,6 +193,6 @@ async def fetch_full_text(session: AsyncSession, article: Article, feed: Feed) -
         session,
         "fulltext",
         "fulltext_fetch",
-        {"article_id": article.id, "path": path, "chars": len(text or "")},
+        {"article_id": article.id, "path": path, "chars": len(text or ""), "reason": reason},
         level="info" if path != "rss_only" else "warn",
     )

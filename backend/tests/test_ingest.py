@@ -334,7 +334,7 @@ async def test_fulltext_partial_fallback(db_session, monkeypatch: pytest.MonkeyP
         a = await s.get(Article, article.id)
         assert a is not None
         assert a.content_status == "partial"
-        assert a.content_warning is not None and "requires credentials" in a.content_warning
+        assert a.content_warning is not None and "robots.txt" in a.content_warning
         assert a.full_text == "rss excerpt"
 
 
@@ -363,3 +363,41 @@ async def test_archive_failure_cached(db_session, monkeypatch: pytest.MonkeyPatc
 async def test_paywall_marker_detection() -> None:
     assert fulltext._looks_paywalled("Please subscribe to continue reading this") is True
     assert fulltext._looks_paywalled(LONG_TEXT) is False
+
+
+async def test_reprocess_article_endpoint(
+    client, db_session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """POST /stories/articles/{id}/reprocess re-runs the fulltext chain on demand."""
+    from httpx import AsyncClient
+    from tests.conftest import setup_admin
+
+    assert isinstance(client, AsyncClient)
+    _patch_extract(monkeypatch, LONG_TEXT)
+    _patch_pages(monkeypatch, {"https://news.example.com": "<html>full now</html>"})
+    _feed, article = await _article(db_session)
+    article.full_text = "rss excerpt"
+    article.content_status = "partial"
+    article.content_warning = "blocked by robots.txt or site unreachable"
+
+    # vec tables are migration-only; swap the store for a no-op stub
+    from app.api import stories as stories_api
+
+    class _NoopStore:
+        async def delete_article(self, article_id: int) -> None: ...
+
+    monkeypatch.setattr(stories_api, "get_vector_store", lambda session: _NoopStore())
+
+    await setup_admin(client)
+    r = await client.post(f"/api/stories/articles/{article.id}/reprocess")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["content_status"] == "full"
+    assert body["chars"] == len(LONG_TEXT)
+    assert body["requeued"] is True
+
+    async with db_session() as s:
+        a = await s.get(Article, article.id)
+        assert a is not None
+        assert a.full_text == LONG_TEXT
+        assert a.processing_state == "fulltext"  # back through the LLM pipeline

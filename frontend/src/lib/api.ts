@@ -98,7 +98,15 @@ export const api = {
       req<void>(`/stories/articles/${articleId}/move`, {
         method: 'POST',
         body: { story_id: storyId }
-      })
+      }),
+    reprocessArticle: (articleId: number) =>
+      req<{
+        chars: number;
+        path: string;
+        content_status: string;
+        content_warning: string | null;
+        requeued: boolean;
+      }>(`/stories/articles/${articleId}/reprocess`, { method: 'POST' })
   },
 
   settings: {

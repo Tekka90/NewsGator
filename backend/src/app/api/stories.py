@@ -7,11 +7,21 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.api.deps import current_user
 from app.core.db import get_session
-from app.models import Article, OverridePair, Story, StoryRevision, StoryState, User
-from app.services import activity
+from app.models import (
+    Article,
+    Feed,
+    OverridePair,
+    Story,
+    StoryRevision,
+    StoryState,
+    User,
+)
+from app.services import activity, process
+from app.services.fulltext import fetch_full_text
 from app.services.vectorstore import get_vector_store
 
 router = APIRouter(prefix="/stories", tags=["stories"])
@@ -44,6 +54,8 @@ class ArticleOut(BaseModel):
     content_warning: str | None
     published_at: datetime | None
     feed_id: int
+    feed_title: str
+    feed_url: str
 
     model_config = {"from_attributes": True}
 
@@ -71,6 +83,23 @@ class StoryDetail(BaseModel):
     updated_since_read: bool
     articles: list[ArticleOut]
     revisions: list[RevisionOut]
+
+
+def _article_out(a: Article) -> ArticleOut:
+    return ArticleOut(
+        id=a.id,
+        title=a.title,
+        url=a.url,
+        image_url=a.image_url,
+        language=a.language,
+        summary=a.summary,
+        content_status=a.content_status,
+        content_warning=a.content_warning,
+        published_at=a.published_at,
+        feed_id=a.feed_id,
+        feed_title=a.feed.title,
+        feed_url=a.feed.url,
+    )
 
 
 def _flags(state: StoryState | None, story: Story) -> tuple[bool, bool]:
@@ -151,7 +180,10 @@ async def story_detail(
     is_read, updated = _flags(state, story)
     articles = (
         await session.scalars(
-            select(Article).where(Article.story_id == story_id).order_by(Article.id)
+            select(Article)
+            .where(Article.story_id == story_id)
+            .options(selectinload(Article.feed))
+            .order_by(Article.id)
         )
     ).all()
     revisions = (
@@ -177,8 +209,64 @@ async def story_detail(
         ),
         is_read=is_read,
         updated_since_read=updated,
-        articles=[ArticleOut.model_validate(a) for a in articles],
+        articles=[_article_out(a) for a in articles],
         revisions=[RevisionOut.model_validate(r) for r in revisions],
+    )
+
+
+class ReprocessOut(BaseModel):
+    chars: int
+    path: str
+    content_status: str
+    content_warning: str | None
+    requeued: bool
+
+
+@router.post("/articles/{article_id}/reprocess")
+async def reprocess_article(
+    article_id: int,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> ReprocessOut:
+    """Re-run the full-text fetch chain for one article on demand.
+
+    If the fetched text differs substantially from what we had, the pipeline
+    state is reset so the article is re-summarized/re-embedded/re-clustered
+    (resumability invariant 7 makes this safe).
+    """
+    article = await session.get(Article, article_id)
+    if article is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Article not found")
+    feed = await session.get(Feed, article.feed_id)
+    if feed is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Feed not found")
+
+    old_len = len(article.full_text or "")
+    await fetch_full_text(session, article, feed)
+    await session.commit()
+
+    new_len = len(article.full_text or "")
+    # Requeue through the LLM pipeline only when content actually changed much
+    requeued = abs(new_len - old_len) > max(200, int(0.2 * max(old_len, 1)))
+    if requeued:
+        await get_vector_store(session).delete_article(article.id)
+        article.summary = None
+        article.category = None
+        article.language = ""
+        article.processing_state = "fulltext"
+        process.enqueue_article(article.id)
+        await activity.emit(
+            session, "fulltext", "manual_reprocess",
+            {"article_id": article.id, "old_chars": old_len, "new_chars": new_len},
+        )
+        await session.commit()
+
+    return ReprocessOut(
+        chars=new_len,
+        path="full" if article.content_status == "full" else "rss_only",
+        content_status=article.content_status,
+        content_warning=article.content_warning,
+        requeued=requeued,
     )
 
 

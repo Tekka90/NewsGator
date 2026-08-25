@@ -50,6 +50,8 @@ export interface StoryArticle {
   content_warning: string | null;
   published_at: string | null;
   feed_id: number;
+  feed_title: string;
+  feed_url: string;
 }
 
 export interface StoryRevision {
