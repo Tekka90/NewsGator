@@ -1,8 +1,12 @@
 """Admin settings (SPEC §8): runtime-overridable values + LLM test connection.
 
-Env vars provide defaults; rows in the SETTING table override them at runtime.
+Precedence: env var (highest — locked in the GUI) → SETTING table row →
+code default. Env is read live via os.environ (pydantic-settings parses it once
+at import; the API must reflect the launch-time environment accurately).
 Only whitelisted keys are settable from the API.
 """
+
+import os
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -40,10 +44,16 @@ OVERRIDABLE = {
 }
 
 
+def _env_raw(key: str) -> str | None:
+    """Launch-time env var for this key (UPPER_SNAKE), or None if unset."""
+    value = os.environ.get(key.upper())
+    return value if value not in (None, "") else None
+
+
 def get_setting(stored: dict[str, str], key: str) -> object:
-    """Stored override → env default. Applies the declared type."""
+    """Effective value: env var wins, then DB override, then the code default."""
     cast = OVERRIDABLE[key]
-    raw = stored.get(key)
+    raw = _env_raw(key) or stored.get(key)
     if raw is None:
         return getattr(env_settings, key)
     return cast(raw)
@@ -51,7 +61,8 @@ def get_setting(stored: dict[str, str], key: str) -> object:
 
 class SettingsOut(BaseModel):
     values: dict[str, object]
-    overridden: list[str]
+    overridden: list[str]  # set via DB (runtime overrides)
+    env_locked: list[str]  # set via env var — win over DB, read-only in the GUI
     llm_queue_depth: int
 
 
@@ -64,7 +75,10 @@ async def get_settings(session: AsyncSession = Depends(get_session)) -> Settings
     stored = await _load_overrides(session)
     values = {key: get_setting(stored, key) for key in OVERRIDABLE}
     return SettingsOut(
-        values=values, overridden=sorted(stored), llm_queue_depth=queue_depth()
+        values=values,
+        overridden=sorted(stored),
+        env_locked=sorted(k for k in OVERRIDABLE if _env_raw(k) is not None),
+        llm_queue_depth=queue_depth(),
     )
 
 
@@ -75,6 +89,11 @@ async def patch_settings(
     for key, value in body.values.items():
         if key not in OVERRIDABLE:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unknown setting: {key}")
+        if _env_raw(key) is not None:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"{key} is set via environment variable and cannot be overridden at runtime",
+            )
         if value is None or value == "":
             await session.execute(delete(Setting).where(Setting.key == key))
             continue
@@ -127,8 +146,10 @@ async def _load_overrides(session: AsyncSession) -> dict[str, str]:
 
 
 def _apply_overrides(stored: dict[str, str]) -> None:
-    """Push stored overrides into the live config object."""
+    """Push stored overrides into the live config object (env-set keys excluded)."""
     for key in OVERRIDABLE:
+        if _env_raw(key) is not None:
+            continue  # env wins — never let a DB row shadow the launch environment
         cast = OVERRIDABLE[key]
         raw = stored.get(key)
         if raw is None:

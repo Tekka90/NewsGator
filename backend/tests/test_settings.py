@@ -54,3 +54,45 @@ async def test_test_llm_endpoint_mocked(client: AsyncClient, monkeypatch) -> Non
     body = r.json()
     assert body["chat"] is True and body["embeddings"] is False
     assert "llm_base_url" in body
+
+
+async def test_env_set_key_wins_and_is_locked(client: AsyncClient, monkeypatch) -> None:
+    """An env-provided setting: reported as its env value, listed in env_locked,
+    DB overrides rejected, and never shadowed by a stored row."""
+    await setup_admin(client)
+    monkeypatch.setenv("TAU_ATTACH", "0.77")
+
+    r = await client.get("/api/settings")
+    body = r.json()
+    assert body["values"]["tau_attach"] == 0.77  # env value, not the code default
+    assert "tau_attach" in body["env_locked"]
+
+    # Runtime override attempt rejected
+    r = await client.patch("/api/settings", json={"values": {"tau_attach": 0.9}})
+    assert r.status_code == 400
+
+    # A pre-existing DB row must not shadow the env var
+    from app.core.db import get_session
+    from app.models import Setting
+
+    async for session in get_session():
+        session.add(Setting(key="tau_attach", value="0.5"))
+        await session.commit()
+        break
+    from app.api.settings import _apply_overrides
+
+    _apply_overrides({"tau_attach": "0.5"})
+    assert settings.tau_attach == 0.77  # untouched by the stored row
+    r = await client.get("/api/settings")
+    assert r.json()["values"]["tau_attach"] == 0.77
+
+
+async def test_db_override_still_works_without_env(client: AsyncClient) -> None:
+    await setup_admin(client)
+    r = await client.patch("/api/settings", json={"values": {"tau_gray": 0.55}})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["values"]["tau_gray"] == 0.55
+    assert "tau_gray" in body["overridden"]
+    assert "tau_gray" not in body["env_locked"]
+    assert settings.tau_gray == 0.55

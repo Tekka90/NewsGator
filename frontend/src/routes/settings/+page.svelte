@@ -10,6 +10,7 @@
   let newCategory = $state('');
   let sys = $state<Record<string, string | number>>({});
   let overridden = $state<string[]>([]);
+  let envLocked = $state<string[]>([]);
   let sysSaved = $state(false);
   let llmTest = $state<{
     chat: boolean;
@@ -49,6 +50,7 @@
       sys = s.values;
       original = { ...s.values };
       overridden = s.overridden;
+      envLocked = s.env_locked;
     }
   });
 
@@ -59,11 +61,14 @@
   async function saveSystem() {
     const changed: Record<string, string | number> = {};
     for (const [k, v] of Object.entries(sys)) {
+      if (envLocked.includes(k)) continue; // env-set keys are read-only here
       if (String(v) !== String(original[k] ?? '')) changed[k] = v;
     }
     const res = await api.settings.patch(changed);
     sys = res.values;
     original = { ...res.values };
+    overridden = res.overridden;
+    envLocked = res.env_locked;
     sysSaved = true;
     setTimeout(() => (sysSaved = false), 2000);
   }
@@ -133,10 +138,20 @@
     <h2>System (admin)</h2>
     <div class="grid">
       {#each sysFields as f (f.key)}
-        <label>
+        {@const locked = envLocked.includes(f.key)}
+        <label title={locked ? `Set via environment variable ${f.key.toUpperCase()} — change it in your container/launch environment and restart` : undefined}>
           {f.label}
-          {#if overridden.includes(f.key)}<span class="ovr">overridden</span>{/if}
-          <input type={f.secret ? 'password' : 'text'} bind:value={sys[f.key]} autocomplete="off" />
+          {#if locked}
+            <span class="ovr env">env</span>
+          {:else if overridden.includes(f.key)}
+            <span class="ovr">overridden</span>
+          {/if}
+          <input
+            type={f.secret ? 'password' : 'text'}
+            bind:value={sys[f.key]}
+            autocomplete="off"
+            disabled={locked}
+          />
         </label>
       {/each}
     </div>
@@ -211,6 +226,8 @@
     font-size: 0.72em; color: #8a5a00; background: #fff3d6;
     border-radius: 999px; padding: 0 0.4rem; margin-left: 0.3rem;
   }
+  .ovr.env { color: #294a7a; background: #e8edf5; }
+  input:disabled { background: #f0f1f3; color: #555; cursor: not-allowed; }
   .ok { color: #1d6b2a; }
   .bad { color: #a12727; }
   .hint { color: #777; font-size: 0.9em; }

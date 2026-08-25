@@ -170,9 +170,12 @@ export const api = {
 
   settings: {
     get: () =>
-      req<{ values: Record<string, string | number>; overridden: string[]; llm_queue_depth: number }>(
-        '/settings'
-      ),
+      req<{
+        values: Record<string, string | number>;
+        overridden: string[];
+        env_locked: string[];
+        llm_queue_depth: number;
+      }>('/settings'),
     patch: (values: Record<string, string | number>) =>
       req<{ values: Record<string, string | number> }>('/settings', {
         method: 'PATCH',
