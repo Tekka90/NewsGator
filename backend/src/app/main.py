@@ -64,11 +64,18 @@ def create_app() -> FastAPI:
 def _find_backend_dir() -> Path:
     """Locate the directory holding alembic.ini + the alembic/ scripts dir.
 
-    The installed package's location differs between dev (backend/src/app) and
-    containers (site-packages/app), so a fixed parents[N] offset breaks. Search
-    upward from this file for a directory that actually contains both, then fall
-    back to the historical parents[2] assumption.
+    Resolution order:
+    1. ``NEWSGATOR_BACKEND_DIR`` env var (set by the Dockerfile to /app — the
+       installed package lives in site-packages, so it can't be derived there).
+    2. Walk upward from this file for a dir containing both alembic.ini and
+       alembic/ (the dev layout: backend/src/app → backend/).
+    3. Historical parents[2] assumption as a last resort.
     """
+    import os
+
+    env_dir = os.environ.get("NEWSGATOR_BACKEND_DIR")
+    if env_dir:
+        return Path(env_dir)
     for parent in Path(__file__).resolve().parents:
         if (parent / "alembic.ini").is_file() and (parent / "alembic").is_dir():
             return parent

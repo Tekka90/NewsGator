@@ -12,7 +12,8 @@ RUN npm run build
 FROM python:3.12-slim AS backend
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    DATABASE_URL=sqlite+aiosqlite:////data/newsgator.db
+    DATABASE_URL=sqlite+aiosqlite:////data/newsgator.db \
+    NEWSGATOR_BACKEND_DIR=/app
 WORKDIR /app
 
 RUN pip install --no-cache-dir uv
