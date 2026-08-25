@@ -42,7 +42,9 @@ the full normative spec — **read it before non-trivial changes**.
 5. **Configurability**: thresholds, freeze window, retention days, poll intervals,
    failure policy, categories — all live in settings/env, never hardcoded. Categories
    are a customizable taxonomy stored in the DB; the LLM prompt is built from the
-   current taxonomy at call time.
+   current taxonomy at call time. Settings precedence: **env var > DB override >
+   code default** — env-set keys are `env_locked` in the settings API, shown
+   read-only in the GUI, and immune to DB overrides.
 6. **Activity events**: every pipeline stage transition (feed poll, full-text fetch
    path used, LLM start/done + latency, clustering decision + similarity, story update,
    feed disabled) emits a structured event to `ACTIVITY_LOG` and the SSE stream

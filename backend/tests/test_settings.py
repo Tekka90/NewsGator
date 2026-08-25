@@ -81,8 +81,12 @@ async def test_env_set_key_wins_and_is_locked(client: AsyncClient, monkeypatch) 
         break
     from app.api.settings import _apply_overrides
 
+    # The stored row is not applied while the env var is set (the API reports
+    # the env value 0.77). The singleton may already be dirty from earlier
+    # tests — capture it, apply, and confirm the row didn't change it.
+    before = settings.tau_attach
     _apply_overrides({"tau_attach": "0.5"})
-    assert settings.tau_attach == 0.77  # untouched by the stored row
+    assert settings.tau_attach == before
     r = await client.get("/api/settings")
     assert r.json()["values"]["tau_attach"] == 0.77
 

@@ -177,7 +177,11 @@ export const api = {
         llm_queue_depth: number;
       }>('/settings'),
     patch: (values: Record<string, string | number>) =>
-      req<{ values: Record<string, string | number> }>('/settings', {
+      req<{
+        values: Record<string, string | number>;
+        overridden: string[];
+        env_locked: string[];
+      }>('/settings', {
         method: 'PATCH',
         body: { values }
       }),

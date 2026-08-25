@@ -285,7 +285,7 @@ v1 is **data-first, no online learning**:
 | `CRUD /feeds` | feed management (admin); **creating a feed kicks an immediate background poll** (no waiting for the next scheduler tick) |
 | `POST /feeds/import-opml` | bulk-import feeds from an OPML subscription export (admin); added feeds are polled immediately in the background |
 | `POST /feeds/{id}/refresh`, `POST /feeds/refresh` | force-poll one/all feeds now, bypassing the adaptive schedule (admin) |
-| `GET/PATCH /settings` | global: retention days, freeze window, thresholds, vector backend (admin) |
+| `GET/PATCH /settings` | global: retention days, freeze window, thresholds, vector backend (admin). Precedence: **env var > DB override > code default**; env-set keys are reported in `env_locked`, shown read-only in the GUI, and rejected by PATCH |
 | `POST /stories/{id}/merge` / `POST /articles/{id}/move` | manual override when clustering is wrong (important for trust) |
 | `GET /health`, `GET /stats` | ops |
 | `GET /favicon?host=` | cached favicon proxy for source logos in story cards (auth required; never a third-party favicon service — cache TTL via `FAVICON_CACHE_HOURS`) |
