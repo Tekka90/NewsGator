@@ -65,6 +65,7 @@ class PipelineRow(BaseModel):
     processing_state: str
     fetched_at: datetime
     content_status: str
+    story_id: int | None
 
 
 @router.get("/pipeline")
@@ -93,6 +94,7 @@ async def pipeline(
                 processing_state=article.processing_state,
                 fetched_at=article.fetched_at,
                 content_status=article.content_status,
+                story_id=article.story_id,
             )
         )
     return {

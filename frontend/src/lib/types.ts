@@ -14,6 +14,7 @@ export interface PipelineRow {
   processing_state: string;
   fetched_at: string;
   content_status: string;
+  story_id: number | null;
 }
 
 export interface Feed {

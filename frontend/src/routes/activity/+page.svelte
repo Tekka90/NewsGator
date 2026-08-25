@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
   import { currentUser } from '$lib/stores';
+  import { api } from '$lib/api';
   import type { PipelineRow } from '$lib/types';
 
   interface ActivityEvent {
@@ -19,6 +20,19 @@
   let pipelineStates = $state<string[]>([]);
   let pipelineRows = $state<PipelineRow[]>([]);
   let lastEventAt = $state(0);
+  let reprocessing = $state<number | null>(null);
+
+  async function reprocess(articleId: number) {
+    reprocessing = articleId;
+    try {
+      await api.stories.reprocessArticle(articleId);
+    } catch {
+      /* surfaced in the event log via process_error */
+    } finally {
+      reprocessing = null;
+      await loadPipeline();
+    }
+  }
 
   const PIPELINE_EVENTS = new Set([
     'feed_poll_done', 'fulltext_fetch', 'manual_reprocess',
@@ -85,7 +99,10 @@
   }
 
   function stageDone(row: PipelineRow, stage: string): boolean {
-    return pipelineStates.indexOf(row.processing_state) > pipelineStates.indexOf(stage);
+    const at = pipelineStates.indexOf(row.processing_state);
+    const target = pipelineStates.indexOf(stage);
+    // the terminal state counts as done, not running
+    return at > target || (at === target && at === pipelineStates.length - 1);
   }
 </script>
 
@@ -113,13 +130,20 @@
         <tr>
           <th>Article</th>
           {#each pipelineStates as s}<th>{s}</th>{/each}
+          <th></th>
         </tr>
       </thead>
       <tbody>
         {#each pipelineRows as row (row.id)}
           <tr>
             <td class="titlecell">
-              <div class="t">{row.title}</div>
+              <div class="t">
+                {#if row.story_id}
+                  <a href="/stories/{row.story_id}">{row.title}</a>
+                {:else}
+                  {row.title}
+                {/if}
+              </div>
               <div class="sub">
                 {row.feed_title}
                 {#if row.content_status === 'partial'}<span class="badge partial">partial</span>{/if}
@@ -134,6 +158,11 @@
                 {/if}
               </td>
             {/each}
+            <td class="stage">
+              <button class="link" onclick={() => reprocess(row.id)} disabled={reprocessing === row.id}>
+                {reprocessing === row.id ? '…' : 'reprocess'}
+              </button>
+            </td>
           </tr>
         {/each}
       </tbody>
@@ -173,6 +202,11 @@
   .stage { text-align: center; width: 5.5rem; }
   .done { color: #2a2; }
   .running { color: #f90; animation: pulse 1.2s ease-in-out infinite; }
+  button.link {
+    border: none; background: none; color: #294a7a; cursor: pointer;
+    font-size: 0.85em; padding: 0; text-decoration: underline;
+  }
+  button.link:disabled { color: #999; cursor: default; }
   @keyframes pulse { 50% { opacity: 0.25; } }
   .log { font-family: ui-monospace, monospace; font-size: 0.82rem; max-height: 70vh; overflow-y: auto; }
   .line { display: flex; gap: 0.7rem; padding: 0.12rem 0; border-bottom: 1px solid #f2f2f2; }
