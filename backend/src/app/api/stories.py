@@ -112,8 +112,8 @@ def _flags(state: StoryState | None, story: Story) -> tuple[bool, bool]:
 async def list_stories(
     filter: str = Query(default="all", pattern="^(all|unread|updated)$"),
     category: str | None = None,
-    sort: str = Query(default="updated", pattern="^(updated|published|sources)$"),
-    order: str = Query(default="desc", pattern="^(asc|desc)$"),
+    sort: str = Query(default="published", pattern="^(updated|published|sources)$"),
+    order: str = Query(default="asc", pattern="^(asc|desc)$"),
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[StoryListItem]:

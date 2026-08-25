@@ -47,6 +47,9 @@ class User(Base):
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     # Per-user override; empty string = follow global SUMMARY_LANGUAGE
     summary_language: Mapped[str] = mapped_column(String(8), default="")
+    # Per-user story-list ordering prefs; empty = server default (published asc)
+    story_sort: Mapped[str] = mapped_column(String(16), default="")
+    story_order: Mapped[str] = mapped_column(String(8), default="")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 

@@ -5,6 +5,13 @@ export interface User {
   username: string;
   is_admin: boolean;
   summary_language: string;
+  // '' = follow the server default (published, oldest first)
+  story_sort: '' | 'updated' | 'published' | 'sources';
+  story_order: '' | 'asc' | 'desc';
+}
+
+export interface AuthUser extends User {
+  token: string;
 }
 
 export interface PipelineRow {

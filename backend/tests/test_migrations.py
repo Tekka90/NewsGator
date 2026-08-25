@@ -69,10 +69,12 @@ async def test_legacy_create_all_db_stamped_and_upgraded(
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await engine.dispose()
-    # Simulate a pre-0005 legacy DB: drop the image columns create_all just added
+    # Simulate a pre-0005 legacy DB: drop the columns create_all just added
     sync_conn = sqlite3.connect(tmp_path / "auto.db")
     sync_conn.execute("ALTER TABLE story DROP COLUMN image_url")
     sync_conn.execute("ALTER TABLE article DROP COLUMN image_url")
+    sync_conn.execute("ALTER TABLE user DROP COLUMN story_sort")
+    sync_conn.execute("ALTER TABLE user DROP COLUMN story_order")
     sync_conn.commit()
     sync_conn.close()
     db.init_engine(engine_url)  # reconnect after the sync-side ALTER
@@ -81,6 +83,7 @@ async def test_legacy_create_all_db_stamped_and_upgraded(
     path = tmp_path / "auto.db"
     assert _version(path) is not None
     assert "image_url" in _columns(path, "story")
+    assert "story_sort" in _columns(path, "user")
 
 
 async def test_already_at_head_is_noop(engine_url: str, tmp_path) -> None:

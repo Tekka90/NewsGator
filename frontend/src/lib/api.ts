@@ -1,20 +1,39 @@
 /** Typed API client — all backend calls go through here. */
 
-import type { Category, Feed, StoryDetail, StoryListItem, User } from './types';
+import type { AuthUser, Category, Feed, StoryDetail, StoryListItem, User } from './types';
 
 const BASE = '/api';
+const TOKEN_KEY = 'newsgator_token';
+
+// Portable session token: iOS home-screen PWAs do not reliably persist cookies
+// across app restarts, so login/setup also return a token we keep in
+// localStorage (which does persist) and send as a Bearer header.
+export function getToken(): string {
+  return typeof localStorage === 'undefined' ? '' : (localStorage.getItem(TOKEN_KEY) ?? '');
+}
+
+function setToken(token: string) {
+  if (typeof localStorage === 'undefined') return;
+  if (token) localStorage.setItem(TOKEN_KEY, token);
+  else localStorage.removeItem(TOKEN_KEY);
+}
 
 async function req<T>(
   path: string,
   options: { method?: string; body?: unknown } = {}
 ): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (options.body !== undefined) headers['Content-Type'] = 'application/json';
+  const token = getToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
   const res = await fetch(BASE + path, {
     method: options.method ?? 'GET',
     credentials: 'include',
-    headers: options.body !== undefined ? { 'Content-Type': 'application/json' } : {},
+    headers,
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined
   });
   if (res.status === 401 && typeof window !== 'undefined' && !location.pathname.startsWith('/login')) {
+    setToken('');
     location.href = '/login';
     throw new Error('unauthorized');
   }
@@ -28,12 +47,29 @@ async function req<T>(
 
 export const api = {
   setupNeeded: () => req<{ setup_needed: boolean }>('/auth/setup-needed'),
-  setup: (username: string, password: string) =>
-    req<User>('/auth/setup', { method: 'POST', body: { username, password } }),
-  login: (username: string, password: string) =>
-    req<User>('/auth/login', { method: 'POST', body: { username, password } }),
-  logout: () => req<void>('/auth/logout', { method: 'POST' }),
+  setup: async (username: string, password: string) => {
+    const u = await req<AuthUser>('/auth/setup', { method: 'POST', body: { username, password } });
+    setToken(u.token);
+    return u;
+  },
+  login: async (username: string, password: string) => {
+    const u = await req<AuthUser>('/auth/login', { method: 'POST', body: { username, password } });
+    setToken(u.token);
+    return u;
+  },
+  logout: async () => {
+    try {
+      await req<void>('/auth/logout', { method: 'POST' });
+    } finally {
+      setToken('');
+    }
+  },
   me: () => req<User>('/auth/me'),
+  patchMe: (patch: {
+    summary_language?: string;
+    story_sort?: 'updated' | 'published' | 'sources';
+    story_order?: 'asc' | 'desc';
+  }) => req<User>('/auth/me', { method: 'PATCH', body: patch }),
 
   feeds: {
     list: () => req<Feed[]>('/feeds'),
@@ -51,9 +87,13 @@ export const api = {
     importOpml: async (file: File) => {
       const form = new FormData();
       form.append('file', file);
+      const headers: Record<string, string> = {};
+      const token = getToken();
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       const res = await fetch('/api/feeds/import-opml', {
         method: 'POST',
         credentials: 'include',
+        headers,
         body: form
       });
       if (!res.ok) {
@@ -78,7 +118,7 @@ export const api = {
   },
 
   stories: {
-    list: (filter: string = 'all', category?: string, sort: string = 'updated', order: string = 'desc') => {
+    list: (filter: string = 'all', category?: string, sort: string = 'published', order: string = 'asc') => {
       const params = new URLSearchParams({ filter, sort, order });
       if (category) params.set('category', category);
       return req<StoryListItem[]>(`/stories?${params}`);

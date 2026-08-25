@@ -78,14 +78,7 @@
   }
 
   async function saveLanguage() {
-    $currentUser = await api.me(); // refresh after patch below
-    const updated = await fetch('/api/auth/me', {
-      method: 'PATCH',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ summary_language: language })
-    }).then((r) => r.json());
-    $currentUser = updated;
+    $currentUser = await api.patchMe({ summary_language: language });
     saved = true;
     setTimeout(() => (saved = false), 2000);
   }

@@ -78,7 +78,7 @@ the full normative spec — **read it before non-trivial changes**.
 0001–0004), full pipeline (ingest → fulltext chain → summarize → embed → cluster →
 story versioning → freeze → retention), stories API with per-user read state, SSE
 activity stream, SvelteKit GUI (stories/feeds/activity/settings with admin editors +
-threshold report), external Qdrant backend option, Dockerfile + compose. 66 pytest
+threshold report), external Qdrant backend option, Dockerfile + compose. 75 pytest
 tests green, ruff + mypy + svelte-check clean. Post-release additions: OPML feed
 import (`POST /api/feeds/import-opml` + Feeds-page upload), LLM key handling fixes
 (GUI only persists changed fields; test-llm shows key hint), story images
@@ -87,6 +87,17 @@ backfilled on attach/merge; Alembic 0005), headline refresh (the merge LLM call
 also returns a new `headline` when new facts bump `story.version`), immediate
 first poll (adding a feed or OPML-importing kicks `poll_feeds_background` in
 `ingest.py` right away — skipped when `ENVIRONMENT=test`, like the scheduler).
+PWA support (2026-08-25): web manifest + iOS meta (`apple-mobile-web-app-*`,
+safe-area insets) in `frontend/src/app.html` + `static/manifest.webmanifest`;
+auth works without cookies — login/setup return the signed session token in the
+response body, the GUI keeps it in localStorage and sends `Authorization:
+Bearer` (iOS standalone PWAs drop cookies); `current_user` in `api/deps.py`
+accepts cookie → Bearer → `?token=` (for SSE, which can't set headers).
+Story-list ordering defaults to article publication date, oldest first, and the
+user's sort/order choice is persisted server-side (`user.story_sort` /
+`story_order`, Alembic 0006, `PATCH /auth/me`) so every device follows. On
+screens ≤700px the Stories page renders a swipeable card deck instead of the
+list: swipe left = mark read + next, swipe right = previous.
 
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,

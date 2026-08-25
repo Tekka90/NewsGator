@@ -89,6 +89,7 @@ ALEMBIC_DIR = BACKEND_DIR / "alembic"
 # no alembic_version table. Each entry maps schema markers that must ALL be
 # present to the revision such a DB should be stamped at, newest first.
 _LEGACY_STAMPS: list[tuple[list[tuple[str, str]], str]] = [
+    ([("user", "story_sort"), ("story", "image_url")], "0006_user_story_prefs"),
     ([("story", "image_url")], "0005_image_urls"),
     ([], "0004_cluster_tables"),  # tables exist; only columns differ per revision
 ]

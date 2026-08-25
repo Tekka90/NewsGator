@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
-  import { api } from '$lib/api';
+  import { api, getToken } from '$lib/api';
   import { currentUser } from '$lib/stores';
 
   let { children } = $props();
@@ -36,7 +36,10 @@
 
   // SPEC §7: 'now processing' indicator — LLM queue depth via SSE
   function connectActivity() {
-    const source = new EventSource('/api/activity/stream');
+    // EventSource can't set headers — pass the token as a query param
+    const token = getToken();
+    const url = '/api/activity/stream' + (token ? `?token=${encodeURIComponent(token)}` : '');
+    const source = new EventSource(url);
     source.onmessage = (msg) => {
       const payload = JSON.parse(msg.data);
       if (payload.llm_queue_depth !== undefined) queueDepth = payload.llm_queue_depth;
@@ -92,8 +95,20 @@
     align-items: center;
     gap: 1rem;
     padding: 0.6rem 1.2rem;
+    /* iOS standalone: keep clear of the status bar / rounded corners */
+    padding-top: calc(0.6rem + env(safe-area-inset-top, 0px));
+    padding-left: calc(1.2rem + env(safe-area-inset-left, 0px));
+    padding-right: calc(1.2rem + env(safe-area-inset-right, 0px));
     background: #1c1e21;
     color: #fff;
+  }
+  @media (max-width: 700px) {
+    .shell nav {
+      flex-wrap: wrap;
+      gap: 0.5rem 0.9rem;
+      padding-bottom: calc(0.6rem + env(safe-area-inset-bottom, 0px));
+      font-size: 0.95rem;
+    }
   }
   .shell nav a {
     color: #cfd3da;
@@ -117,6 +132,12 @@
     max-width: 960px;
     margin: 1.5rem auto;
     padding: 0 1rem;
+  }
+  @media (max-width: 700px) {
+    main {
+      margin: 0.8rem auto;
+      padding: 0 0.6rem;
+    }
   }
   :global(button) {
     cursor: pointer;

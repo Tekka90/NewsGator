@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import current_user
-from app.api.schemas import LoginIn, MePatch, SetupIn, UserOut
+from app.api.schemas import AuthOut, LoginIn, MePatch, SetupIn, UserOut
 from app.core.db import get_session
 from app.core.security import (
     SESSION_COOKIE,
@@ -27,7 +27,7 @@ async def setup_needed(session: AsyncSession = Depends(get_session)) -> dict[str
 @router.post("/setup", status_code=status.HTTP_201_CREATED)
 async def setup(
     body: SetupIn, response: Response, session: AsyncSession = Depends(get_session)
-) -> UserOut:
+) -> AuthOut:
     count = await session.scalar(select(func.count(User.id)))
     if count:
         raise HTTPException(status.HTTP_409_CONFLICT, "Setup already completed")
@@ -39,19 +39,17 @@ async def setup(
     session.add(user)
     await session.commit()
     await session.refresh(user)
-    _set_cookie(response, user.id)
-    return UserOut.model_validate(user)
+    return _auth_response(response, user)
 
 
 @router.post("/login")
 async def login(
     body: LoginIn, response: Response, session: AsyncSession = Depends(get_session)
-) -> UserOut:
+) -> AuthOut:
     user = await session.scalar(select(User).where(User.username == body.username))
     if user is None or not verify_password(body.password, user.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials")
-    _set_cookie(response, user.id)
-    return UserOut.model_validate(user)
+    return _auth_response(response, user)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -72,10 +70,21 @@ async def patch_me(
 ) -> UserOut:
     if body.summary_language is not None:
         user.summary_language = body.summary_language
+    if body.story_sort is not None:
+        user.story_sort = body.story_sort
+    if body.story_order is not None:
+        user.story_order = body.story_order
     if body.password is not None:
         user.password_hash = hash_password(body.password)
     await session.commit()
     return UserOut.model_validate(user)
+
+
+def _auth_response(response: Response, user: User) -> AuthOut:
+    """Set the cookie AND return the token in the body (PWA-safe auth)."""
+    token = make_session_token(user.id)
+    _set_cookie(response, user.id)
+    return AuthOut(**UserOut.model_validate(user).model_dump(), token=token)
 
 
 def _set_cookie(response: Response, user_id: int) -> None:

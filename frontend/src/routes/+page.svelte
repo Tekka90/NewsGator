@@ -1,29 +1,65 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from '$lib/api';
+  import { currentUser } from '$lib/stores';
   import type { Category, StoryListItem } from '$lib/types';
+
+  type Sort = 'updated' | 'published' | 'sources';
+  type Order = 'asc' | 'desc';
 
   let stories = $state<StoryListItem[]>([]);
   let categories = $state<Category[]>([]);
   let filter = $state<'all' | 'unread' | 'updated'>('all');
   let category = $state('');
-  let sort = $state<'updated' | 'published' | 'sources'>('updated');
-  let order = $state<'desc' | 'asc'>('desc');
+  let sort = $state<Sort>('published');
+  let order = $state<Order>('asc');
   let loading = $state(true);
+  let isMobile = $state(false);
 
-  onMount(async () => {
-    try {
-      categories = await api.categories.list();
-    } catch {
-      /* non-admin users may not list categories */
-    }
-    await load();
+  // --- swipe deck state (mobile card view) ---
+  let index = $state(0);
+  let dx = $state(0);
+  let snap = $state(false);
+  let dragging = $state(false);
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let horizLock: boolean | null = null;
+
+  let current = $derived(index < stories.length ? stories[index] : null);
+
+  onMount(() => {
+    const mq = matchMedia('(max-width: 700px)');
+    const onMq = () => (isMobile = mq.matches);
+    onMq();
+    mq.addEventListener('change', onMq);
+    // Per-user ordering prefs live server-side — shared across devices
+    if ($currentUser?.story_sort) sort = $currentUser.story_sort;
+    if ($currentUser?.story_order) order = $currentUser.story_order;
+    void (async () => {
+      try {
+        categories = await api.categories.list();
+      } catch {
+        /* non-admin users may not list categories */
+      }
+      await load();
+    })();
+    return () => mq.removeEventListener('change', onMq);
   });
 
   async function load() {
     loading = true;
     stories = await api.stories.list(filter, category || undefined, sort, order);
+    index = 0;
+    dx = 0;
     loading = false;
+  }
+
+  /** Remember ordering server-side so every device follows (per-user pref). */
+  function savePrefs() {
+    api
+      .patchMe({ story_sort: sort, story_order: order })
+      .then((u) => ($currentUser = u))
+      .catch(() => {});
   }
 
   function ago(iso: string): string {
@@ -32,6 +68,52 @@
     const h = Math.floor(mins / 60);
     if (h < 24) return `${h}h ago`;
     return `${Math.floor(h / 24)}d ago`;
+  }
+
+  // --- swipe deck handlers ---
+  // Horizontal drag navigates cards; vertical stays native scroll (touch-action: pan-y).
+  function onPointerDown(e: PointerEvent) {
+    dragging = true;
+    horizLock = null;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+  }
+
+  function onPointerMove(e: PointerEvent) {
+    if (!dragging) return;
+    const mx = e.clientX - dragStartX;
+    const my = e.clientY - dragStartY;
+    if (horizLock === null && (Math.abs(mx) > 8 || Math.abs(my) > 8)) {
+      horizLock = Math.abs(mx) > Math.abs(my);
+    }
+    if (horizLock) dx = mx;
+  }
+
+  function onPointerUp() {
+    if (!dragging) return;
+    dragging = false;
+    if (dx <= -80) commit('left');
+    else if (dx >= 80) commit('right');
+    else dx = 0;
+    horizLock = null;
+  }
+
+  function commit(dir: 'left' | 'right') {
+    const story = current;
+    if (!story) return;
+    if (dir === 'left' && index >= stories.length - 1) { dx = 0; return; }
+    if (dir === 'right' && index <= 0) { dx = 0; return; }
+    dx = dir === 'left' ? -480 : 480;
+    setTimeout(() => {
+      if (dir === 'left' && !story.is_read) {
+        story.is_read = true;
+        api.stories.read(story.id).catch(() => {});
+      }
+      index += dir === 'left' ? 1 : -1;
+      snap = true;
+      dx = 0;
+      requestAnimationFrame(() => requestAnimationFrame(() => (snap = false)));
+    }, 220);
   }
 </script>
 
@@ -54,15 +136,15 @@
       {#each categories as c (c.id)}<option value={c.name}>{c.name}</option>{/each}
     </select>
   {/if}
-  <select bind:value={sort} onchange={load}>
-    <option value="updated">Processing date</option>
+  <select bind:value={sort} onchange={() => { savePrefs(); load(); }}>
     <option value="published">Article date</option>
+    <option value="updated">Processing date</option>
     <option value="sources">Source count</option>
   </select>
   <button
     class="dir"
     title={order === 'desc' ? 'Newest / most first — click to reverse' : 'Oldest / least first — click to reverse'}
-    onclick={() => { order = order === 'desc' ? 'asc' : 'desc'; load(); }}
+    onclick={() => { order = order === 'desc' ? 'asc' : 'desc'; savePrefs(); load(); }}
   >
     {order === 'desc' ? '↓' : '↑'}
   </button>
@@ -70,6 +152,54 @@
 
 {#if loading}
   <div class="card"><p>Loading…</p></div>
+{:else if stories.length === 0}
+  <div class="card">
+    <p>No stories yet. Add feeds on the <a href="/feeds">Feeds page</a> — articles are
+    clustered into stories automatically once the pipeline runs.</p>
+  </div>
+{:else if isMobile && current}
+  <!-- Mobile: story deck. Swipe ← marks read and opens the next story; → goes back. -->
+  <div class="deckmeta">
+    <button class="navbtn" onclick={() => commit('right')} disabled={index === 0}>‹ Prev</button>
+    <span>{index + 1} / {stories.length}</span>
+    <span class="hint">swipe ← read &amp; next</span>
+    <button class="navbtn" onclick={() => commit('left')} disabled={index >= stories.length - 1}>Next ›</button>
+  </div>
+  <div
+    class="deckviewport"
+    role="region"
+    aria-label="Story deck — swipe left to mark read and open the next story"
+    onpointerdown={onPointerDown}
+    onpointermove={onPointerMove}
+    onpointerup={onPointerUp}
+    onpointercancel={onPointerUp}
+  >
+    <article
+      class="card deckcard"
+      class:readcard={current.is_read}
+      style:transform="translateX({dx}px) rotate({dx / 30}deg)"
+      style:transition={dragging || snap ? 'none' : 'transform 0.22s ease-out'}
+    >
+      <div class="row">
+        <span class="chip">{current.category}</span>
+        {#if !current.is_read}<span class="badge new">NEW</span>{/if}
+        {#if current.updated_since_read}<span class="badge updated">UPDATED</span>{/if}
+        {#if current.is_frozen}<span class="badge frozen">archived</span>{/if}
+        <span class="spacer"></span>
+        <span class="age">{ago(current.published_at ?? current.last_updated_at)}</span>
+      </div>
+      {#if current.image_url}
+        <img class="hero" src={current.image_url} alt="" loading="lazy" />
+      {/if}
+      <h2><a href="/stories/{current.id}">{current.title}</a></h2>
+      <p class="decksummary">{current.summary}</p>
+      <div class="meta">
+        <span>{current.source_count} source{current.source_count === 1 ? '' : 's'}</span>
+        <span>v{current.version}</span>
+        <a href="/stories/{current.id}">Full story &amp; sources →</a>
+      </div>
+    </article>
+  </div>
 {:else}
   {#each stories as story (story.id)}
     <a class="card story" class:read={story.is_read} href="/stories/{story.id}">
@@ -95,11 +225,6 @@
         </div>
       </div>
     </a>
-  {:else}
-    <div class="card">
-      <p>No stories yet. Add feeds on the <a href="/feeds">Feeds page</a> — articles are
-      clustered into stories automatically once the pipeline runs.</p>
-    </div>
   {/each}
 {/if}
 
@@ -137,4 +262,44 @@
   .spacer { flex: 1; }
   .age { color: #888; font-size: 0.85em; }
   .meta { display: flex; gap: 1rem; color: #888; font-size: 0.85em; margin-top: 0.5rem; }
+  .toolbar { flex-wrap: wrap; }
+
+  /* --- mobile story deck --- */
+  .deckmeta {
+    display: flex; align-items: center; gap: 0.7rem;
+    color: #888; font-size: 0.85em; margin: 0.2rem 0 0.5rem;
+  }
+  .deckmeta .hint { flex: 1; text-align: center; }
+  .navbtn {
+    border: 1px solid #d0d3d9; background: #fff; border-radius: 999px;
+    padding: 0.25rem 0.8rem;
+  }
+  .navbtn:disabled { opacity: 0.4; }
+  .deckviewport {
+    /* horizontal pan is handled by the deck; vertical scroll stays native */
+    touch-action: pan-y;
+    overflow: hidden;
+    padding: 0.2rem;
+  }
+  .deckcard {
+    margin-bottom: 0;
+    user-select: none;
+    -webkit-user-select: none;
+    min-height: 55vh;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    will-change: transform;
+  }
+  .deckcard.readcard { opacity: 0.75; }
+  .deckcard h2 { margin: 0; font-size: 1.3rem; line-height: 1.25; }
+  .deckcard h2 a { color: inherit; text-decoration: none; }
+  .deckcard .hero {
+    width: 100%; max-height: 30vh; object-fit: cover; border-radius: 6px;
+  }
+  .decksummary {
+    margin: 0; color: #333; line-height: 1.5; font-size: 1rem;
+    overflow-y: auto; flex: 1;
+  }
+  .deckcard .meta a { margin-left: auto; color: #294a7a; }
 </style>

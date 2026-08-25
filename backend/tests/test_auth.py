@@ -49,3 +49,45 @@ async def test_patch_me_language(client: AsyncClient) -> None:
     r = await client.patch("/api/auth/me", json={"summary_language": "fr"})
     assert r.status_code == 200
     assert r.json()["summary_language"] == "fr"
+
+
+async def test_login_returns_portable_token(client: AsyncClient) -> None:
+    """iOS standalone PWAs may drop cookies — the token in the body must work
+    as a Bearer credential (and as ?token= for SSE)."""
+    await setup_admin(client)
+    await client.post("/api/auth/logout")
+    client.cookies.clear()
+
+    r = await client.post("/api/auth/login", json=ADMIN)
+    assert r.status_code == 200
+    token = r.json()["token"]
+    assert token
+    client.cookies.clear()  # exercise token-only auth paths
+
+    r = await client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    assert r.json()["username"] == "admin"
+
+    r = await client.get("/api/auth/me", params={"token": token})
+    assert r.status_code == 200
+
+    r = await client.get("/api/auth/me", headers={"Authorization": "Bearer bogus"})
+    assert r.status_code == 401
+
+
+async def test_patch_me_story_ordering_prefs(client: AsyncClient) -> None:
+    await setup_admin(client)
+    r = await client.get("/api/auth/me")
+    assert r.json()["story_sort"] == ""  # unset → server default
+
+    r = await client.patch(
+        "/api/auth/me", json={"story_sort": "published", "story_order": "asc"}
+    )
+    assert r.status_code == 200
+    assert r.json()["story_sort"] == "published"
+    assert r.json()["story_order"] == "asc"
+
+    assert (await client.get("/api/auth/me")).json()["story_sort"] == "published"
+    assert (
+        await client.patch("/api/auth/me", json={"story_sort": "bogus"})
+    ).status_code == 422
