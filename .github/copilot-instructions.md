@@ -98,10 +98,12 @@ accepts cookie → Bearer → `?token=` (for SSE, which can't set headers).
 Story-list ordering defaults to article publication date, oldest first, the
 default filter is **Unread**, and the user's filter/sort/order choices are
 persisted server-side (`user.story_filter` / `story_sort` / `story_order`,
-Alembic 0006/0007, `PATCH /auth/me`) so every device follows. On
-screens ≤700px the Stories page renders a swipeable card deck instead of the
-list: swipe left = mark read + next, swipe right = previous. Source logos in
-card meta rows: `GET /api/stories` returns `source_hosts` (distinct article
+Alembic 0006/0007, `PATCH /auth/me`) so every device follows. On touch-first
+devices the Stories page renders a swipeable card deck instead of the
+list: swipe left = mark read + next, swipe right = previous. The deck is chosen
+by input capability, not width: `matchMedia('(pointer: coarse)')` — touch-first
+devices (iPhone, iPad, Android) get it even on large screens, since iPadOS
+reports as macOS to UA sniffing. Source logos in card meta rows: `GET /api/stories` returns `source_hosts` (distinct article
 hosts per story, ≤5) and the GUI renders them via a cached, auth-protected
 favicon proxy `GET /api/favicon?host=` (`api/favicons.py`; `_fetch_favicon`
 is the monkeypatch seam; `FAVICON_CACHE_HOURS`, failures cached 1h) — never a

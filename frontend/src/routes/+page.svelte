@@ -28,7 +28,10 @@
   let current = $derived(index < stories.length ? stories[index] : null);
 
   onMount(() => {
-    const mq = matchMedia('(max-width: 700px)');
+    // Swipe deck on touch-first devices (iPhone, iPad, Android, touch laptops) —
+    // a finger can't "scroll-hover" a list comfortably, and UA-sniffing iPadOS
+    // is unreliable since it reports as macOS. Mouse/keyboard keeps the list.
+    const mq = matchMedia('(pointer: coarse)');
     const onMq = () => (isMobile = mq.matches);
     onMq();
     mq.addEventListener('change', onMq);
