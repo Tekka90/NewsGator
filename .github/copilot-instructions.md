@@ -125,7 +125,11 @@ Notes on the current code:
 - Lifespan migrates the schema to Alembic head at startup (`alembic upgrade head`
   via subprocess; legacy create_all DBs without `alembic_version` are stamped at
   the matching revision first), then `create_all` stays as a no-op safety net +
-  category seeding. The Docker entrypoint no longer runs Alembic itself.
+  category seeding. After settings overrides are applied, the vector backend is
+  initialized via `init_vector_store(session)` — Qdrant collections are created
+  there (regression: they used to never be created, so Qdrant silently failed);
+  an unreachable Qdrant degrades to the in-memory store with a logged warning.
+  The Docker entrypoint no longer runs Alembic itself.
 - The venv is Python 3.14 (user machine); `requires-python` stays `>=3.12` per spec.
 - Frontend: SvelteKit 5 runes + adapter-node; dev proxy `/api → :8000` in
   `frontend/vite.config.ts`, production proxy in `frontend/src/hooks.server.ts`

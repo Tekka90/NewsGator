@@ -22,7 +22,9 @@ dependencies = [
     "openai>=1.40",
     "langdetect>=1.0.9",
     "sqlite-vec>=0.1",
-    "qdrant-client>=1.12",
+    # Pin to match common self-hosted Qdrant servers (1.17.x); a much newer
+    # client warns/fails against older servers (check_compatibility).
+    "qdrant-client>=1.12,<1.18",
     "numpy>=2.0",
     "anyio>=4.4",
     "greenlet>=3.0",

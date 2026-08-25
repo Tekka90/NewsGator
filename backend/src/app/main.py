@@ -233,6 +233,14 @@ async def _ensure_schema_and_seed() -> None:
         from app.api.settings import apply_overrides_at_startup
 
         await apply_overrides_at_startup(session)
+        # Initialize the configured vector backend (Qdrant collections /
+        # sqlite-vec tables) now that VECTOR_BACKEND is final.
+        from app.services.vectorstore import init_vector_store
+
+        try:
+            await init_vector_store(session)
+        except Exception as exc:
+            logger.warning("Vector store init failed (%s) — in-memory fallback", exc)
         break
 
 

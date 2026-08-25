@@ -158,6 +158,37 @@ class InMemoryVectorStore:
 _store: VectorStore | None = None
 
 
+async def init_vector_store(session: AsyncSession | None = None) -> VectorStore:
+    """Construct + initialize the configured backend at app startup.
+
+    Called once from the lifespan AFTER settings overrides are applied, so a
+    GUI-set VECTOR_BACKEND takes effect. Qdrant collections are created here;
+    sqlite-vec tables are created by _ensure_schema_and_seed (sync connection).
+    """
+    global _store
+    if settings.vector_backend == "qdrant":
+        from app.services.qdrant_store import QdrantVectorStore
+
+        try:
+            store = QdrantVectorStore()
+            await store.ensure_collections()
+        except Exception:
+            # Qdrant configured but unreachable — degrade to in-memory so the
+            # pipeline keeps running instead of throwing on every article.
+            _store = InMemoryVectorStore()
+            raise
+        _store = store
+        return _store
+    if settings.vector_backend == "sqlite_vec" and session is not None:
+        # sqlite-vec runs on the caller's DB session — do NOT cache it in _store:
+        # the startup session closes, and per-op callers must bind a live session.
+        sqlite_store = SqliteVecStore(session)
+        await sqlite_store.ensure_tables()
+        return sqlite_store
+    _store = InMemoryVectorStore()
+    return _store
+
+
 def get_vector_store(session: AsyncSession | None = None) -> VectorStore:
     global _store
     if _store is not None:
