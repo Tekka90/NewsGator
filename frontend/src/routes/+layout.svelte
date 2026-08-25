@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
-  import { api, getToken } from '$lib/api';
+  import { api, streamUrl } from '$lib/api';
   import { currentUser } from '$lib/stores';
 
   let { children } = $props();
@@ -37,9 +37,7 @@
   // SPEC §7: 'now processing' indicator — LLM queue depth via SSE
   function connectActivity() {
     // EventSource can't set headers — pass the token as a query param
-    const token = getToken();
-    const url = '/api/activity/stream' + (token ? `?token=${encodeURIComponent(token)}` : '');
-    const source = new EventSource(url);
+    const source = new EventSource(streamUrl('/api/activity/stream'));
     source.onmessage = (msg) => {
       const payload = JSON.parse(msg.data);
       if (payload.llm_queue_depth !== undefined) queueDepth = payload.llm_queue_depth;

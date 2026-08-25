@@ -139,9 +139,10 @@
 {/each}
 
 <style>
-  .add { display: flex; gap: 0.5rem; align-items: center; }
-  .add input { flex: 1; }
-  .row { display: flex; align-items: center; gap: 0.5rem; }
+  .add { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+  .add input { flex: 1; min-width: 0; }
+  .row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+  .feed strong { overflow-wrap: anywhere; min-width: 0; }
   .spacer { flex: 1; }
   .badge {
     font-size: 0.75em;
@@ -164,5 +165,10 @@
   .small { font-size: 0.85em; margin: 0.4rem 0 0; }
   .danger { color: #a12727; }
   .import-label { display: block; margin: 0; cursor: pointer; }
-  .import input[type='file'] { margin-top: 0.4rem; }
+  .import input[type='file'] { margin-top: 0.4rem; max-width: 100%; }
+
+  @media (max-width: 700px) {
+    /* title + badges on one row, action buttons wrap onto their own line */
+    .feed .row .spacer { flex-basis: 100%; }
+  }
 </style>

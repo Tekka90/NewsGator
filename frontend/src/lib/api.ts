@@ -22,6 +22,18 @@ export function faviconUrl(host: string): string {
   );
 }
 
+/** Bearer header for raw fetch() calls outside req() (e.g. multipart, SSE-adjacent). */
+export function authHeaders(): Record<string, string> {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/** EventSource can't set headers — append the token as a query param. */
+export function streamUrl(path: string): string {
+  const token = getToken();
+  return path + (token ? `?token=${encodeURIComponent(token)}` : '');
+}
+
 function setToken(token: string) {
   if (typeof localStorage === 'undefined') return;
   if (token) localStorage.setItem(TOKEN_KEY, token);
@@ -32,10 +44,8 @@ async function req<T>(
   path: string,
   options: { method?: string; body?: unknown } = {}
 ): Promise<T> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...authHeaders() };
   if (options.body !== undefined) headers['Content-Type'] = 'application/json';
-  const token = getToken();
-  if (token) headers['Authorization'] = `Bearer ${token}`;
   const res = await fetch(BASE + path, {
     method: options.method ?? 'GET',
     credentials: 'include',
@@ -98,13 +108,10 @@ export const api = {
     importOpml: async (file: File) => {
       const form = new FormData();
       form.append('file', file);
-      const headers: Record<string, string> = {};
-      const token = getToken();
-      if (token) headers['Authorization'] = `Bearer ${token}`;
       const res = await fetch('/api/feeds/import-opml', {
         method: 'POST',
         credentials: 'include',
-        headers,
+        headers: authHeaders(),
         body: form
       });
       if (!res.ok) {

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
   import { currentUser } from '$lib/stores';
-  import { api } from '$lib/api';
+  import { api, authHeaders, streamUrl } from '$lib/api';
   import type { PipelineRow } from '$lib/types';
 
   interface ActivityEvent {
@@ -41,7 +41,10 @@
   ]);
 
   async function loadPipeline() {
-    const res = await fetch('/api/activity/pipeline', { credentials: 'include' });
+    const res = await fetch('/api/activity/pipeline', {
+      credentials: 'include',
+      headers: authHeaders()
+    });
     if (!res.ok) return;
     const body = await res.json();
     pipelineStates = body.states;
@@ -50,7 +53,10 @@
   }
 
   onMount(async () => {
-    const res = await fetch('/api/activity/recent', { credentials: 'include' });
+    const res = await fetch('/api/activity/recent', {
+      credentials: 'include',
+      headers: authHeaders()
+    });
     if (res.ok) {
       const body = await res.json();
       events = body.events.slice(-200);
@@ -61,7 +67,7 @@
   });
 
   function connect() {
-    source = new EventSource('/api/activity/stream');
+    source = new EventSource(streamUrl('/api/activity/stream'));
     source.onopen = () => (live = true);
     source.onerror = () => (live = false);
     source.onmessage = (msg) => {
@@ -125,7 +131,8 @@
 {#if pipelineRows.length}
   <div class="card">
     <h2>Pipeline</h2>
-    <table>
+    <div class="tablewrap">
+      <table>
       <thead>
         <tr>
           <th>Article</th>
@@ -166,7 +173,8 @@
           </tr>
         {/each}
       </tbody>
-    </table>
+      </table>
+    </div>
   </div>
 {/if}
 
@@ -190,10 +198,12 @@
     background: #c33; display: inline-block;
   }
   .dot.on { background: #2a2; }
-  .status { display: flex; align-items: center; gap: 1rem; }
+  .status { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
   .spacer { flex: 1; }
   h2 { font-size: 1.05rem; margin-top: 0; }
-  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  /* pipeline table is wider than a phone screen — scroll it horizontally */
+  .tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { width: 100%; min-width: 38rem; border-collapse: collapse; font-size: 0.88rem; }
   th { text-align: left; color: #888; font-weight: 600; font-size: 0.8em; padding: 0.2rem 0.4rem; }
   td { padding: 0.3rem 0.4rem; border-top: 1px solid #f0f0f0; vertical-align: middle; }
   .titlecell .t { font-weight: 500; }
@@ -216,4 +226,13 @@
   .comp { color: #294a7a; min-width: 5rem; }
   .action { font-weight: 600; min-width: 11rem; }
   .detail { color: #666; overflow-wrap: anywhere; }
+
+  @media (max-width: 700px) {
+    .log { font-size: 0.78rem; max-height: 60vh; }
+    .line { flex-wrap: wrap; gap: 0.1rem 0.5rem; }
+    .ts { min-width: 4.3rem; }
+    .comp { min-width: 0; }
+    .action { min-width: 0; overflow-wrap: anywhere; }
+    .detail { flex: 1 1 100%; } /* details on their own line */
+  }
 </style>
