@@ -78,10 +78,11 @@ export const api = {
   },
 
   stories: {
-    list: (filter: string = 'all', category?: string) =>
-      req<StoryListItem[]>(
-        `/stories?filter=${filter}${category ? `&category=${encodeURIComponent(category)}` : ''}`
-      ),
+    list: (filter: string = 'all', category?: string, sort: string = 'updated') => {
+      const params = new URLSearchParams({ filter, sort });
+      if (category) params.set('category', category);
+      return req<StoryListItem[]>(`/stories?${params}`);
+    },
     detail: (id: number) => req<StoryDetail>(`/stories/${id}`),
     read: (id: number) => req<void>(`/stories/${id}/read`, { method: 'POST' }),
     unread: (id: number) => req<void>(`/stories/${id}/unread`, { method: 'POST' }),

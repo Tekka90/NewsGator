@@ -412,6 +412,55 @@ async def test_stories_list_and_read_state(client: AsyncClient, db_session) -> N
     assert story_id in ids
 
 
+async def test_stories_list_sort(client: AsyncClient, db_session) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    await setup_admin(client)
+    async with db_session() as s:
+        s.add_all([Category(name=n) for n in SEED_CATEGORIES])
+        feed = Feed(url="https://api.example.com/rss")
+        s.add(feed)
+        await s.flush()
+        now = datetime.now(UTC)
+        # old article, recently processed, 1 source
+        s1 = Story(title="S1", summary="", last_updated_at=now)
+        # newest article, oldest processing, 2 sources
+        s2 = Story(title="S2", summary="", last_updated_at=now - timedelta(days=2))
+        # no publication date, middle processing
+        s3 = Story(title="S3", summary="", last_updated_at=now - timedelta(days=1))
+        s.add_all([s1, s2, s3])
+        await s.flush()
+
+        def art(story: Story, guid: str, pub: datetime | None) -> Article:
+            return Article(
+                feed_id=feed.id, guid=guid, url=f"https://news.example.com/{guid}",
+                title=guid, story_id=story.id, processing_state="clustered",
+                published_at=pub,
+            )
+
+        s.add(art(s1, "a1", now - timedelta(days=5)))
+        s.add(art(s2, "a2", now - timedelta(hours=1)))
+        s.add(art(s2, "a3", now - timedelta(hours=2)))
+        s.add(art(s3, "a4", None))
+        await s.commit()
+        ids = {}
+        for t in ("S1", "S2", "S3"):
+            story = await s.scalar(select(Story).where(Story.title == t))
+            assert story is not None
+            ids[t] = story.id
+
+    r = await client.get("/api/stories?sort=updated")
+    assert [i["id"] for i in r.json()] == [ids["S1"], ids["S3"], ids["S2"]]
+
+    r = await client.get("/api/stories?sort=published")
+    assert [i["id"] for i in r.json()] == [ids["S2"], ids["S1"], ids["S3"]]
+
+    r = await client.get("/api/stories?sort=sources")
+    assert [i["id"] for i in r.json()] == [ids["S2"], ids["S1"], ids["S3"]]
+
+    assert (await client.get("/api/stories?sort=bogus")).status_code == 422
+
+
 async def test_story_detail_and_diff(client: AsyncClient, db_session) -> None:
     story_id = await _setup_story(client, db_session)
     r = await client.get(f"/api/stories/{story_id}")

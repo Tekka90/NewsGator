@@ -112,6 +112,7 @@ def _flags(state: StoryState | None, story: Story) -> tuple[bool, bool]:
 async def list_stories(
     filter: str = Query(default="all", pattern="^(all|unread|updated)$"),
     category: str | None = None,
+    sort: str = Query(default="updated", pattern="^(updated|published|sources)$"),
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[StoryListItem]:
@@ -164,6 +165,11 @@ async def list_stories(
                 updated_since_read=updated,
             )
         )
+    if sort == "published":
+        # newest article publication date first; unknown dates last
+        out.sort(key=lambda s: (s.published_at is not None, s.published_at), reverse=True)
+    elif sort == "sources":
+        out.sort(key=lambda s: (s.source_count, s.last_updated_at), reverse=True)
     return out
 
 

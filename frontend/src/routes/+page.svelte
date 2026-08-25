@@ -7,6 +7,7 @@
   let categories = $state<Category[]>([]);
   let filter = $state<'all' | 'unread' | 'updated'>('all');
   let category = $state('');
+  let sort = $state<'updated' | 'published' | 'sources'>('updated');
   let loading = $state(true);
 
   onMount(async () => {
@@ -20,7 +21,7 @@
 
   async function load() {
     loading = true;
-    stories = await api.stories.list(filter, category || undefined);
+    stories = await api.stories.list(filter, category || undefined, sort);
     loading = false;
   }
 
@@ -52,6 +53,11 @@
       {#each categories as c (c.id)}<option value={c.name}>{c.name}</option>{/each}
     </select>
   {/if}
+  <select bind:value={sort} onchange={load}>
+    <option value="updated">Recently processed</option>
+    <option value="published">Article date</option>
+    <option value="sources">Most sources</option>
+  </select>
 </div>
 
 {#if loading}
