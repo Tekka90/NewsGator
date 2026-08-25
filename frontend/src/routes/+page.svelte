@@ -27,6 +27,36 @@
 
   let current = $derived(index < stories.length ? stories[index] : null);
 
+  // --- pull-to-refresh (standalone PWA has no browser chrome) ---
+  let pullDist = $state(0);
+  let refreshing = $state(false);
+  let pullStartY = 0;
+  let pulling = false;
+
+  function onPullStart(e: PointerEvent) {
+    // only when scrolled to the very top and not mid horizontal swipe
+    if (!isMobile || refreshing || window.scrollY > 0) return;
+    pulling = true;
+    pullStartY = e.clientY;
+  }
+
+  function onPullMove(e: PointerEvent) {
+    if (!pulling) return;
+    const dy = e.clientY - pullStartY;
+    if (dy > 0 && window.scrollY <= 0) pullDist = Math.min(dy * 0.5, 90);
+  }
+
+  async function onPullEnd() {
+    if (!pulling) return;
+    pulling = false;
+    if (pullDist >= 60 && !refreshing) {
+      refreshing = true;
+      await load();
+      refreshing = false;
+    }
+    pullDist = 0;
+  }
+
   onMount(() => {
     // Swipe deck on touch-first devices (iPhone, iPad, Android, touch laptops) —
     // a finger can't "scroll-hover" a list comfortably, and UA-sniffing iPadOS
@@ -47,7 +77,18 @@
       }
       await load();
     })();
-    return () => mq.removeEventListener('change', onMq);
+    // pull-to-refresh on touch devices (no browser chrome in standalone PWA)
+    window.addEventListener('pointerdown', onPullStart, { passive: true });
+    window.addEventListener('pointermove', onPullMove, { passive: true });
+    window.addEventListener('pointerup', onPullEnd);
+    window.addEventListener('pointercancel', onPullEnd);
+    return () => {
+      mq.removeEventListener('change', onMq);
+      window.removeEventListener('pointerdown', onPullStart);
+      window.removeEventListener('pointermove', onPullMove);
+      window.removeEventListener('pointerup', onPullEnd);
+      window.removeEventListener('pointercancel', onPullEnd);
+    };
   });
 
   async function load() {
@@ -146,6 +187,13 @@
 </script>
 
 <h1>Stories</h1>
+
+{#if isMobile && (pullDist > 0 || refreshing)}
+  <div class="pullhint" style:height="{refreshing ? 36 : pullDist}px">
+    <span class:spinning={refreshing}>↓</span>
+    <span class="pulltext">{refreshing ? 'Refreshing…' : pullDist >= 60 ? 'Release to refresh' : 'Pull to refresh'}</span>
+  </div>
+{/if}
 
 <div class="toolbar card">
   <div class="filters">
@@ -362,4 +410,17 @@
     overflow-y: auto; flex: 1;
   }
   .deckcard .meta a { margin-left: auto; color: #294a7a; }
+
+  /* pull-to-refresh indicator */
+  .pullhint {
+    display: flex; align-items: center; justify-content: center; gap: 0.4rem;
+    overflow: hidden; color: #888; font-size: 0.85rem;
+    transition: height 0.15s ease-out;
+  }
+  .pullhint span:first-child {
+    display: inline-block; font-size: 1.1rem;
+    transition: transform 0.15s ease-out;
+  }
+  .pullhint .spinning { animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
