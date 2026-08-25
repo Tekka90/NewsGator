@@ -78,9 +78,9 @@
 
 <style>
   :global(html) {
-    /* opaque backdrop so iOS 26 liquid-glass status bar blends into the dark
-       nav instead of showing a blurred page behind it */
-    background: #1c1e21;
+    /* match theme-color (#f6f7f9): the iOS status-bar glass sits on a light
+       field so it reads as a subtle frosted band, not a dark smear on the nav */
+    background: #f6f7f9;
   }
   :global(body) {
     font-family: system-ui, sans-serif;
@@ -104,6 +104,10 @@
     padding-right: calc(1.2rem + env(safe-area-inset-right, 0px));
     background: #1c1e21;
     color: #fff;
+    /* keep the menu visible while scrolling */
+    position: sticky;
+    top: 0;
+    z-index: 50;
   }
   .shell nav a.active { color: #fff; font-weight: 600; }
   .logoutbtn { white-space: nowrap; }

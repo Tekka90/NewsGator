@@ -140,6 +140,22 @@
     (e.currentTarget as HTMLImageElement).remove();
   }
 
+  async function toggleRead(story: StoryListItem) {
+    if (story.is_read) {
+      story.is_read = false;
+      await api.stories.unread(story.id).catch(() => {});
+    } else {
+      story.is_read = true;
+      await api.stories.read(story.id).catch(() => {});
+    }
+  }
+
+  async function markAllRead() {
+    const unread = stories.filter((s) => !s.is_read);
+    await Promise.all(unread.map((s) => api.stories.read(s.id).catch(() => {})));
+    unread.forEach((s) => (s.is_read = true));
+  }
+
   // --- swipe deck handlers ---
   // Horizontal drag navigates cards; vertical stays native scroll (touch-action: pan-y).
   function onPointerDown(e: PointerEvent) {
@@ -301,40 +317,54 @@
     </article>
   </div>
 {:else}
+  {#if stories.some((s) => !s.is_read)}
+    <div class="bulkrow">
+      <button class="linkbtn" onclick={markAllRead}>Mark all read ({stories.filter((s) => !s.is_read).length})</button>
+    </div>
+  {/if}
   {#each stories as story (story.id)}
-    <a class="card story" class:read={story.is_read} href="/stories/{story.id}">
+    <div class="card story" class:read={story.is_read}>
       <div class="row">
         <span class="chip">{story.category}</span>
         {#if !story.is_read}<span class="badge new">NEW</span>{/if}
         {#if story.updated_since_read}<span class="badge updated">UPDATED</span>{/if}
         {#if story.is_frozen}<span class="badge frozen">archived</span>{/if}
         <span class="spacer"></span>
+        <button
+          class="readbtn"
+          title={story.is_read ? 'Mark unread' : 'Mark read'}
+          onclick={() => toggleRead(story)}
+        >
+          {story.is_read ? '↺' : '✓'}
+        </button>
         <span class="age">{ago(story.published_at ?? story.last_updated_at)}</span>
       </div>
-      <div class="body">
-        {#if story.image_url}
-          <img class="thumb" src={story.image_url} alt="" loading="lazy" />
-        {/if}
-        <div>
-          <h2>{story.title}</h2>
-          <p class="summary">{story.summary}</p>
-          <div class="meta">
-            {#each story.source_hosts.slice(0, 4) as host}
-              <span class="fav" title={host}
-                >{host[0]}<img
-                  src={faviconUrl(host)}
-                  alt=""
-                  loading="lazy"
-                  onerror={hideFav}
-                /></span
-              >
-            {/each}
-            <span>{story.source_count} source{story.source_count === 1 ? '' : 's'}</span>
-            <span>v{story.version}</span>
+      <a class="storylink" href="/stories/{story.id}">
+        <div class="body">
+          {#if story.image_url}
+            <img class="thumb" src={story.image_url} alt="" loading="lazy" />
+          {/if}
+          <div>
+            <h2>{story.title}</h2>
+            <p class="summary">{story.summary}</p>
+            <div class="meta">
+              {#each story.source_hosts.slice(0, 4) as host}
+                <span class="fav" title={host}
+                  >{host[0]}<img
+                    src={faviconUrl(host)}
+                    alt=""
+                    loading="lazy"
+                    onerror={hideFav}
+                  /></span
+                >
+              {/each}
+              <span>{story.source_count} source{story.source_count === 1 ? '' : 's'}</span>
+              <span>v{story.version}</span>
+            </div>
           </div>
         </div>
-      </div>
-    </a>
+      </a>
+    </div>
   {/each}
 {/if}
 
@@ -361,6 +391,19 @@
   .story { display: block; text-decoration: none; color: inherit; }
   .story:hover { border-color: #b9bec6; }
   .story.read { opacity: 0.62; }
+  .storylink { text-decoration: none; color: inherit; display: block; }
+  .readbtn {
+    border: 1px solid #d0d3d9; background: #fff; border-radius: 6px;
+    width: 1.7rem; height: 1.7rem; padding: 0; line-height: 1; cursor: pointer;
+    color: #1d6b2a; font-size: 0.95rem; flex-shrink: 0;
+  }
+  .readbtn:hover { border-color: #1d6b2a; }
+  .story.read .readbtn { color: #999; }
+  .bulkrow { display: flex; justify-content: flex-end; margin-bottom: 0.4rem; }
+  .linkbtn {
+    background: none; border: none; color: #294a7a; cursor: pointer;
+    font-size: 0.85rem; text-decoration: underline; padding: 0;
+  }
   .story h2 { margin: 0.35rem 0; font-size: 1.15rem; }
   .body { display: flex; gap: 0.9rem; align-items: flex-start; }
   .thumb {
