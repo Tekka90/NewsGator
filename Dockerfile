@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
-# --- frontend build ---
-FROM node:22-alpine AS frontend
+# --- frontend build (glibc node so the runtime binary works on debian-slim) ---
+FROM node:22-bookworm-slim AS frontend
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm ci --no-audit --no-fund || npm install --no-audit --no-fund
@@ -25,6 +25,9 @@ RUN uv pip install --system --no-cache .
 # frontend bundle served by adapter-node
 COPY --from=frontend /app/frontend/build ./frontend/build
 COPY --from=frontend /app/frontend/package.json ./frontend/package.json
+
+# Node runtime for adapter-node (python:3.12-slim ships no node)
+COPY --from=frontend /usr/local/bin/node /usr/local/bin/node
 
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

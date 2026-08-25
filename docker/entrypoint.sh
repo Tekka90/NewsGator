@@ -6,10 +6,18 @@ set -e
 
 # backend (API on :8000)
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+BACKEND_PID=$!
 
 # frontend (adapter-node on :3000, /api proxied to backend)
 cd /app/frontend
 PORT=3000 HOST=0.0.0.0 BACKEND_URL=http://localhost:8000 node build &
+FRONTEND_PID=$!
 
-wait -n
-exit $?
+# POSIX-compatible: exit the container when either process dies so Docker's
+# restart policy can take over. (dash's `wait` has no `-n`; poll instead.)
+while kill -0 "$BACKEND_PID" 2>/dev/null && kill -0 "$FRONTEND_PID" 2>/dev/null; do
+    sleep 2
+done
+
+# one of them died — propagate a non-zero status
+exit 1
