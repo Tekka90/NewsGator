@@ -1,6 +1,6 @@
 """Auth routes: first-run setup, login, logout, me."""
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +11,7 @@ from app.core.security import (
     SESSION_COOKIE,
     hash_password,
     make_session_token,
+    parse_session_token,
     verify_password,
 )
 from app.models import User
@@ -60,6 +61,29 @@ async def logout(response: Response) -> None:
 @router.get("/me")
 async def me(user: User = Depends(current_user)) -> UserOut:
     return UserOut.model_validate(user)
+
+
+@router.get("/session-debug")
+async def session_debug(request: Request) -> dict[str, object]:
+    """Which credential was presented and whether it validated.
+
+    Diagnostic for PWA session persistence: answers "did the token survive the
+    app restart?" (client side) vs "is the token being rejected?" (server side,
+    e.g. SECRET_KEY changed). Cookie value is only reported as present/absent.
+    """
+    auth = request.headers.get("authorization", "")
+    presented = "none"
+    token = None
+    if auth.lower().startswith("bearer "):
+        presented, token = "bearer", auth[7:].strip()
+    elif request.cookies.get(SESSION_COOKIE):
+        presented, token = "cookie", request.cookies.get(SESSION_COOKIE)
+    elif request.query_params.get("token"):
+        presented, token = "query", request.query_params.get("token")
+    return {
+        "presented": presented,
+        "token_valid": parse_session_token(token) is not None if token else False,
+    }
 
 
 @router.patch("/me")
