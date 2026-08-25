@@ -21,5 +21,12 @@ export async function handle({ event, resolve }) {
     });
     return new Response(resp.body, { status: resp.status, headers: resp.headers });
   }
-  return resolve(event);
+  const resp = await resolve(event);
+  // Standalone PWAs cache HTML aggressively and can relaunch on a stale page.
+  // HTML is never fingerprinted, so disable caching for it; hashed _app assets
+  // keep their own long-lived cache headers from the adapter.
+  if ((resp.headers.get('content-type') ?? '').includes('text/html')) {
+    resp.headers.set('cache-control', 'no-cache');
+  }
+  return resp;
 }

@@ -9,22 +9,37 @@
   let error = $state('');
   let debug = $state('');
 
-  // Temporary PWA session diagnostic: shows whether the stored token survived
-  // an app restart and whether the server accepts it.
+  // Temporary PWA session diagnostic + auto-skip: if a valid stored token
+  // survived the restart, go straight to the app instead of asking for a
+  // password again (iOS PWAs can relaunch on the stale /login route).
   onMount(async () => {
     const stored = !!getToken();
     let server = '';
+    let valid = false;
     try {
       const r = await fetch('/api/auth/session-debug', {
         credentials: 'include',
         headers: authHeaders()
       });
       const d = await r.json();
+      valid = !!d.token_valid;
       server = `server sees: ${d.presented}, valid=${d.token_valid}`;
     } catch {
       server = 'session-debug unreachable';
     }
     debug = `token stored: ${stored} · ${server}`;
+    if (valid) {
+      // Token is good — never show the login screen, jump into the app.
+      try {
+        $currentUser = await api.me();
+      } catch {
+        /* fall through to login form */
+      }
+      if ($currentUser) {
+        await goto('/');
+        return;
+      }
+    }
   });
 
   async function submit(e: SubmitEvent) {
