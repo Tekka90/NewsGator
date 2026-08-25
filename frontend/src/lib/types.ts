@@ -29,6 +29,7 @@ export interface StoryListItem {
   title: string;
   summary: string;
   category: string;
+  image_url: string | null;
   version: number;
   is_frozen: boolean;
   source_count: number;
@@ -41,6 +42,7 @@ export interface StoryArticle {
   id: number;
   title: string;
   url: string;
+  image_url: string | null;
   language: string;
   summary: string | null;
   content_status: string;

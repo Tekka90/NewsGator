@@ -72,6 +72,9 @@
       {#if story.is_frozen}<span class="badge frozen">archived</span>{/if}
     </div>
     <h1>{story.title}</h1>
+    {#if story.image_url}
+      <img class="lead" src={story.image_url} alt="" loading="lazy" />
+    {/if}
     <p class="summary">{story.summary}</p>
     <div class="meta">
       <span>first seen {fmt(story.first_seen_at)}</span>
@@ -141,6 +144,10 @@
   .spacer { flex: 1; }
   h1 { font-size: 1.5rem; margin: 0.5rem 0; }
   h2 { font-size: 1.05rem; margin-top: 0; }
+  .lead {
+    width: 100%; max-height: 320px; object-fit: cover;
+    border-radius: 8px; margin-bottom: 0.5rem;
+  }
   .summary { font-size: 1.05rem; }
   .meta { display: flex; gap: 1rem; color: #888; font-size: 0.85em; }
   .chip {

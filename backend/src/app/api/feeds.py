@@ -10,7 +10,7 @@ from app.api.deps import admin_user
 from app.api.schemas import FeedIn, FeedOut, FeedPatch
 from app.core.db import get_session
 from app.models import Feed
-from app.services.ingest import parse_opml, poll_feed
+from app.services.ingest import parse_opml, poll_feed, poll_feeds_background
 
 router = APIRouter(prefix="/feeds", tags=["feeds"], dependencies=[Depends(admin_user)])
 
@@ -78,6 +78,8 @@ async def create_feed(body: FeedIn, session: AsyncSession = Depends(get_session)
     session.add(feed)
     await session.commit()
     await session.refresh(feed)
+    # First poll right away instead of waiting for the next scheduler tick
+    poll_feeds_background([feed.id])
     return FeedOut.model_validate(feed)
 
 
@@ -146,6 +148,8 @@ async def import_opml(
     await session.commit()
     for f in added:
         await session.refresh(f)
+    # First poll right away instead of waiting for the next scheduler tick
+    poll_feeds_background([f.id for f in added])
     return OpmlResult(
         added=len(added),
         skipped_existing=skipped,

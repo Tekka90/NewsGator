@@ -7,8 +7,12 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core import db
+from app.core.config import settings
 from app.core.db import Base
 from app.main import create_app
+
+# Test environment: background work (scheduler, immediate feed polls) is skipped.
+settings.environment = "test"
 
 
 @pytest.fixture()

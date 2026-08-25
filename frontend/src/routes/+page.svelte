@@ -67,11 +67,18 @@
         <span class="spacer"></span>
         <span class="age">{ago(story.last_updated_at)}</span>
       </div>
-      <h2>{story.title}</h2>
-      <p class="summary">{story.summary}</p>
-      <div class="meta">
-        <span>{story.source_count} source{story.source_count === 1 ? '' : 's'}</span>
-        <span>v{story.version}</span>
+      <div class="body">
+        {#if story.image_url}
+          <img class="thumb" src={story.image_url} alt="" loading="lazy" />
+        {/if}
+        <div>
+          <h2>{story.title}</h2>
+          <p class="summary">{story.summary}</p>
+          <div class="meta">
+            <span>{story.source_count} source{story.source_count === 1 ? '' : 's'}</span>
+            <span>v{story.version}</span>
+          </div>
+        </div>
       </div>
     </a>
   {:else}
@@ -94,6 +101,11 @@
   .story:hover { border-color: #b9bec6; }
   .story.read { opacity: 0.62; }
   .story h2 { margin: 0.35rem 0; font-size: 1.15rem; }
+  .body { display: flex; gap: 0.9rem; align-items: flex-start; }
+  .thumb {
+    width: 120px; height: 80px; object-fit: cover;
+    border-radius: 6px; flex-shrink: 0;
+  }
   .summary { margin: 0; color: #444; }
   .row { display: flex; align-items: center; gap: 0.4rem; }
   .chip {

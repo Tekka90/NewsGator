@@ -1,5 +1,8 @@
 """Feeds CRUD tests."""
 
+import asyncio
+
+import pytest
 from httpx import AsyncClient
 from tests.conftest import setup_admin
 
@@ -80,3 +83,31 @@ async def test_manual_refresh(client: AsyncClient, db_session, monkeypatch) -> N
 
     # Not found
     assert (await client.post("/api/feeds/999/refresh")).status_code == 404
+
+
+async def test_new_feed_polled_immediately(
+    client: AsyncClient, db_session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Adding a feed kicks an immediate background poll (no scheduler tick wait)."""
+    from sqlalchemy import func, select
+    from tests.test_ingest import RSS, _ok_http
+
+    from app.core.config import settings
+    from app.models import Article
+    from app.services import ingest
+
+    monkeypatch.setattr(ingest, "_http_get", _ok_http(RSS))
+    monkeypatch.setattr(settings, "environment", "dev")  # enable background kicks
+    await setup_admin(client)
+
+    r = await client.post("/api/feeds", json={"url": "https://example.com/feed", "title": "T"})
+    assert r.status_code == 201, r.text
+
+    # Drain the background poll task (same event loop as the ASGI transport)
+    tasks = list(ingest._background_tasks)
+    assert tasks, "expected a background poll to have been kicked"
+    await asyncio.gather(*tasks)
+
+    async with db_session() as s:
+        count = await s.scalar(select(func.count(Article.id)))
+        assert count == 2

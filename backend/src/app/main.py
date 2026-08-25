@@ -1,7 +1,9 @@
 """FastAPI application factory."""
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,6 +15,8 @@ from app.api import settings as settings_api
 from app.core.config import settings
 from app.core.db import get_engine, get_session, init_engine
 from app.models import SEED_CATEGORIES, Category
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -57,6 +61,85 @@ def create_app() -> FastAPI:
     return app
 
 
+ALEMBIC_DIR = Path(__file__).resolve().parents[2] / "alembic"
+BACKEND_DIR = ALEMBIC_DIR.parent
+
+# Legacy detection: databases created by create_all (pre-Alembic adoption) have
+# no alembic_version table. Each entry maps schema markers that must ALL be
+# present to the revision such a DB should be stamped at, newest first.
+_LEGACY_STAMPS: list[tuple[list[tuple[str, str]], str]] = [
+    ([("story", "image_url")], "0005_image_urls"),
+    ([], "0004_cluster_tables"),  # tables exist; only columns differ per revision
+]
+
+
+def _db_state_sync(conn: object) -> tuple[str | None, bool]:
+    """(current alembic revision, has user table) — sync, inside the engine."""
+    import sqlalchemy as sa
+
+    assert isinstance(conn, sa.engine.Connection)
+    inspector = sa.inspect(conn)
+    tables = set(inspector.get_table_names())
+    current: str | None = None
+    if "alembic_version" in tables:
+        row = conn.execute(sa.text("SELECT version_num FROM alembic_version")).fetchone()
+        current = str(row[0]) if row else None
+    return current, "user" in tables
+
+
+def _legacy_stamp_revision(conn: object) -> str:
+    """Newest revision whose schema markers are all present (legacy create_all DB)."""
+    import sqlalchemy as sa
+
+    assert isinstance(conn, sa.engine.Connection)
+    for markers, rev in _LEGACY_STAMPS:
+        if all(
+            col in {str(r[1]) for r in conn.execute(sa.text(f"PRAGMA table_info({tbl})"))}
+            for tbl, col in markers
+        ):
+            return rev
+    return _LEGACY_STAMPS[-1][1]
+
+
+async def _migrate_schema() -> None:
+    """Bring the database to Alembic head.
+
+    Runs the Alembic CLI (same as the Docker entrypoint) so behavior is identical
+    in dev and containers. Legacy create_all DBs (no alembic_version table) are
+    stamped at the newest revision their schema already matches, then upgraded.
+    """
+    import asyncio
+    import sys
+
+    alembic = [sys.executable, "-m", "alembic"]
+    engine = get_engine()
+    async with engine.connect() as conn:
+        current, has_tables = await conn.run_sync(_db_state_sync)
+
+    if current is None and has_tables:
+        stamp = None
+        async with engine.connect() as conn:
+            stamp = await conn.run_sync(_legacy_stamp_revision)
+        logger.info("Legacy DB without alembic_version — stamping at %s", stamp)
+        proc = await asyncio.create_subprocess_exec(
+            *alembic, "stamp", stamp, cwd=BACKEND_DIR,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+        )
+        out, _ = await proc.communicate()
+        if proc.returncode != 0:
+            raise RuntimeError(f"alembic stamp failed: {out.decode()}")
+
+    proc = await asyncio.create_subprocess_exec(
+        *alembic, "upgrade", "head", cwd=BACKEND_DIR,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+    )
+    out, _ = await proc.communicate()
+    if proc.returncode != 0:
+        raise RuntimeError(f"alembic upgrade head failed: {out.decode()}")
+    if b"Running upgrade" in out:
+        logger.info("Database schema migrated to head:\n%s", out.decode().strip())
+
+
 def _create_vec_tables_sync(database_url: str) -> None:
     """Create vec0 tables via a synchronous sqlite3 connection to the DB file.
 
@@ -94,10 +177,18 @@ def _create_vec_tables_sync(database_url: str) -> None:
 
 
 async def _ensure_schema_and_seed() -> None:
-    """create_all + vec0 tables + seed categories (Alembic owns upgrades in Docker)."""
+    """Migrate schema to Alembic head, then create_all safety net + seed.
+
+    Alembic owns the schema; the lifespan upgrades the DB to head at startup
+    (legacy create_all DBs without alembic_version are stamped at the matching
+    revision first). create_all then stays a no-op safety net. Skipped in tests
+    (ENVIRONMENT=test): conftest builds the schema directly with create_all.
+    """
     from app.core.db import Base
 
     engine = get_engine()
+    if settings.environment != "test":
+        await _migrate_schema()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         # vec0 virtual tables (sqlite-vec) — create_all can't express these.

@@ -22,6 +22,7 @@ class StoryListItem(BaseModel):
     title: str
     summary: str
     category: str
+    image_url: str | None
     version: int
     is_frozen: bool
     source_count: int
@@ -34,6 +35,7 @@ class ArticleOut(BaseModel):
     id: int
     title: str
     url: str
+    image_url: str | None
     language: str
     summary: str | None
     content_status: str
@@ -57,6 +59,7 @@ class StoryDetail(BaseModel):
     title: str
     summary: str
     category: str
+    image_url: str | None
     version: int
     is_frozen: bool
     first_seen_at: datetime
@@ -115,6 +118,7 @@ async def list_stories(
                 title=story.title,
                 summary=story.summary,
                 category=story.category,
+                image_url=story.image_url,
                 version=story.version,
                 is_frozen=story.is_frozen,
                 source_count=counts.get(story.id, 0),
@@ -154,6 +158,7 @@ async def story_detail(
         title=story.title,
         summary=story.summary,
         category=story.category,
+        image_url=story.image_url,
         version=story.version,
         is_frozen=story.is_frozen,
         first_seen_at=story.first_seen_at,
@@ -253,6 +258,8 @@ async def merge_story(
             OverridePair(article_id=article.id, story_id=target.id, label="same")
         )
     target.last_updated_at = datetime.now(UTC)
+    if target.image_url is None:
+        target.image_url = source.image_url
     await get_vector_store(session).delete_story(source.id)
     await activity.emit(
         session, "cluster", "manual_merge",

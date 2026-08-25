@@ -10,3 +10,4 @@ build/
 !.env.example
 !**/.env.example
 .vscode/
+backend/newsgator.db-journal

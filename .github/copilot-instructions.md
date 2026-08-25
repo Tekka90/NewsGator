@@ -78,10 +78,15 @@ the full normative spec — **read it before non-trivial changes**.
 0001–0004), full pipeline (ingest → fulltext chain → summarize → embed → cluster →
 story versioning → freeze → retention), stories API with per-user read state, SSE
 activity stream, SvelteKit GUI (stories/feeds/activity/settings with admin editors +
-threshold report), external Qdrant backend option, Dockerfile + compose. 60 pytest
+threshold report), external Qdrant backend option, Dockerfile + compose. 66 pytest
 tests green, ruff + mypy + svelte-check clean. Post-release additions: OPML feed
 import (`POST /api/feeds/import-opml` + Feeds-page upload), LLM key handling fixes
-(GUI only persists changed fields; test-llm shows key hint).
+(GUI only persists changed fields; test-llm shows key hint), story images
+(`article.image_url` from RSS media/enclosures → `story.image_url` lead image,
+backfilled on attach/merge; Alembic 0005), headline refresh (the merge LLM call
+also returns a new `headline` when new facts bump `story.version`), immediate
+first poll (adding a feed or OPML-importing kicks `poll_feeds_background` in
+`ingest.py` right away — skipped when `ENVIRONMENT=test`, like the scheduler).
 
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,
@@ -95,8 +100,10 @@ Notes on the current code:
 - Scheduler (`workers/scheduler.py`): 1-min feed tick, hourly freeze + activity prune,
   nightly retention (03:17). Lifespan starts the LLM worker + backlog requeue +
   scheduler (skipped when `ENVIRONMENT=test`).
-- Lifespan uses `Base.metadata.create_all` + category seeding as a first-run safety
-  net; Alembic `upgrade head` runs in the Docker entrypoint.
+- Lifespan migrates the schema to Alembic head at startup (`alembic upgrade head`
+  via subprocess; legacy create_all DBs without `alembic_version` are stamped at
+  the matching revision first), then `create_all` stays as a no-op safety net +
+  category seeding. The Docker entrypoint no longer runs Alembic itself.
 - The venv is Python 3.14 (user machine); `requires-python` stays `>=3.12` per spec.
 - Frontend: SvelteKit 5 runes + adapter-node; dev proxy `/api → :8000` in
   `frontend/vite.config.ts`, production proxy in `frontend/src/hooks.server.ts`

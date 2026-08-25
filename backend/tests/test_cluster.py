@@ -62,6 +62,7 @@ async def _embedded_article(
     factory: async_sessionmaker[AsyncSession],
     summary: str,
     title: str = "An article",
+    image_url: str | None = None,
 ) -> Article:
     n = next(_counter)
     async with factory() as s:
@@ -73,6 +74,7 @@ async def _embedded_article(
             guid=f"g{n}",
             url=f"https://news.example.com/a{n}",
             title=title,
+            image_url=image_url,
             summary=summary,
             processing_state="embedded",
         )
@@ -89,6 +91,7 @@ def _mock_llm(
     same_event: bool = True,
     new_facts: bool = True,
     merged_summary: str = "Merged summary.",
+    merged_headline: str | None = None,
     headline: str = "A headline",
 ) -> None:
     """Mock LLM: embed returns per-text vectors keyed by exact text, else default."""
@@ -105,7 +108,10 @@ def _mock_llm(
         if "new facts" in lowered:
             return {"new_facts": new_facts, "added": "x"}, 10
         if "merge the new information" in lowered:
-            return {"summary": merged_summary}, 10
+            result = {"summary": merged_summary}
+            if merged_headline is not None:
+                result["headline"] = merged_headline
+            return result, 10
         if "headline" in lowered:
             return {"headline": headline}, 10
         return {}, 10
@@ -162,6 +168,72 @@ async def test_similar_article_attaches_and_bumps_version(
         assert len(revs) == 2
         decs = (await s.scalars(select(ClusterDecision))).all()
         assert any(d.decision == "attach" for d in decs)
+
+
+async def test_merge_refreshes_headline(db_session, store, monkeypatch) -> None:
+    """New facts → merged summary AND refreshed headline (angle may shift)."""
+    monkeypatch.setattr(settings, "tau_attach", 0.8)
+    _mock_llm(
+        monkeypatch,
+        default_vec=unit_vec(20),
+        new_facts=True,
+        merged_headline="Refreshed headline",
+    )
+
+    a1 = await _embedded_article(db_session, "iPhone 18 launched today.")
+    a2 = await _embedded_article(db_session, "Apple unveiled iPhone 18 with new chip.")
+
+    async with db_session() as s:
+        await cluster.cluster_article(s, a1.id)
+        await cluster.cluster_article(s, a2.id)
+        story = await s.scalar(select(Story))
+        assert story is not None
+        assert story.version == 2
+        assert story.title == "Refreshed headline"
+        assert story.summary == "Merged summary."
+
+
+async def test_story_image_from_first_article(db_session, store, monkeypatch) -> None:
+    """Story lead image comes from the first member article with an RSS image."""
+    monkeypatch.setattr(settings, "tau_attach", 0.8)
+    _mock_llm(monkeypatch, default_vec=unit_vec(21))
+
+    a1 = await _embedded_article(
+        db_session, "First facts.", image_url="https://img.example.com/1.jpg"
+    )
+    a2 = await _embedded_article(db_session, "More facts.", image_url=None)
+
+    async with db_session() as s:
+        await cluster.cluster_article(s, a1.id)
+        story = await s.scalar(select(Story))
+        assert story is not None
+        assert story.image_url == "https://img.example.com/1.jpg"
+
+        # Attach without image → story keeps its image
+        await cluster.cluster_article(s, a2.id)
+        story = await s.get(Story, story.id)
+        assert story is not None
+        assert story.image_url == "https://img.example.com/1.jpg"
+
+
+async def test_attach_backfills_missing_story_image(db_session, store, monkeypatch) -> None:
+    monkeypatch.setattr(settings, "tau_attach", 0.8)
+    _mock_llm(monkeypatch, default_vec=unit_vec(22))
+
+    a1 = await _embedded_article(db_session, "Facts without image.", image_url=None)
+    a2 = await _embedded_article(
+        db_session, "More facts, with image.", image_url="https://img.example.com/late.jpg"
+    )
+
+    async with db_session() as s:
+        await cluster.cluster_article(s, a1.id)
+        story = await s.scalar(select(Story))
+        assert story is not None and story.image_url is None
+
+        await cluster.cluster_article(s, a2.id)
+        story = await s.get(Story, story.id)
+        assert story is not None
+        assert story.image_url == "https://img.example.com/late.jpg"
 
 
 async def test_duplicate_info_does_not_bump_version(db_session, store, monkeypatch) -> None:

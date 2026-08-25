@@ -4,6 +4,7 @@ Blocking work (feedparser) runs via anyio.to_thread. Every stage emits activity
 events and persists article state immediately.
 """
 
+import asyncio
 import time
 from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
@@ -16,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.db import get_session
 from app.models import Article, Feed
 from app.services import activity
 from app.services.fulltext import fetch_full_text
@@ -93,6 +95,33 @@ def _entry_published(entry: feedparser.FeedParserDict) -> datetime | None:
         struct = entry.get(f"{key}_parsed")
         if struct:
             return datetime.fromtimestamp(time.mktime(struct), tz=UTC)
+    return None
+
+
+def _entry_image(entry: feedparser.FeedParserDict) -> str | None:
+    """First image URL from the RSS entry.
+
+    Priority: media:content → media:thumbnail → image/* enclosures/links.
+    """
+    for media in entry.get("media_content") or []:
+        url = media.get("url")
+        medium = media.get("medium", "")
+        mtype = str(media.get("type", ""))
+        if url and (medium == "image" or mtype.startswith("image/") or not medium):
+            return str(url)
+    for thumb in entry.get("media_thumbnail") or []:
+        if thumb.get("url"):
+            return str(thumb["url"])
+    for enc in entry.get("enclosures") or []:
+        if enc.get("href") and str(enc.get("type", "")).startswith("image/"):
+            return str(enc["href"])
+    for link in entry.get("links") or []:
+        if (
+            link.get("rel") == "enclosure"
+            and link.get("href")
+            and str(link.get("type", "")).startswith("image/")
+        ):
+            return str(link["href"])
     return None
 
 
@@ -182,6 +211,7 @@ async def _poll_feed_inner(session: AsyncSession, feed: Feed) -> int:
             guid=guid,
             url=canonicalize_url(link),
             title=str(entry.get("title", "")),
+            image_url=_entry_image(entry),
             raw_content=raw_content,
             published_at=_entry_published(entry),
             processing_state="fetched",
@@ -242,3 +272,31 @@ async def _record_failure(session: AsyncSession, feed: Feed, exc: Exception) -> 
         level="error",
     )
     await session.commit()
+
+
+# Strong references to in-flight background polls (the loop only weak-refs tasks).
+_background_tasks: set[asyncio.Task[None]] = set()
+
+
+def poll_feeds_background(feed_ids: list[int]) -> None:
+    """Kick an immediate background poll for newly added feeds.
+
+    Uses its own DB session (the request session is closed by then); per-feed
+    errors are contained by poll_feed. Skipped when ENVIRONMENT=test, same as
+    the scheduler.
+    """
+    if not feed_ids or settings.environment == "test":
+        return
+    task = asyncio.create_task(poll_feeds_by_id(feed_ids))
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
+
+async def poll_feeds_by_id(feed_ids: list[int]) -> None:
+    """Poll the given feeds now (enabled ones only), each failure isolated."""
+    async for session in get_session():
+        for feed_id in feed_ids:
+            feed = await session.get(Feed, feed_id)
+            if feed is not None and feed.is_enabled:
+                await poll_feed(session, feed)
+        break

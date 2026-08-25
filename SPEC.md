@@ -106,6 +106,7 @@ erDiagram
         string guid          "dedupe key (feed_id, guid)"
         string url
         string title
+        string image_url   "first RSS image: media:content → media:thumbnail → image enclosure"
         text   raw_content   "from RSS"
         text   full_text     "fetched from source page (trafilatura)"
         string language      "ISO 639-1, detected"
@@ -125,6 +126,7 @@ erDiagram
         string title          "LLM-generated headline, in SUMMARY_LANGUAGE"
         text   summary        "merged summary, in SUMMARY_LANGUAGE"
         string category
+        string image_url      "lead image: first member article with an RSS image"
         blob   centroid       "recency-weighted mean of member embeddings"
         int    version        "bumped on every content change"
         bool   is_frozen      "true after freeze window; no new auto-attachments"
@@ -215,8 +217,8 @@ When article C attaches to existing story S:
    article summary, does the article add new facts?"*
    - **No new info** → add source link, bump `last_updated_at`, **do not** bump
      `S.version`. Read users see nothing change.
-   - **New info** → LLM regenerates the merged summary from (old summary + all member
-     article summaries, or incremental merge), bump `S.version`.
+   - **New info** → LLM regenerates the merged summary **and refreshes the headline**
+     in the same call (new facts may shift the story's angle), bump `S.version`.
 3. **Read-state consequence** (via the derived flag in §3):
    - Unread story → stays unread, appears with fresh content.
    - Read story, version bumped → badge **"updated since read"**; user can open a
@@ -280,8 +282,8 @@ v1 is **data-first, no online learning**:
 | `POST /stories/{id}/read` | sets `read_at_version = story.version` (per user) |
 | `POST /stories/{id}/unread` | |
 | `GET /stories/{id}/diff?from={version}` | what changed |
-| `CRUD /feeds` | feed management (admin) |
-| `POST /feeds/import-opml` | bulk-import feeds from an OPML subscription export (admin) |
+| `CRUD /feeds` | feed management (admin); **creating a feed kicks an immediate background poll** (no waiting for the next scheduler tick) |
+| `POST /feeds/import-opml` | bulk-import feeds from an OPML subscription export (admin); added feeds are polled immediately in the background |
 | `POST /feeds/{id}/refresh`, `POST /feeds/refresh` | force-poll one/all feeds now, bypassing the adaptive schedule (admin) |
 | `GET/PATCH /settings` | global: retention days, freeze window, thresholds, vector backend (admin) |
 | `POST /stories/{id}/merge` / `POST /articles/{id}/move` | manual override when clustering is wrong (important for trust) |
@@ -294,7 +296,8 @@ user must be able to fix it. Corrections can later feed threshold tuning.
 
 ## 7. Web GUI (concept)
 
-- **Main view**: story cards (headline, merged summary, category chip, source logos
+- **Main view**: story cards (headline, lead image thumbnail, merged summary,
+  category chip, source logos
   ×N, age, badges: `NEW` / `UPDATED`), sorted by `last_updated_at` with read stories
   dimmed or in a separate tab. All story content is in the configured `SUMMARY_LANGUAGE`;
   GUI chrome (labels, buttons) is English-only in v1.

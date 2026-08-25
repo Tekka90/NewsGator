@@ -77,7 +77,7 @@ Reply with JSON: {{"new_facts": true|false, "added": "short description or empty
 
 
 def merge_story_summary(old_summary: str, new_article_summary: str) -> tuple[str, str]:
-    """Merge a new article's facts into an existing story summary."""
+    """Merge a new article's facts into a story; also refresh the headline."""
     lang = summary_language_name()
     system = (
         f"You merge news summaries into a single coherent summary in {lang}. "
@@ -86,13 +86,15 @@ def merge_story_summary(old_summary: str, new_article_summary: str) -> tuple[str
     user = f"""Merge the new information into the existing story summary. Keep it concise
 (3-5 sentences), factual, in {lang}. Drop redundant wording.
 
+Also write one short headline (max 12 words) in {lang} capturing the updated story.
+
 Existing story summary:
 {old_summary}
 
 New article summary:
 {new_article_summary}
 
-Reply with JSON: {{"summary": "..."}}"""
+Reply with JSON: {{"summary": "...", "headline": "..."}}"""
     return system, user
 
 

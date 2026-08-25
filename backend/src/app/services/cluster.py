@@ -139,6 +139,7 @@ async def _create_story(
         story.title = article.title  # headline is cosmetic; fall back to article title
 
     story.summary = article.summary
+    story.image_url = article.image_url
     session.add(StoryRevision(story_id=story.id, version=1, summary=story.summary))
     await get_vector_store(session).upsert_story_centroid(story.id, list(vec))
     return story
@@ -163,8 +164,10 @@ async def _attach_to_story(
             system, user = prompts.merge_story_summary(story.summary, article.summary)
             merged, _ = await llm_client.chat_json(system, user)
             story.summary = str(merged.get("summary") or story.summary)
+            # Headline refresh: new facts may shift the story's angle
+            story.title = str(merged.get("headline") or story.title)
         except llm_client.LLMError:
-            pass  # keep old summary; version still bumps (new source with facts)
+            pass  # keep old summary/title; version still bumps (new source with facts)
         story.version += 1
         session.add(
             StoryRevision(
@@ -177,6 +180,8 @@ async def _attach_to_story(
         )
 
     story.last_updated_at = datetime.now(UTC)
+    if story.image_url is None and article.image_url:
+        story.image_url = article.image_url  # backfill lead image
     await _update_centroid(session, story, vec)
 
 

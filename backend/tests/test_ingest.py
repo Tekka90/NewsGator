@@ -87,6 +87,53 @@ async def test_poll_creates_articles_and_dedupes(
         assert "feed_poll_start" in actions and "feed_poll_done" in actions
 
 
+async def test_poll_extracts_article_image(
+    db_session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """image_url comes from the RSS entry: media:content / thumbnail / image enclosure."""
+    rss = b"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/"><channel>
+<title>Img Feed</title>
+<item>
+  <title>With media content</title>
+  <link>https://news.example.com/i1</link>
+  <guid>img-1</guid>
+  <media:content url="https://img.example.com/a.jpg" medium="image" />
+</item>
+<item>
+  <title>With thumbnail</title>
+  <link>https://news.example.com/i2</link>
+  <guid>img-2</guid>
+  <media:thumbnail url="https://img.example.com/b.jpg" />
+</item>
+<item>
+  <title>With enclosure</title>
+  <link>https://news.example.com/i3</link>
+  <guid>img-3</guid>
+  <enclosure url="https://img.example.com/c.jpg" type="image/jpeg" length="0" />
+</item>
+<item>
+  <title>No image</title>
+  <link>https://news.example.com/i4</link>
+  <guid>img-4</guid>
+</item>
+</channel></rss>
+"""
+    monkeypatch.setattr(ingest, "_http_get", _ok_http(rss))
+    feed = await _make_feed(db_session, fetch_fulltext=False)
+
+    async with db_session() as s:
+        assert await ingest.poll_feed(s, await s.get(Feed, feed.id)) == 4
+        by_guid = {
+            a.guid: a.image_url
+            for a in (await s.scalars(select(Article))).all()
+        }
+    assert by_guid["img-1"] == "https://img.example.com/a.jpg"
+    assert by_guid["img-2"] == "https://img.example.com/b.jpg"
+    assert by_guid["img-3"] == "https://img.example.com/c.jpg"
+    assert by_guid["img-4"] is None
+
+
 async def test_poll_cross_feed_url_dedupe(db_session, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(ingest, "_http_get", _ok_http())
     feed_a = await _make_feed(db_session, fetch_fulltext=False)
@@ -168,6 +215,22 @@ async def test_is_due() -> None:
     assert ingest.is_due(feed, now) is True
     feed.is_enabled = False
     assert ingest.is_due(feed, now) is False
+
+
+async def test_datetimes_roundtrip_tz_aware(db_session) -> None:
+    """Regression: SQLite drops tzinfo; UTCDateTime must re-attach UTC on read.
+
+    Without it, is_due() crashes comparing naive DB values with aware now.
+    """
+    feed = await _make_feed(db_session, last_fetched_at=datetime.now(UTC))
+    async with db_session() as s:
+        loaded = await s.scalar(select(Feed).where(Feed.id == feed.id))
+        assert loaded is not None
+        assert loaded.last_fetched_at is not None
+        assert loaded.last_fetched_at.tzinfo is not None
+        assert loaded.created_at.tzinfo is not None
+        # The scheduler's exact comparison must not raise:
+        assert ingest.is_due(loaded, datetime.now(UTC)) is False
 
 
 # --- full-text chain ---
