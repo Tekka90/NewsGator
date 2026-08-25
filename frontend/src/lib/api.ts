@@ -79,6 +79,7 @@ export const api = {
     summary_language?: string;
     story_sort?: 'updated' | 'published' | 'sources';
     story_order?: 'asc' | 'desc';
+    story_filter?: 'all' | 'unread' | 'updated';
   }) => req<User>('/auth/me', { method: 'PATCH', body: patch }),
 
   feeds: {

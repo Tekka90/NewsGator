@@ -74,6 +74,8 @@ async def patch_me(
         user.story_sort = body.story_sort
     if body.story_order is not None:
         user.story_order = body.story_order
+    if body.story_filter is not None:
+        user.story_filter = body.story_filter
     if body.password is not None:
         user.password_hash = hash_password(body.password)
     await session.commit()

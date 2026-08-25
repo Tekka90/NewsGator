@@ -50,6 +50,8 @@ class User(Base):
     # Per-user story-list ordering prefs; empty = server default (published asc)
     story_sort: Mapped[str] = mapped_column(String(16), default="")
     story_order: Mapped[str] = mapped_column(String(8), default="")
+    # Per-user story-list filter pref; empty = server default (unread)
+    story_filter: Mapped[str] = mapped_column(String(16), default="")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 

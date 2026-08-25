@@ -276,7 +276,7 @@ v1 is **data-first, no online learning**:
 | Endpoint | Purpose |
 |---|---|
 | `POST /auth/login`, `POST /auth/logout` | session auth; login/setup also return the signed token in the body — clients that cannot persist cookies (iOS standalone PWAs) send it as `Authorization: Bearer <token>` (or `?token=` for SSE) |
-| `GET/PATCH /me` | profile + per-user preferences: summary language and story-list ordering (`story_sort`/`story_order`, shared across the user's devices) |
+| `GET/PATCH /me` | profile + per-user preferences: summary language, story-list filter (`story_filter`, default `unread`) and ordering (`story_sort`/`story_order`) — shared across the user's devices |
 | `GET /stories?filter=all\|unread\|updated&category=&sort=updated\|published\|sources&order=asc\|desc` | story list with **per-user** flags; sort by article publication date (default), last update, or source count, ascending (default: oldest first) or descending; unknown dates always last |
 | `GET /stories/{id}` | story detail: merged summary + source articles + revision history |
 | `POST /stories/{id}/read` | sets `read_at_version = story.version` (per user) |
@@ -299,7 +299,8 @@ user must be able to fix it. Corrections can later feed threshold tuning.
 
 - **Main view**: story cards (headline, lead image thumbnail, merged summary,
   category chip, source favicons/logos (via the cached `/favicon` proxy)
-  ×N, age, badges: `NEW` / `UPDATED`), default-sorted by article publication date
+  ×N, age, badges: `NEW` / `UPDATED`), default filter **Unread** (per-user
+  overridable, persisted server-side), default-sorted by article publication date
   (oldest first — per-user overridable, persisted server-side) with read stories
   dimmed or in a separate tab. All story content is in the configured `SUMMARY_LANGUAGE`;
   GUI chrome (labels, buttons) is English-only in v1. On narrow screens the main

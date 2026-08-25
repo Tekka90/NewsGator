@@ -9,7 +9,7 @@
 
   let stories = $state<StoryListItem[]>([]);
   let categories = $state<Category[]>([]);
-  let filter = $state<'all' | 'unread' | 'updated'>('all');
+  let filter = $state<'all' | 'unread' | 'updated'>('unread');
   let category = $state('');
   let sort = $state<Sort>('published');
   let order = $state<Order>('asc');
@@ -32,9 +32,10 @@
     const onMq = () => (isMobile = mq.matches);
     onMq();
     mq.addEventListener('change', onMq);
-    // Per-user ordering prefs live server-side — shared across devices
+    // Per-user list prefs live server-side — shared across devices
     if ($currentUser?.story_sort) sort = $currentUser.story_sort;
     if ($currentUser?.story_order) order = $currentUser.story_order;
+    if ($currentUser?.story_filter) filter = $currentUser.story_filter;
     void (async () => {
       try {
         categories = await api.categories.list();
@@ -54,10 +55,10 @@
     loading = false;
   }
 
-  /** Remember ordering server-side so every device follows (per-user pref). */
+  /** Remember list prefs server-side so every device follows (per-user pref). */
   function savePrefs() {
     api
-      .patchMe({ story_sort: sort, story_order: order })
+      .patchMe({ story_sort: sort, story_order: order, story_filter: filter })
       .then((u) => ($currentUser = u))
       .catch(() => {});
   }
@@ -129,7 +130,7 @@
     {#each ['all', 'unread', 'updated'] as f}
       <button
         class:active={filter === f}
-        onclick={() => { filter = f as typeof filter; load(); }}
+        onclick={() => { filter = f as typeof filter; savePrefs(); load(); }}
       >
         {f === 'all' ? 'All' : f === 'unread' ? 'Unread' : 'Updated'}
       </button>

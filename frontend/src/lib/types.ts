@@ -8,6 +8,8 @@ export interface User {
   // '' = follow the server default (published, oldest first)
   story_sort: '' | 'updated' | 'published' | 'sources';
   story_order: '' | 'asc' | 'desc';
+  // '' = follow the server default (unread)
+  story_filter: '' | 'all' | 'unread' | 'updated';
 }
 
 export interface AuthUser extends User {

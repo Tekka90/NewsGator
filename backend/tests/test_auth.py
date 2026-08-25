@@ -79,15 +79,21 @@ async def test_patch_me_story_ordering_prefs(client: AsyncClient) -> None:
     await setup_admin(client)
     r = await client.get("/api/auth/me")
     assert r.json()["story_sort"] == ""  # unset → server default
+    assert r.json()["story_filter"] == ""
 
     r = await client.patch(
-        "/api/auth/me", json={"story_sort": "published", "story_order": "asc"}
+        "/api/auth/me",
+        json={"story_sort": "published", "story_order": "asc", "story_filter": "updated"},
     )
     assert r.status_code == 200
     assert r.json()["story_sort"] == "published"
     assert r.json()["story_order"] == "asc"
+    assert r.json()["story_filter"] == "updated"
 
-    assert (await client.get("/api/auth/me")).json()["story_sort"] == "published"
+    assert (await client.get("/api/auth/me")).json()["story_filter"] == "updated"
     assert (
         await client.patch("/api/auth/me", json={"story_sort": "bogus"})
+    ).status_code == 422
+    assert (
+        await client.patch("/api/auth/me", json={"story_filter": "bogus"})
     ).status_code == 422
