@@ -65,7 +65,7 @@
         {#if story.updated_since_read}<span class="badge updated">UPDATED</span>{/if}
         {#if story.is_frozen}<span class="badge frozen">archived</span>{/if}
         <span class="spacer"></span>
-        <span class="age">{ago(story.last_updated_at)}</span>
+        <span class="age">{ago(story.published_at ?? story.last_updated_at)}</span>
       </div>
       <div class="body">
         {#if story.image_url}

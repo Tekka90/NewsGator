@@ -33,6 +33,7 @@ export interface StoryListItem {
   version: number;
   is_frozen: boolean;
   source_count: number;
+  published_at: string | null;
   last_updated_at: string;
   is_read: boolean;
   updated_since_read: boolean;

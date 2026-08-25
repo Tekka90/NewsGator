@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import current_user
@@ -26,6 +26,8 @@ class StoryListItem(BaseModel):
     version: int
     is_frozen: bool
     source_count: int
+    # earliest article publication date in the story (None if unknown)
+    published_at: datetime | None
     last_updated_at: datetime
     is_read: bool
     updated_since_read: bool
@@ -64,6 +66,7 @@ class StoryDetail(BaseModel):
     is_frozen: bool
     first_seen_at: datetime
     last_updated_at: datetime
+    published_at: datetime | None
     is_read: bool
     updated_since_read: bool
     articles: list[ArticleOut]
@@ -92,15 +95,18 @@ async def list_stories(
             await session.scalars(select(StoryState).where(StoryState.user_id == user.id))
         ).all()
     }
-    counts: dict[int, int] = {}
-    for story in stories:
-        counts[story.id] = len(
-            (
-                await session.scalars(
-                    select(Article.id).where(Article.story_id == story.id)
-                )
-            ).all()
-        )
+    stats: dict[int, tuple[int, datetime | None]] = {
+        story_id: (count, first_published)
+        for story_id, count, first_published in (
+            await session.execute(
+                select(
+                    Article.story_id,
+                    func.count(Article.id),
+                    func.min(Article.published_at),
+                ).group_by(Article.story_id)
+            )
+        ).all()
+    }
 
     out: list[StoryListItem] = []
     for story in stories:
@@ -112,6 +118,7 @@ async def list_stories(
             continue
         if category and story.category != category:
             continue
+        source_count, published_at = stats.get(story.id, (0, None))
         out.append(
             StoryListItem(
                 id=story.id,
@@ -121,7 +128,8 @@ async def list_stories(
                 image_url=story.image_url,
                 version=story.version,
                 is_frozen=story.is_frozen,
-                source_count=counts.get(story.id, 0),
+                source_count=source_count,
+                published_at=published_at,
                 last_updated_at=story.last_updated_at,
                 is_read=is_read,
                 updated_since_read=updated,
@@ -163,6 +171,10 @@ async def story_detail(
         is_frozen=story.is_frozen,
         first_seen_at=story.first_seen_at,
         last_updated_at=story.last_updated_at,
+        published_at=min(
+            (a.published_at for a in articles if a.published_at is not None),
+            default=None,
+        ),
         is_read=is_read,
         updated_since_read=updated,
         articles=[ArticleOut.model_validate(a) for a in articles],
