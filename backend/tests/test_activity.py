@@ -11,6 +11,33 @@ async def test_recent_requires_auth(client: AsyncClient) -> None:
     assert (await client.get("/api/activity/recent")).status_code == 401
 
 
+async def test_pipeline_snapshot(client: AsyncClient, db_session) -> None:
+    from app.models import Article, Feed
+
+    await setup_admin(client)
+    async with db_session() as s:
+        feed = Feed(url="https://x.example.com/rss", title="X Feed")
+        s.add(feed)
+        await s.flush()
+        s.add_all([
+            Article(feed_id=feed.id, guid="a", url="https://x.example.com/1",
+                    title="In flight", processing_state="fulltext"),
+            Article(feed_id=feed.id, guid="b", url="https://x.example.com/2",
+                    title="Done", processing_state="clustered"),
+        ])
+        await s.commit()
+
+    r = await client.get("/api/activity/pipeline")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["states"] == ["fetched", "fulltext", "summarized", "embedded", "clustered"]
+    titles = {row["title"] for row in body["rows"]}
+    assert {"In flight", "Done"} <= titles
+    row = next(r for r in body["rows"] if r["title"] == "In flight")
+    assert row["feed_title"] == "X Feed"
+    assert row["processing_state"] == "fulltext"
+
+
 async def test_recent_returns_events_and_queue_depth(client: AsyncClient, db_session) -> None:
     await setup_admin(client)
     async with db_session() as s:

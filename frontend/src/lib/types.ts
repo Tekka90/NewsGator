@@ -7,6 +7,15 @@ export interface User {
   summary_language: string;
 }
 
+export interface PipelineRow {
+  id: number;
+  title: string;
+  feed_title: string;
+  processing_state: string;
+  fetched_at: string;
+  content_status: string;
+}
+
 export interface Feed {
   id: number;
   url: string;

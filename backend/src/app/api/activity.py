@@ -13,11 +13,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import current_user
 from app.core.db import get_session
-from app.models import ActivityEvent, User
+from app.models import ActivityEvent, Article, Feed, User
 from app.services import activity
 from app.services.process import queue_depth
 
 router = APIRouter(prefix="/activity", tags=["activity"])
+
+# Pipeline states in execution order (invariant 7)
+_PIPELINE_STATES = ["fetched", "fulltext", "summarized", "embedded", "clustered"]
 
 
 class EventOut(BaseModel):
@@ -51,6 +54,50 @@ async def recent(
             )
             for e in reversed(rows)
         ],
+        "llm_queue_depth": queue_depth(),
+    }
+
+
+class PipelineRow(BaseModel):
+    id: int
+    title: str
+    feed_title: str
+    processing_state: str
+    fetched_at: datetime
+    content_status: str
+
+
+@router.get("/pipeline")
+async def pipeline(
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, object]:
+    """Snapshot of articles still moving through the pipeline (+ last finished)."""
+    rows = (
+        await session.execute(
+            select(Article, Feed.title)
+            .join(Feed, Article.feed_id == Feed.id)
+            .order_by(desc(Article.id))
+            .limit(60)
+        )
+    ).all()
+    out: list[PipelineRow] = []
+    for article, feed_title in rows:
+        if article.processing_state == "clustered" and len(out) >= 20:
+            continue  # keep the table focused on in-flight work
+        out.append(
+            PipelineRow(
+                id=article.id,
+                title=article.title,
+                feed_title=feed_title,
+                processing_state=article.processing_state,
+                fetched_at=article.fetched_at,
+                content_status=article.content_status,
+            )
+        )
+    return {
+        "states": _PIPELINE_STATES,
+        "rows": [r.model_dump(mode="json") for r in out[:40]],
         "llm_queue_depth": queue_depth(),
     }
 

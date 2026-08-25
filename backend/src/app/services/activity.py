@@ -38,6 +38,11 @@ def _broadcast(payload: dict[str, Any]) -> None:
             pass  # slow consumer drops events rather than blocking the pipeline
 
 
+def broadcast_queue(depth: int) -> None:
+    """Push the LLM queue depth to SSE subscribers (SPEC §7)."""
+    _broadcast({"action": "queue", "llm_queue_depth": depth})
+
+
 async def emit(
     session: AsyncSession,
     component: str,

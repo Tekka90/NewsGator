@@ -31,6 +31,7 @@ def queue_depth() -> int:
 
 def enqueue_article(article_id: int) -> None:
     _queue.put_nowait(article_id)
+    activity.broadcast_queue(_queue.qsize())
 
 
 def start_worker() -> None:
@@ -70,6 +71,7 @@ async def _run_worker() -> None:
                 break
         finally:
             _queue.task_done()
+            activity.broadcast_queue(_queue.qsize())
 
 
 async def process_article(session: AsyncSession, article_id: int) -> None:

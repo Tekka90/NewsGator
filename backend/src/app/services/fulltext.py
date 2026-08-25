@@ -186,6 +186,7 @@ async def fetch_full_text(session: AsyncSession, article: Article, feed: Feed) -
         )
     else:
         article.content_status = "full"
+        article.content_warning = None  # clear any warning left by a previous run
 
     article.full_text = text
     article.processing_state = "fulltext"
