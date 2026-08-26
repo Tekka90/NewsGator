@@ -359,7 +359,10 @@ LLM", …) in near real time.
 - All prompts request **structured JSON output**; validate + retry once on parse failure.
 - Every LLM call is idempotent-ish and stored (article.summary, story.summary), so
   pipeline steps are resumable after failure — store per-article `processing_state`
-  (`fetched → summarized → embedded → clustered`).
+  (`fetched → summarized → embedded → clustered`). Articles are handed to the LLM
+  queue only after their state commit; a periodic backlog sweep
+  (`BACKLOG_SWEEP_MINUTES`, default 5) requeues anything stuck in `fulltext`
+  (LLM failure, lost queue item), on top of the startup requeue.
 - Categories: **user-customizable taxonomy** — a seed list (Tech, World, Science,
   Business, Sports, Culture, Politics, Health) is created at install, but admins can
   add/rename/remove categories in the GUI; the constrained-choice LLM prompt is built

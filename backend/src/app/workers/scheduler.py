@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import select
 
+from app.core.config import settings
 from app.core.db import get_session
 from app.models import Feed
 from app.services import activity
@@ -34,6 +35,23 @@ async def freeze_sweep() -> None:
         break
 
 
+async def llm_backlog_sweep() -> None:
+    """Requeue articles stuck in 'fulltext' (LLM failure, lost queue item).
+
+    Self-healing counterpart to the startup requeue (invariant 7): summarize
+    failures leave the state at 'fulltext' precisely so this sweep retries them.
+    Idempotent — `process_article` no-ops unless the state is still 'fulltext'.
+    """
+    from app.services.process import enqueue_backlog
+
+    async for session in get_session():
+        requeued = await enqueue_backlog(session)
+        if requeued:
+            await activity.emit(session, "llm", "backlog_sweep", {"requeued": requeued})
+            await session.commit()
+        break
+
+
 def start_scheduler() -> None:
     scheduler.add_job(
         poll_due_feeds,
@@ -48,6 +66,14 @@ def start_scheduler() -> None:
         trigger="interval",
         hours=1,
         id="freeze_sweep",
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        llm_backlog_sweep,
+        trigger="interval",
+        minutes=settings.backlog_sweep_minutes,
+        id="llm_backlog_sweep",
         max_instances=1,
         coalesce=True,
     )

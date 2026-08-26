@@ -192,6 +192,7 @@ async def _poll_feed_inner(session: AsyncSession, feed: Feed) -> int:
         feed.title = title
 
     new_count = 0
+    llm_handoff: list[int] = []
     for entry in entries:
         guid = _entry_guid(entry)
         link = str(entry.get("link", ""))
@@ -223,14 +224,19 @@ async def _poll_feed_inner(session: AsyncSession, feed: Feed) -> int:
             await fetch_full_text(session, article, feed)
         else:
             article.processing_state = "fulltext"
-        # Hand off to the LLM queue (summarize → embed; cluster in M4)
         if article.processing_state == "fulltext":
-            from app.services.process import enqueue_article
-
-            enqueue_article(article.id)
+            llm_handoff.append(article.id)
         new_count += 1
 
     await session.commit()
+    # Hand off to the LLM queue (summarize → embed → cluster) only AFTER the
+    # commit: the worker reads through a fresh session, so enqueuing earlier
+    # races the commit and silently drops the article (stuck in 'fulltext').
+    if llm_handoff:
+        from app.services.process import enqueue_article
+
+        for article_id in llm_handoff:
+            enqueue_article(article_id)
     return new_count
 
 

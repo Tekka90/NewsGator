@@ -129,8 +129,11 @@ Notes on the current code:
   `_fetch_page` / `_extract_text` are module-level for monkeypatching in tests; the
   vector store is patched via `get_vector_store` on each importing module.
 - Scheduler (`workers/scheduler.py`): 1-min feed tick, hourly freeze + activity prune,
-  nightly retention (03:17). Lifespan starts the LLM worker + backlog requeue +
-  scheduler (skipped when `ENVIRONMENT=test`).
+  nightly retention (03:17), and a backlog sweep every `BACKLOG_SWEEP_MINUTES`
+  (default 5) requeuing articles stuck in `fulltext`. Articles are handed to the LLM
+  queue only **after** the ingest commit — the worker reads through a fresh session,
+  so enqueuing pre-commit silently drops them. Lifespan starts the LLM worker +
+  backlog requeue + scheduler (skipped when `ENVIRONMENT=test`).
 - Lifespan migrates the schema to Alembic head at startup (`alembic upgrade head`
   via subprocess; legacy create_all DBs without `alembic_version` are stamped at
   the matching revision first), then `create_all` stays as a no-op safety net +

@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     poll_interval_max_minutes: int = 60
     fulltext_min_chars: int = 400  # below this → try archive.is fallback
     archive_failure_cache_hours: int = 24
+    backlog_sweep_minutes: int = 5  # requeue articles stuck in 'fulltext' state
 
     # GUI: source favicon proxy cache (hours)
     favicon_cache_hours: int = 168
