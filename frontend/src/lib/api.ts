@@ -195,6 +195,16 @@ export const api = {
         '/settings/test-llm',
         { method: 'POST' }
       ),
+    testQdrant: () =>
+      req<{ ok: boolean; errors: string[]; url: string | null; version?: { version?: string } }>(
+        '/settings/test-qdrant',
+        { method: 'POST' }
+      ),
+    testReadeck: () =>
+      req<{ ok: boolean; errors: string[]; url: string | null; user?: string; roles?: string[] }>(
+        '/settings/test-readeck',
+        { method: 'POST' }
+      ),
     thresholdReport: () =>
       req<{
         current: { tau_attach: number; tau_gray: number };

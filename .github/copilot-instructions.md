@@ -145,7 +145,11 @@ module-level for monkeypatching; emits `save_start`/`save_done`/`save_failed`
 activity events. GUI: "Save to Readeck" button on the story detail page and a
 per-story icon in the list — both probe `GET /api/settings` (admin-only) to
 hide when unconfigured; settings page has the two fields (token is a secret
-input).
+input). Settings page is organized in grouped sections (LLM server / Vector
+store / Readeck / Clustering / Ingestion), each external service with its own
+"Test connection" button backed by a `POST /api/settings/test-{service}`
+probe endpoint (test-llm, test-qdrant, test-readeck) — probes return `ok` +
+errors, never leak secrets (only hints like a key suffix).
 
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,

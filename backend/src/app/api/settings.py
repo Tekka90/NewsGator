@@ -143,6 +143,73 @@ async def threshold_report(
     return await build_report(session)
 
 
+@router.post("/test-qdrant")
+async def test_qdrant(session: AsyncSession = Depends(get_session)) -> dict[str, object]:
+    """Probe the configured Qdrant server: reachable + version."""
+    _apply_overrides(await _load_overrides(session))
+    if env_settings.vector_backend != "qdrant":
+        return {"ok": False, "errors": ["vector_backend is not 'qdrant'"], "url": None}
+    if not env_settings.qdrant_url:
+        return {"ok": False, "errors": ["QDRANT_URL is not set"], "url": None}
+    import httpx
+
+    url = env_settings.qdrant_url.rstrip("/")
+    headers = (
+        {"api-key": env_settings.qdrant_api_key} if env_settings.qdrant_api_key else {}
+    )
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(f"{url}/version", headers=headers)
+        if resp.status_code != 200:
+            return {
+                "ok": False,
+                "errors": [f"HTTP {resp.status_code}: {resp.text[:120]}"],
+                "url": url,
+            }
+        return {"ok": True, "errors": [], "url": url, "version": resp.json()}
+    except httpx.HTTPError as exc:
+        return {"ok": False, "errors": [str(exc)], "url": url}
+
+
+@router.post("/test-readeck")
+async def test_readeck(session: AsyncSession = Depends(get_session)) -> dict[str, object]:
+    """Probe the configured Readeck instance: token valid + permissions."""
+    from app.services import readeck
+
+    _apply_overrides(await _load_overrides(session))
+    if not readeck.is_enabled():
+        return {
+            "ok": False,
+            "errors": ["readeck_base_url and/or readeck_token not set"],
+            "url": env_settings.readeck_base_url,
+        }
+    import httpx
+
+    url = (env_settings.readeck_base_url or "").rstrip("/")
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                f"{url}/api/profile",
+                headers={"Authorization": f"Bearer {env_settings.readeck_token}"},
+            )
+        if resp.status_code != 200:
+            return {"ok": False, "errors": [f"HTTP {resp.status_code}"], "url": url}
+        profile = resp.json()
+        user = profile.get("user", {}).get("username", "?")
+        roles = profile.get("provider", {}).get("roles", [])
+        can_write = "bookmarks:write" in roles
+        errors = [] if can_write else ["token lacks 'bookmarks:write' role"]
+        return {
+            "ok": can_write,
+            "errors": errors,
+            "url": url,
+            "user": user,
+            "roles": roles,
+        }
+    except httpx.HTTPError as exc:
+        return {"ok": False, "errors": [str(exc)], "url": url}
+
+
 async def _load_overrides(session: AsyncSession) -> dict[str, str]:
     rows = await session.scalars(select(Setting))
     return {r.key: r.value for r in rows if r.key in OVERRIDABLE}

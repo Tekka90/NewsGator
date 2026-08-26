@@ -18,6 +18,8 @@
     errors: string[];
     api_key_hint?: string;
   } | null>(null);
+  let qdrantTest = $state<{ ok: boolean; errors: string[]; url: string | null; version?: { version?: string } } | null>(null);
+  let readeckTest = $state<{ ok: boolean; errors: string[]; url: string | null; user?: string; roles?: string[] } | null>(null);
   let report = $state<{
     current: { tau_attach: number; tau_gray: number };
     labeled_pairs: number;
@@ -26,22 +28,55 @@
     suggested_tau_attach: number | null;
   } | null>(null);
 
-  const sysFields: { key: string; label: string; secret?: boolean }[] = [
-    { key: 'llm_base_url', label: 'LLM base URL' },
-    { key: 'llm_model', label: 'LLM model' },
-    { key: 'llm_api_key', label: 'LLM API key', secret: true },
-    { key: 'embed_base_url', label: 'Embeddings base URL (empty = same as LLM)' },
-    { key: 'embed_model', label: 'Embedding model' },
-    { key: 'summary_language', label: 'Summary language (global default)' },
-    { key: 'tau_attach', label: 'Clustering threshold τ_attach' },
-    { key: 'tau_gray', label: 'Gray-zone threshold τ_gray' },
-    { key: 'freeze_after_hours', label: 'Story freeze window (hours)' },
-    { key: 'retention_days', label: 'Retention (days)' },
-    { key: 'feed_disable_after_days', label: 'Disable feed after N days of failures' },
-    { key: 'vector_backend', label: 'Vector backend (sqlite_vec | qdrant)' },
-    { key: 'qdrant_url', label: 'Qdrant URL (external)' },
-    { key: 'readeck_base_url', label: 'Readeck base URL (optional — enables integration)' },
-    { key: 'readeck_token', label: 'Readeck API token', secret: true }
+  type Field = { key: string; label: string; secret?: boolean };
+  // Grouped so each external service stays together with its test button.
+  const sysGroups: { title: string; hint?: string; fields: Field[] }[] = [
+    {
+      title: 'LLM server',
+      hint: 'External OpenAI-compatible server for summarization + embeddings.',
+      fields: [
+        { key: 'llm_base_url', label: 'LLM base URL' },
+        { key: 'llm_model', label: 'LLM model' },
+        { key: 'llm_api_key', label: 'LLM API key', secret: true },
+        { key: 'embed_base_url', label: 'Embeddings base URL (empty = same as LLM)' },
+        { key: 'embed_model', label: 'Embedding model' }
+      ]
+    },
+    {
+      title: 'Vector store',
+      hint: 'Where article/story embeddings live. sqlite_vec needs nothing; qdrant is an external server.',
+      fields: [
+        { key: 'vector_backend', label: 'Vector backend (sqlite_vec | qdrant)' },
+        { key: 'qdrant_url', label: 'Qdrant URL (external)' },
+        { key: 'qdrant_api_key', label: 'Qdrant API key', secret: true }
+      ]
+    },
+    {
+      title: 'Readeck (optional)',
+      hint: 'Self-hosted read-later archive. Set both to enable "Save to Readeck" on stories.',
+      fields: [
+        { key: 'readeck_base_url', label: 'Readeck base URL' },
+        { key: 'readeck_token', label: 'Readeck API token', secret: true }
+      ]
+    },
+    {
+      title: 'Clustering',
+      hint: 'Tune via the feedback report below before changing thresholds.',
+      fields: [
+        { key: 'tau_attach', label: 'Clustering threshold τ_attach' },
+        { key: 'tau_gray', label: 'Gray-zone threshold τ_gray' },
+        { key: 'freeze_after_hours', label: 'Story freeze window (hours)' }
+      ]
+    },
+    {
+      title: 'Ingestion & retention',
+      fields: [
+        { key: 'retention_days', label: 'Retention (days)' },
+        { key: 'feed_disable_after_days', label: 'Disable feed after N days of failures' },
+        { key: 'feed_backfill_days', label: 'First-poll backfill window (days, 0 = all)' },
+        { key: 'summary_language', label: 'Summary language (global default)' }
+      ]
+    }
   ];
 
   onMount(async () => {
@@ -78,6 +113,16 @@
   async function testLlm() {
     llmTest = null;
     llmTest = await api.settings.testLlm();
+  }
+
+  async function testQdrant() {
+    qdrantTest = null;
+    qdrantTest = await api.settings.testQdrant();
+  }
+
+  async function testReadeck() {
+    readeckTest = null;
+    readeckTest = await api.settings.testReadeck();
   }
 
   async function loadReport() {
@@ -138,38 +183,73 @@
 
   <div class="card">
     <h2>System (admin)</h2>
-    <div class="grid">
-      {#each sysFields as f (f.key)}
-        {@const locked = envLocked.includes(f.key)}
-        <label title={locked ? `Set via environment variable ${f.key.toUpperCase()} — change it in your container/launch environment and restart` : undefined}>
-          {f.label}
-          {#if locked}
-            <span class="ovr env">env</span>
-          {:else if overridden.includes(f.key)}
-            <span class="ovr">overridden</span>
-          {/if}
-          <input
-            type={f.secret ? 'password' : 'text'}
-            bind:value={sys[f.key]}
-            autocomplete="off"
-            disabled={locked}
-          />
-        </label>
-      {/each}
-    </div>
+    {#each sysGroups as group (group.title)}
+      <section class="group">
+        <h3>{group.title}</h3>
+        {#if group.hint}<p class="hint">{group.hint}</p>{/if}
+        <div class="grid">
+          {#each group.fields as f (f.key)}
+            {@const locked = envLocked.includes(f.key)}
+            <label title={locked ? `Set via environment variable ${f.key.toUpperCase()} — change it in your container/launch environment and restart` : undefined}>
+              {f.label}
+              {#if locked}
+                <span class="ovr env">env</span>
+              {:else if overridden.includes(f.key)}
+                <span class="ovr">overridden</span>
+              {/if}
+              <input
+                type={f.secret ? 'password' : 'text'}
+                bind:value={sys[f.key]}
+                autocomplete="off"
+                disabled={locked}
+              />
+            </label>
+          {/each}
+        </div>
+
+        {#if group.title === 'LLM server'}
+          <div class="row">
+            <button class="linkbtn" onclick={testLlm}>Test connection</button>
+            {#if llmTest}
+              <span class:ok={llmTest.chat && llmTest.embeddings} class:bad={!llmTest.chat || !llmTest.embeddings}>
+                chat: {llmTest.chat ? '✓' : '✗'} · embeddings: {llmTest.embeddings ? '✓' : '✗'}
+                {#if llmTest.api_key_hint}· key in use: {llmTest.api_key_hint}{/if}
+                {#each llmTest.errors as err}<br /><small>{err}</small>{/each}
+              </span>
+            {/if}
+          </div>
+        {:else if group.title === 'Vector store'}
+          <div class="row">
+            <button class="linkbtn" onclick={testQdrant} disabled={sys.vector_backend !== 'qdrant'}>
+              Test Qdrant connection
+            </button>
+            {#if qdrantTest}
+              <span class:ok={qdrantTest.ok} class:bad={!qdrantTest.ok}>
+                {qdrantTest.ok ? `✓ reachable${qdrantTest.version?.version ? ' · v' + qdrantTest.version.version : ''}` : '✗ failed'}
+                {#each qdrantTest.errors as err}<br /><small>{err}</small>{/each}
+              </span>
+            {/if}
+          </div>
+        {:else if group.title === 'Readeck (optional)'}
+          <div class="row">
+            <button class="linkbtn" onclick={testReadeck} disabled={!sys.readeck_base_url || !sys.readeck_token}>
+              Test Readeck connection
+            </button>
+            {#if readeckTest}
+              <span class:ok={readeckTest.ok} class:bad={!readeckTest.ok}>
+                {readeckTest.ok ? `✓ connected as ${readeckTest.user}` : '✗ failed'}
+                {#each readeckTest.errors as err}<br /><small>{err}</small>{/each}
+              </span>
+            {/if}
+          </div>
+        {/if}
+      </section>
+    {/each}
+
     <div class="row">
       <button onclick={saveSystem}>Save system settings</button>
       {#if sysSaved}<span class="ok">Saved ✓</span>{/if}
-      <span class="spacer"></span>
-      <button onclick={testLlm}>Test LLM connection</button>
     </div>
-    {#if llmTest}
-      <p class:ok={llmTest.chat && llmTest.embeddings} class:bad={!llmTest.chat || !llmTest.embeddings}>
-        chat: {llmTest.chat ? '✓' : '✗'} · embeddings: {llmTest.embeddings ? '✓' : '✗'}
-        {#if llmTest.api_key_hint}· key in use: {llmTest.api_key_hint}{/if}
-        {#each llmTest.errors as err}<br /><small>{err}</small>{/each}
-      </p>
-    {/if}
   </div>
 
   <div class="card">
@@ -208,6 +288,14 @@
 <style>
   h2 { margin-top: 0; font-size: 1.05rem; }
   .ok { color: var(--ok); margin-left: 0.5rem; }
+  .group { border-top: 1px solid var(--table-border); padding-top: 0.6rem; margin-top: 0.9rem; }
+  .group:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+  .group h3 { font-size: 0.95rem; margin: 0 0 0.15rem; }
+  .linkbtn {
+    background: none; border: 1px solid var(--border-strong); border-radius: 6px;
+    padding: 0.2rem 0.6rem; cursor: pointer; color: var(--accent); font-size: 0.9em;
+  }
+  .linkbtn:disabled { color: var(--disabled-text); border-color: var(--disabled-bg); cursor: not-allowed; }
   .add { display: flex; gap: 0.5rem; }
   .link {
     background: none;
@@ -223,7 +311,6 @@
     gap: 0 1.5rem;
   }
   .row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.6rem; }
-  .spacer { flex: 1; }
   .ovr {
     font-size: 0.72em; color: var(--warn); background: var(--warn-bg);
     border-radius: 999px; padding: 0 0.4rem; margin-left: 0.3rem;
