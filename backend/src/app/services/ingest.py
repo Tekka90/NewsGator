@@ -191,12 +191,30 @@ async def _poll_feed_inner(session: AsyncSession, feed: Feed) -> int:
     if title and not feed.title:
         feed.title = title
 
+    # Backfill window (SPEC §9): only on the very first poll, skip entries older
+    # than the feed's window (settings default when unset, 0 = everything).
+    # Later polls rely on (feed_id, guid)/URL dedupe — the window never re-applies.
+    cutoff: datetime | None = None
+    if feed.last_fetched_at is None:
+        window = feed.backfill_days
+        if window is None:
+            window = settings.feed_backfill_days
+        if window > 0:
+            cutoff = datetime.now(UTC) - timedelta(days=window)
+
     new_count = 0
+    skipped_old = 0
     llm_handoff: list[int] = []
     for entry in entries:
         guid = _entry_guid(entry)
         link = str(entry.get("link", ""))
         if not guid or not link:
+            continue
+        published = _entry_published(entry)
+        # Undated entries are kept: over-including once is harmless (dedupe),
+        # dropping an un-dateable new item would lose it forever.
+        if cutoff is not None and published is not None and published < cutoff:
+            skipped_old += 1
             continue
         if await _is_duplicate(session, feed, guid, link):
             continue
@@ -214,7 +232,7 @@ async def _poll_feed_inner(session: AsyncSession, feed: Feed) -> int:
             title=str(entry.get("title", "")),
             image_url=_entry_image(entry),
             raw_content=raw_content,
-            published_at=_entry_published(entry),
+            published_at=published,
             processing_state="fetched",
         )
         session.add(article)
@@ -228,6 +246,17 @@ async def _poll_feed_inner(session: AsyncSession, feed: Feed) -> int:
             llm_handoff.append(article.id)
         new_count += 1
 
+    if skipped_old:
+        await activity.emit(
+            session,
+            "ingest",
+            "backfill_skipped",
+            {
+                "feed": feed.title or feed.url,
+                "skipped_old": skipped_old,
+                "backfill_days": window if window is not None else 0,
+            },
+        )
     await session.commit()
     # Hand off to the LLM queue (summarize → embed → cluster) only AFTER the
     # commit: the worker reads through a fresh session, so enqueuing earlier

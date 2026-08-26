@@ -91,6 +91,10 @@ ALEMBIC_DIR = BACKEND_DIR / "alembic"
 # present to the revision such a DB should be stamped at, newest first.
 _LEGACY_STAMPS: list[tuple[list[tuple[str, str]], str]] = [
     (
+        [("feed", "backfill_days"), ("user", "story_filter"), ("story", "image_url")],
+        "0008_feed_backfill_days",
+    ),
+    (
         [("user", "story_sort"), ("user", "story_filter"), ("story", "image_url")],
         "0007_user_story_filter",
     ),

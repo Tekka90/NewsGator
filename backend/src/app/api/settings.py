@@ -41,6 +41,7 @@ OVERRIDABLE = {
     "poll_interval_min_minutes": int,
     "poll_interval_max_minutes": int,
     "fulltext_min_chars": int,
+    "feed_backfill_days": int,
 }
 
 

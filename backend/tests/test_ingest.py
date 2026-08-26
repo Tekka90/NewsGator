@@ -162,6 +162,79 @@ async def test_poll_304_not_modified(db_session, monkeypatch: pytest.MonkeyPatch
         assert f is not None and f.consecutive_failures == 0
 
 
+RSS_MIXED_AGES = b"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel>
+<title>Backfill Feed</title>
+<item>
+  <title>Fresh news</title>
+  <link>https://bf.example.com/fresh</link>
+  <guid>fresh-1</guid>
+  <pubDate>Mon, 24 Aug 2026 08:00:00 GMT</pubDate>
+</item>
+<item>
+  <title>Ancient news</title>
+  <link>https://bf.example.com/ancient</link>
+  <guid>old-1</guid>
+  <pubDate>Mon, 24 Aug 2020 08:00:00 GMT</pubDate>
+</item>
+<item>
+  <title>Undated news</title>
+  <link>https://bf.example.com/undated</link>
+  <guid>nodate-1</guid>
+</item>
+</channel></rss>
+"""
+
+
+async def test_first_poll_backfill_window(db_session, monkeypatch: pytest.MonkeyPatch) -> None:
+    """First poll skips entries older than the feed's backfill window; undated
+    entries are kept; the window never applies again after the first poll."""
+    monkeypatch.setattr(ingest, "_http_get", _ok_http(RSS_MIXED_AGES))
+    feed = await _make_feed(db_session, fetch_fulltext=False, backfill_days=7)
+
+    async with db_session() as s:
+        # First poll: 2020 entry skipped, fresh + undated kept
+        assert await ingest.poll_feed(s, await s.get(Feed, feed.id)) == 2
+        guids = set((await s.scalars(select(Article.guid))).all())
+        assert guids == {"fresh-1", "nodate-1"}
+
+        # Activity event logged the skip (invariant 6)
+        actions = (
+            await s.scalars(select(ActivityEvent.action).where(ActivityEvent.component == "ingest"))
+        ).all()
+        assert "backfill_skipped" in actions
+
+        # Second poll re-serving the same old entry: dedupe sees it as new GUID
+        # but the window no longer applies → ingested now (window is first-poll only).
+        assert await ingest.poll_feed(s, await s.get(Feed, feed.id)) == 1
+        guids = set((await s.scalars(select(Article.guid))).all())
+        assert guids == {"fresh-1", "nodate-1", "old-1"}
+
+
+async def test_backfill_window_zero_imports_everything(
+    db_session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(ingest, "_http_get", _ok_http(RSS_MIXED_AGES))
+    feed = await _make_feed(db_session, fetch_fulltext=False, backfill_days=0)
+
+    async with db_session() as s:
+        assert await ingest.poll_feed(s, await s.get(Feed, feed.id)) == 3
+
+
+async def test_backfill_window_default_from_settings(
+    db_session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """backfill_days=None follows settings.feed_backfill_days."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "feed_backfill_days", 30)
+    monkeypatch.setattr(ingest, "_http_get", _ok_http(RSS_MIXED_AGES))
+    feed = await _make_feed(db_session, fetch_fulltext=False)  # backfill_days=None
+
+    async with db_session() as s:
+        assert await ingest.poll_feed(s, await s.get(Feed, feed.id)) == 2
+
+
 async def test_failure_policy_backoff_and_disable(
     db_session, monkeypatch: pytest.MonkeyPatch
 ) -> None:

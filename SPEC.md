@@ -95,6 +95,7 @@ erDiagram
         string url
         string title
         int poll_interval_min
+        int backfill_days   "first-poll window; NULL = server default, 0 = all"
         datetime last_fetched_at
         string etag
         string last_modified
@@ -421,6 +422,12 @@ hardware budget:
   same URL for 24h).
 - **Retention job** (nightly): purge stories/articles older than `RETENTION_DAYS`
   (default 45, GUI-configurable); cascades to revisions, read states, and vectors.
+- **First-poll backfill window**: on a feed's very first poll, skip entries older
+  than the feed's `backfill_days` (per-feed override; NULL follows the global
+  `FEED_BACKFILL_DAYS`, default 7; 0 = import everything). Undated entries are
+  always kept. The window applies only to the first poll — later polls rely on
+  `(feed_id, guid)` / canonical-URL dedupe, so old entries are never re-filtered.
+  Skipped entries emit a `backfill_skipped` activity event.
 
 ---
 

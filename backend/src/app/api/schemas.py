@@ -61,6 +61,8 @@ class FeedIn(BaseModel):
     poll_interval_min: int = Field(default=30, ge=5, le=1440)
     auth_cookies: str | None = None
     fetch_fulltext: bool = True
+    # First-poll backfill window; omit to use the server default, 0 = everything
+    backfill_days: int | None = Field(default=None, ge=0, le=3650)
 
 
 class FeedPatch(BaseModel):
@@ -69,6 +71,7 @@ class FeedPatch(BaseModel):
     is_enabled: bool | None = None
     auth_cookies: str | None = None
     fetch_fulltext: bool | None = None
+    backfill_days: int | None = Field(default=None, ge=0, le=3650)
 
 
 class FeedOut(BaseModel):
@@ -77,6 +80,7 @@ class FeedOut(BaseModel):
     title: str
     is_enabled: bool
     poll_interval_min: int
+    backfill_days: int | None = None
     last_fetched_at: datetime | None
     last_error: str | None
     consecutive_failures: int

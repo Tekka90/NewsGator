@@ -11,6 +11,8 @@
   let importing = $state(false);
   let refreshing = $state(false);
   let refreshingId = $state<number | null>(null);
+  // '' = server default, '0' = import everything, else days
+  let backfill = $state('');
 
   onMount(load);
 
@@ -43,8 +45,12 @@
     error = '';
     adding = true;
     try {
-      await api.feeds.create({ url });
+      await api.feeds.create({
+        url,
+        ...(backfill !== '' ? { backfill_days: Number(backfill) } : {})
+      });
       url = '';
+      backfill = '';
       await load();
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to add feed';
@@ -100,6 +106,17 @@
 
 <form class="card add" onsubmit={add}>
   <input placeholder="https://example.com/feed.xml" bind:value={url} required type="url" />
+  <label class="backfill">
+    Initial import
+    <select bind:value={backfill}>
+      <option value="">server default</option>
+      <option value="0">everything</option>
+      <option value="1">last 24 hours</option>
+      <option value="7">last 7 days</option>
+      <option value="30">last 30 days</option>
+      <option value="365">last year</option>
+    </select>
+  </label>
   <button type="submit" disabled={adding}>{adding ? 'Adding…' : 'Add feed'}</button>
   {#if error}<span class="error">{error}</span>{/if}
 </form>
@@ -137,6 +154,13 @@
     <div class="meta">
       <span>{feed.url}</span>
       <span>polls every {feed.poll_interval_min} min</span>
+      <span>
+        initial import: {feed.backfill_days === null
+          ? 'server default'
+          : feed.backfill_days === 0
+            ? 'everything'
+            : `last ${feed.backfill_days}d`}
+      </span>
       <span>last fetched: {fmt(feed.last_fetched_at)}</span>
     </div>
     {#if feed.last_error}<p class="error small">Last error: {feed.last_error}</p>{/if}
@@ -148,6 +172,14 @@
 <style>
   .add { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
   .add input { flex: 1; min-width: 0; }
+  .backfill {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85em;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
   .row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
   .feed strong { overflow-wrap: anywhere; min-width: 0; }
   .spacer { flex: 1; }

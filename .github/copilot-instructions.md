@@ -118,6 +118,17 @@ favicon proxy `GET /api/favicon?host=` (`api/favicons.py`; `_fetch_favicon`
 is the monkeypatch seam; `FAVICON_CACHE_HOURS`, failures cached 1h) — never a
 third-party favicon service (the story detail page uses it too; `faviconUrl`
 in `lib/api.ts` appends the session token since `<img>` can't send headers).
+Feed deletion (`DELETE /feeds/{id}`) cascades by hand — the `Feed.articles`
+relationship has no delete cascade and `session.delete(feed)` lazy-loads under
+AsyncSession (fails at flush): bulk-delete vectors/`ClusterDecision`/
+`OverridePair`/`Article`, purge now-empty stories (+ revisions/states/centroids),
+then delete the feed (event `feed_deleted`). First-poll backfill window (Alembic
+0008): `feed.backfill_days` (NULL = follow `FEED_BACKFILL_DAYS`, default 7; 0 =
+everything) skips entries older than the window on the **first poll only**
+(`last_fetched_at IS NULL`); undated entries are always kept, later polls rely on
+dedupe. Skips emit a `backfill_skipped` event. Settable in the add-feed GUI
+select; OPML imports use the server default. `FEED_BACKFILL_DAYS` is
+GUI-overridable via settings.
 
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,

@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     fulltext_min_chars: int = 400  # below this → try archive.is fallback
     archive_failure_cache_hours: int = 24
     backlog_sweep_minutes: int = 5  # requeue articles stuck in 'fulltext' state
+    # First-poll backfill window (SPEC §9): on a feed's first poll, skip entries
+    # older than this many days. 0 = import everything. Per-feed overridable.
+    feed_backfill_days: int = 7
 
     # GUI: source favicon proxy cache (hours)
     favicon_cache_hours: int = 168

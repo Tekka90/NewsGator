@@ -76,6 +76,7 @@ async def test_legacy_create_all_db_stamped_and_upgraded(
     sync_conn.execute("ALTER TABLE user DROP COLUMN story_sort")
     sync_conn.execute("ALTER TABLE user DROP COLUMN story_order")
     sync_conn.execute("ALTER TABLE user DROP COLUMN story_filter")
+    sync_conn.execute("ALTER TABLE feed DROP COLUMN backfill_days")
     sync_conn.commit()
     sync_conn.close()
     db.init_engine(engine_url)  # reconnect after the sync-side ALTER
@@ -86,6 +87,7 @@ async def test_legacy_create_all_db_stamped_and_upgraded(
     assert "image_url" in _columns(path, "story")
     assert "story_sort" in _columns(path, "user")
     assert "story_filter" in _columns(path, "user")
+    assert "backfill_days" in _columns(path, "feed")
 
 
 async def test_already_at_head_is_noop(engine_url: str, tmp_path) -> None:

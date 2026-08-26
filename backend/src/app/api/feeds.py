@@ -84,6 +84,7 @@ async def create_feed(body: FeedIn, session: AsyncSession = Depends(get_session)
         poll_interval_min=body.poll_interval_min,
         auth_cookies=body.auth_cookies,
         fetch_fulltext=body.fetch_fulltext,
+        backfill_days=body.backfill_days,
     )
     session.add(feed)
     await session.commit()
@@ -205,7 +206,7 @@ async def import_opml(
         if url in existing:
             skipped += 1
             continue
-        feed = Feed(url=url, title=title)
+        feed = Feed(url=url, title=title)  # backfill_days None → server default
         session.add(feed)
         existing.add(url)
         added.append(feed)

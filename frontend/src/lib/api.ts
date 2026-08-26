@@ -94,7 +94,7 @@ export const api = {
 
   feeds: {
     list: () => req<Feed[]>('/feeds'),
-    create: (f: { url: string; title?: string; poll_interval_min?: number }) =>
+    create: (f: { url: string; title?: string; poll_interval_min?: number; backfill_days?: number }) =>
       req<Feed>('/feeds', { method: 'POST', body: f }),
     update: (id: number, patch: Partial<Feed>) =>
       req<Feed>(`/feeds/${id}`, { method: 'PATCH', body: patch }),

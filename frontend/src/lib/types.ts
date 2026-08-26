@@ -32,6 +32,7 @@ export interface Feed {
   title: string;
   is_enabled: boolean;
   poll_interval_min: number;
+  backfill_days: number | null;
   last_fetched_at: string | null;
   last_error: string | null;
   consecutive_failures: number;

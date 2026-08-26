@@ -78,6 +78,9 @@ class Feed(Base):
     # Optional per-feed credentials for the user's own subscriptions (SPEC §9)
     auth_cookies: Mapped[str | None] = mapped_column(Text, nullable=True)
     fetch_fulltext: Mapped[bool] = mapped_column(Boolean, default=True)
+    # First-poll backfill window in days; NULL = follow settings.feed_backfill_days,
+    # 0 = import everything (SPEC §9)
+    backfill_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
     articles: Mapped[list["Article"]] = relationship(back_populates="feed")
