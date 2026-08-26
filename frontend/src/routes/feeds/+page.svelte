@@ -146,24 +146,24 @@
   .spacer { flex: 1; }
   .badge {
     font-size: 0.75em;
-    background: #e3f2e5;
-    color: #1d6b2a;
+    background: var(--ok-bg);
+    color: var(--ok);
     padding: 0.1rem 0.5rem;
     border-radius: 999px;
   }
-  .badge.off { background: #eee; color: #666; }
-  .badge.warn { background: #fde7e7; color: #a12727; }
+  .badge.off { background: var(--frozen-bg); color: var(--frozen-text); }
+  .badge.warn { background: var(--error-bg); color: var(--error); }
   .meta {
     display: flex;
     gap: 1rem;
-    color: #666;
+    color: var(--text-secondary);
     font-size: 0.85em;
     margin-top: 0.4rem;
     flex-wrap: wrap;
   }
-  .error { color: #c00; }
+  .error { color: var(--error); }
   .small { font-size: 0.85em; margin: 0.4rem 0 0; }
-  .danger { color: #a12727; }
+  .danger { color: var(--error); }
   .import-label { display: block; margin: 0; cursor: pointer; }
   .import input[type='file'] { margin-top: 0.4rem; max-width: 100%; }
 

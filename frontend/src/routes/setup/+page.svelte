@@ -36,6 +36,6 @@
 <style>
   .center { display: flex; justify-content: center; padding-top: 6rem; }
   .auth { width: 340px; display: flex; flex-direction: column; gap: 0.6rem; }
-  .error { color: #c00; }
+  .error { color: var(--error); }
   button { padding: 0.5rem; }
 </style>

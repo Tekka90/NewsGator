@@ -26,6 +26,49 @@
   let horizLock: boolean | null = null;
 
   let current = $derived(index < stories.length ? stories[index] : null);
+  // Past the last card = the "all caught up" end card
+  let atEnd = $derived(stories.length > 0 && index >= stories.length);
+
+  /** Time-of-day-aware end-of-deck message. Generated locally so it is instant
+      and works offline in the PWA — no LLM round-trip at the end of a session. */
+  function pickDoneMessage(now = new Date()): { emoji: string; title: string; body: string } {
+    const h = now.getHours();
+    const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+    if (h >= 22 || h < 5)
+      return pick([
+        { emoji: '🌙', title: 'All caught up', body: "It's late — the world will keep spinning without you. Go to sleep." },
+        { emoji: '😴', title: 'All caught up', body: 'Nothing left to read. Your pillow is calling.' },
+      ]);
+    if (h < 9)
+      return pick([
+        { emoji: '☀️', title: 'All caught up', body: 'Fresh news, fresh day. Grab a coffee — the world can wait.' },
+        { emoji: '☕', title: 'All caught up', body: 'Inbox zero, news zero. Go seize the morning.' },
+      ]);
+    if (h < 12)
+      return pick([
+        { emoji: '🌤', title: 'All caught up', body: "You're up to speed. Go make something great today." },
+        { emoji: '💪', title: 'All caught up', body: 'News done. Now go do that thing you were avoiding.' },
+      ]);
+    if (h < 14)
+      return pick([
+        { emoji: '🍽', title: 'All caught up', body: 'News digested. Time for an actual lunch.' },
+      ]);
+    if (h < 18)
+      return pick([
+        { emoji: '🌤', title: 'All caught up', body: 'Nothing left to read. The afternoon is yours.' },
+        { emoji: '🚶', title: 'All caught up', body: "You're done. Go outside — the sun is still up." },
+      ]);
+    return pick([
+      { emoji: '🌆', title: 'All caught up', body: "That's the news. Go enjoy your evening." },
+      { emoji: '😎', title: 'All caught up', body: "You're done reading. Go back to your life — it's a good one." },
+    ]);
+  }
+
+  let doneMsg = $state(pickDoneMessage());
+  // Fresh message each time the deck runs out of cards
+  $effect(() => {
+    if (atEnd) doneMsg = pickDoneMessage();
+  });
 
   // --- pull-to-refresh (standalone PWA has no browser chrome) ---
   let pullDist = $state(0);
@@ -186,12 +229,12 @@
 
   function commit(dir: 'left' | 'right') {
     const story = current;
-    if (!story) return;
-    if (dir === 'left' && index >= stories.length - 1) { dx = 0; return; }
+    // left past the last story lands on the "all caught up" card; right from it comes back
+    if (dir === 'left' && atEnd) { dx = 0; return; }
     if (dir === 'right' && index <= 0) { dx = 0; return; }
     dx = dir === 'left' ? -480 : 480;
     setTimeout(() => {
-      if (dir === 'left' && !story.is_read) {
+      if (dir === 'left' && story && !story.is_read) {
         story.is_read = true;
         api.stories.read(story.id).catch(() => {});
       }
@@ -259,13 +302,19 @@
     <p>No stories yet. Add feeds on the <a href="/feeds">Feeds page</a> — articles are
     clustered into stories automatically once the pipeline runs.</p>
   </div>
-{:else if isMobile && current}
-  <!-- Mobile: story deck. Swipe ← marks read and opens the next story; → goes back. -->
+{:else if isMobile}
+  <!-- Mobile: story deck. Swipe ← marks read and opens the next story; → goes back.
+       Past the last story, a final "all caught up" card closes the deck. -->
   <div class="deckmeta">
     <button class="navbtn" onclick={() => commit('right')} disabled={index === 0}>‹ Prev</button>
-    <span>{index + 1} / {stories.length}</span>
-    <span class="hint">swipe ← read &amp; next</span>
-    <button class="navbtn" onclick={() => commit('left')} disabled={index >= stories.length - 1}>Next ›</button>
+    {#if atEnd}
+      <span>✓ done</span>
+      <span class="hint">swipe → back to stories</span>
+    {:else}
+      <span>{index + 1} / {stories.length}</span>
+      <span class="hint">swipe ← read &amp; next</span>
+    {/if}
+    <button class="navbtn" onclick={() => commit('left')} disabled={atEnd}>Next ›</button>
   </div>
   <div
     class="deckviewport"
@@ -276,12 +325,13 @@
     onpointerup={onPointerUp}
     onpointercancel={onPointerUp}
   >
-    <article
-      class="card deckcard"
-      class:readcard={current.is_read}
-      style:transform="translateX({dx}px) rotate({dx / 30}deg)"
-      style:transition={dragging || snap ? 'none' : 'transform 0.22s ease-out'}
-    >
+    {#if current}
+      <article
+        class="card deckcard"
+        class:readcard={current.is_read}
+        style:transform="translateX({dx}px) rotate({dx / 30}deg)"
+        style:transition={dragging || snap ? 'none' : 'transform 0.22s ease-out'}
+      >
       <div class="row">
         <span class="chip">{current.category}</span>
         {#if !current.is_read}<span class="badge new">NEW</span>{/if}
@@ -314,7 +364,20 @@
         <span>v{current.version}</span>
         <a href="/stories/{current.id}">Full story &amp; sources →</a>
       </div>
-    </article>
+      </article>
+    {:else}
+      <!-- end of deck — the "you're done, go live your life" card -->
+      <article
+        class="card deckcard donecard"
+        style:transform="translateX({dx}px) rotate({dx / 30}deg)"
+        style:transition={dragging || snap ? 'none' : 'transform 0.22s ease-out'}
+      >
+        <span class="doneemoji">{doneMsg.emoji}</span>
+        <h2>{doneMsg.title}</h2>
+        <p>{doneMsg.body}</p>
+        <button class="navbtn" onclick={() => commit('right')}>‹ Back to stories</button>
+      </article>
+    {/if}
   </div>
 {:else}
   {#if stories.some((s) => !s.is_read)}
@@ -372,10 +435,10 @@
   .toolbar { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
   .filters { display: flex; gap: 0.25rem; flex: 1; min-width: 0; }
   .filters button {
-    border: 1px solid #d0d3d9; background: #fff; border-radius: 999px;
+    border: 1px solid var(--border-strong); background: var(--surface); color: inherit; border-radius: 999px;
     padding: 0.25rem 0.9rem;
   }
-  .filters button.active { background: #1c1e21; color: #fff; border-color: #1c1e21; }
+  .filters button.active { background: var(--text); color: var(--bg); border-color: var(--text); }
   .tools { display: flex; gap: 0.4rem; align-items: center; }
   .tools select { max-width: 10rem; }
   @media (max-width: 700px) {
@@ -385,23 +448,23 @@
     .tools select { flex: 1 1 auto; min-width: 0; max-width: none; }
   }
   .dir {
-    border: 1px solid #d0d3d9; background: #fff; border-radius: 6px;
+    border: 1px solid var(--border-strong); background: var(--surface); color: inherit; border-radius: 6px;
     padding: 0.25rem 0.6rem; font-size: 1rem; line-height: 1; cursor: pointer;
   }
   .story { display: block; text-decoration: none; color: inherit; }
-  .story:hover { border-color: #b9bec6; }
+  .story:hover { border-color: var(--border-hover); }
   .story.read { opacity: 0.62; }
   .storylink { text-decoration: none; color: inherit; display: block; }
   .readbtn {
-    border: 1px solid #d0d3d9; background: #fff; border-radius: 6px;
+    border: 1px solid var(--border-strong); background: var(--surface); border-radius: 6px;
     width: 1.7rem; height: 1.7rem; padding: 0; line-height: 1; cursor: pointer;
-    color: #1d6b2a; font-size: 0.95rem; flex-shrink: 0;
+    color: var(--ok); font-size: 0.95rem; flex-shrink: 0;
   }
-  .readbtn:hover { border-color: #1d6b2a; }
-  .story.read .readbtn { color: #999; }
+  .readbtn:hover { border-color: var(--ok); }
+  .story.read .readbtn { color: var(--faint); }
   .bulkrow { display: flex; justify-content: flex-end; margin-bottom: 0.4rem; }
   .linkbtn {
-    background: none; border: none; color: #294a7a; cursor: pointer;
+    background: none; border: none; color: var(--accent); cursor: pointer;
     font-size: 0.85rem; text-decoration: underline; padding: 0;
   }
   .story h2 { margin: 0.35rem 0; font-size: 1.15rem; }
@@ -410,23 +473,23 @@
     width: 120px; height: 80px; object-fit: cover;
     border-radius: 6px; flex-shrink: 0;
   }
-  .summary { margin: 0; color: #444; }
+  .summary { margin: 0; color: var(--text-secondary); }
   .row { display: flex; align-items: center; gap: 0.4rem; }
   .chip {
-    font-size: 0.75em; background: #e8edf5; color: #294a7a;
+    font-size: 0.75em; background: var(--chip-bg); color: var(--accent);
     padding: 0.1rem 0.5rem; border-radius: 999px;
   }
   .badge { font-size: 0.72em; padding: 0.1rem 0.5rem; border-radius: 999px; font-weight: 600; }
-  .badge.new { background: #e3f2e5; color: #1d6b2a; }
-  .badge.updated { background: #fff3d6; color: #8a5a00; }
-  .badge.frozen { background: #eee; color: #777; }
+  .badge.new { background: var(--ok-bg); color: var(--ok); }
+  .badge.updated { background: var(--warn-bg); color: var(--warn); }
+  .badge.frozen { background: var(--frozen-bg); color: var(--frozen-text); }
   .spacer { flex: 1; }
-  .age { color: #888; font-size: 0.85em; }
-  .meta { display: flex; gap: 1rem; color: #888; font-size: 0.85em; margin-top: 0.5rem; align-items: center; }
+  .age { color: var(--muted); font-size: 0.85em; }
+  .meta { display: flex; gap: 1rem; color: var(--muted); font-size: 0.85em; margin-top: 0.5rem; align-items: center; }
   .fav {
     position: relative; display: inline-flex; align-items: center; justify-content: center;
     width: 18px; height: 18px; border-radius: 4px; overflow: hidden; flex-shrink: 0;
-    background: #e8edf5; color: #294a7a; font-size: 0.72em; font-weight: 700;
+    background: var(--chip-bg); color: var(--accent); font-size: 0.72em; font-weight: 700;
     text-transform: uppercase;
   }
   .fav img { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -435,11 +498,11 @@
   /* --- mobile story deck --- */
   .deckmeta {
     display: flex; align-items: center; gap: 0.7rem;
-    color: #888; font-size: 0.85em; margin: 0.2rem 0 0.5rem;
+    color: var(--muted); font-size: 0.85em; margin: 0.2rem 0 0.5rem;
   }
   .deckmeta .hint { flex: 1; text-align: center; }
   .navbtn {
-    border: 1px solid #d0d3d9; background: #fff; border-radius: 999px;
+    border: 1px solid var(--border-strong); background: var(--surface); color: inherit; border-radius: 999px;
     padding: 0.25rem 0.8rem;
   }
   .navbtn:disabled { opacity: 0.4; }
@@ -467,15 +530,26 @@
   }
   .deckcard .hero.heroloading { visibility: hidden; height: 0; }
   .decksummary {
-    margin: 0; color: #333; line-height: 1.5; font-size: 1rem;
+    margin: 0; color: var(--text-secondary); line-height: 1.5; font-size: 1rem;
     overflow-y: auto; flex: 1;
   }
-  .deckcard .meta a { margin-left: auto; color: #294a7a; }
+  .deckcard .meta a { margin-left: auto; color: var(--accent); }
+
+  /* end-of-deck "all caught up" card */
+  .donecard {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 0.4rem;
+  }
+  .donecard .doneemoji { font-size: 3rem; line-height: 1; }
+  .donecard h2 { margin: 0; font-size: 1.4rem; }
+  .donecard p { margin: 0 0 0.8rem; color: var(--text-secondary); max-width: 22rem; }
 
   /* pull-to-refresh indicator */
   .pullhint {
     display: flex; align-items: center; justify-content: center; gap: 0.4rem;
-    overflow: hidden; color: #888; font-size: 0.85rem;
+    overflow: hidden; color: var(--muted); font-size: 0.85rem;
     transition: height 0.15s ease-out;
   }
   .pullhint span:first-child {

@@ -77,16 +77,73 @@
 {/if}
 
 <style>
+  /* Design tokens — every page references these so dark mode is one override block. */
+  :global(:root) {
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --text: #1c1e21;
+    --text-secondary: #444444;
+    --muted: #888888;
+    --faint: #999999;
+    --border: #e3e5e8;
+    --border-strong: #d0d3d9;
+    --border-hover: #b9bec6;
+    --border-input: #c9ccd1;
+    --accent: #294a7a;
+    --chip-bg: #e8edf5;
+    --ok: #1d6b2a;
+    --ok-bg: #e3f2e5;
+    --warn: #8a5a00;
+    --warn-bg: #fff3d6;
+    --error: #a12727;
+    --error-bg: #fde7e7;
+    --frozen-bg: #eeeeee;
+    --frozen-text: #777777;
+    --code-bg: #eeeeee;
+    --disabled-bg: #f0f1f3;
+    --disabled-text: #555555;
+    --table-border: #e0e0e0;
+    --row-border: #f0f0f0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :global(:root) {
+      --bg: #131417;
+      --surface: #1d1f24;
+      --text: #e5e7eb;
+      --text-secondary: #b9bec6;
+      --muted: #8b919b;
+      --faint: #767c86;
+      --border: #2e3138;
+      --border-strong: #3a3e46;
+      --border-hover: #4a505a;
+      --border-input: #3f444d;
+      --accent: #9db8e2;
+      --chip-bg: #27334b;
+      --ok: #7bd389;
+      --ok-bg: #16301d;
+      --warn: #e3b45e;
+      --warn-bg: #362a10;
+      --error: #e08a8a;
+      --error-bg: #371b1b;
+      --frozen-bg: #26292f;
+      --frozen-text: #9aa0a8;
+      --code-bg: #2a2d33;
+      --disabled-bg: #23262b;
+      --disabled-text: #7d838d;
+      --table-border: #34383f;
+      --row-border: #26292e;
+    }
+  }
   :global(html) {
-    /* match theme-color (#f6f7f9): the iOS status-bar glass sits on a light
-       field so it reads as a subtle frosted band, not a dark smear on the nav */
-    background: #f6f7f9;
+    /* match theme-color: the iOS status-bar glass sits on the page background
+       so it reads as a subtle frosted band, not a smear on the nav */
+    background: var(--bg);
   }
   :global(body) {
     font-family: system-ui, sans-serif;
     margin: 0;
-    background: #f6f7f9;
-    color: #1c1e21;
+    background: var(--bg);
+    color: var(--text);
   }
   .center {
     display: flex;
@@ -159,16 +216,18 @@
     cursor: pointer;
   }
   :global(.card) {
-    background: #fff;
-    border: 1px solid #e3e5e8;
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 1rem;
     margin-bottom: 0.8rem;
   }
   :global(input, select) {
     padding: 0.4rem 0.5rem;
-    border: 1px solid #c9ccd1;
+    border: 1px solid var(--border-input);
     border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
   }
   :global(label) {
     display: block;

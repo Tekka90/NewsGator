@@ -100,10 +100,19 @@ default filter is **Unread**, and the user's filter/sort/order choices are
 persisted server-side (`user.story_filter` / `story_sort` / `story_order`,
 Alembic 0006/0007, `PATCH /auth/me`) so every device follows. On touch-first
 devices the Stories page renders a swipeable card deck instead of the
-list: swipe left = mark read + next, swipe right = previous. The deck is chosen
+list: swipe left = mark read + next, swipe right = previous. Swiping left
+past the last story lands on an end-of-deck "all caught up" card with a
+time-of-day-aware message picked locally (`pickDoneMessage` in
+`routes/+page.svelte`) — deliberately no LLM call, so it's instant and
+works offline in the PWA; swipe right (or the back button) returns to the
+last story. The deck is chosen
 by input capability, not width: `matchMedia('(pointer: coarse)')` — touch-first
 devices (iPhone, iPad, Android) get it even on large screens, since iPadOS
-reports as macOS to UA sniffing. Source logos in card meta rows: `GET /api/stories` returns `source_hosts` (distinct article
+reports as macOS to UA sniffing. Dark mode follows the OS via
+`prefers-color-scheme`: all colors are CSS custom properties defined in
+`routes/+layout.svelte` (`--bg`/`--surface`/`--text`/`--accent`/…) with a
+dark override block — never hardcode hex colors in component styles;
+`app.html` carries `color-scheme` + media-scoped `theme-color` metas. Source logos in card meta rows: `GET /api/stories` returns `source_hosts` (distinct article
 hosts per story, ≤5) and the GUI renders them via a cached, auth-protected
 favicon proxy `GET /api/favicon?host=` (`api/favicons.py`; `_fetch_favicon`
 is the monkeypatch seam; `FAVICON_CACHE_HOURS`, failures cached 1h) — never a

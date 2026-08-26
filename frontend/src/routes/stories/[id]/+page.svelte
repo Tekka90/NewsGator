@@ -193,24 +193,24 @@
     border-radius: 8px; margin-bottom: 0.5rem;
   }
   .summary { font-size: 1.05rem; overflow-wrap: anywhere; }
-  .meta { display: flex; gap: 0.4rem 1rem; color: #888; font-size: 0.85em; flex-wrap: wrap; }
+  .meta { display: flex; gap: 0.4rem 1rem; color: var(--muted); font-size: 0.85em; flex-wrap: wrap; }
   .chip {
-    font-size: 0.75em; background: #e8edf5; color: #294a7a;
+    font-size: 0.75em; background: var(--chip-bg); color: var(--accent);
     padding: 0.1rem 0.5rem; border-radius: 999px;
   }
   .badge { font-size: 0.72em; padding: 0.1rem 0.5rem; border-radius: 999px; font-weight: 600; }
-  .badge.updated { background: #fff3d6; color: #8a5a00; }
-  .badge.frozen { background: #eee; color: #777; }
-  .badge.partial { background: #fde7e7; color: #a12727; }
-  .source { border-top: 1px solid #eee; padding: 0.7rem 0; }
+  .badge.updated { background: var(--warn-bg); color: var(--warn); }
+  .badge.frozen { background: var(--frozen-bg); color: var(--frozen-text); }
+  .badge.partial { background: var(--error-bg); color: var(--error); }
+  .source { border-top: 1px solid var(--border); padding: 0.7rem 0; }
   .source:first-of-type { border-top: none; }
   .favicon { width: 16px; height: 16px; border-radius: 3px; flex-shrink: 0; }
   .srcname { font-weight: 600; font-size: 0.9em; }
-  .lang { color: #999; font-size: 0.8em; text-transform: uppercase; }
-  .small { font-size: 0.88em; color: #555; }
-  .warn { color: #a12727; }
-  .age { color: #888; font-size: 0.85em; margin-left: 0.4rem; }
-  .revision p { margin: 0.3rem 0 0.8rem; color: #444; }
+  .lang { color: var(--faint); font-size: 0.8em; text-transform: uppercase; }
+  .small { font-size: 0.88em; color: var(--text-secondary); }
+  .warn { color: var(--error); }
+  .age { color: var(--muted); font-size: 0.85em; margin-left: 0.4rem; }
+  .revision p { margin: 0.3rem 0 0.8rem; color: var(--text-secondary); }
   .link { overflow-wrap: anywhere; }
   /* long story titles must never push the card wider than the screen */
   .target { max-width: 100%; min-width: 0; flex: 1 1 14rem; }

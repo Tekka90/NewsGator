@@ -205,16 +205,16 @@
 
 <style>
   h2 { margin-top: 0; font-size: 1.05rem; }
-  .ok { color: #1d6b2a; margin-left: 0.5rem; }
+  .ok { color: var(--ok); margin-left: 0.5rem; }
   .add { display: flex; gap: 0.5rem; }
   .link {
     background: none;
     border: none;
-    color: #a12727;
+    color: var(--error);
     text-decoration: underline;
     padding: 0;
   }
-  code { background: #eee; padding: 0 0.25rem; border-radius: 4px; }
+  code { background: var(--code-bg); padding: 0 0.25rem; border-radius: 4px; }
   .grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -223,15 +223,15 @@
   .row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.6rem; }
   .spacer { flex: 1; }
   .ovr {
-    font-size: 0.72em; color: #8a5a00; background: #fff3d6;
+    font-size: 0.72em; color: var(--warn); background: var(--warn-bg);
     border-radius: 999px; padding: 0 0.4rem; margin-left: 0.3rem;
   }
-  .ovr.env { color: #294a7a; background: #e8edf5; }
-  input:disabled { background: #f0f1f3; color: #555; cursor: not-allowed; }
-  .ok { color: #1d6b2a; }
-  .bad { color: #a12727; }
-  .hint { color: #777; font-size: 0.9em; }
+  .ovr.env { color: var(--accent); background: var(--chip-bg); }
+  input:disabled { background: var(--disabled-bg); color: var(--disabled-text); cursor: not-allowed; }
+  .ok { color: var(--ok); }
+  .bad { color: var(--error); }
+  .hint { color: var(--frozen-text); font-size: 0.9em; }
   table { border-collapse: collapse; margin-top: 0.5rem; }
-  td, th { border: 1px solid #e0e0e0; padding: 0.25rem 0.8rem; text-align: right; }
-  tr.best td { background: #e3f2e5; font-weight: 600; }
+  td, th { border: 1px solid var(--table-border); padding: 0.25rem 0.8rem; text-align: right; }
+  tr.best td { background: var(--ok-bg); font-weight: 600; }
 </style>

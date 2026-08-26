@@ -71,7 +71,7 @@
 <style>
   .center { display: flex; justify-content: center; padding-top: 6rem; }
   .auth { width: 320px; display: flex; flex-direction: column; gap: 0.6rem; }
-  .error { color: #c00; }
-  .debug { color: #888; font-size: 0.75em; margin: 0.3rem 0 0; }
+  .error { color: var(--error); }
+  .debug { color: var(--muted); font-size: 0.75em; margin: 0.3rem 0 0; }
   button { padding: 0.5rem; }
 </style>

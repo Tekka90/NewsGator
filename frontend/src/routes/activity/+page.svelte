@@ -204,28 +204,28 @@
   /* pipeline table is wider than a phone screen — scroll it horizontally */
   .tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   table { width: 100%; min-width: 38rem; border-collapse: collapse; font-size: 0.88rem; }
-  th { text-align: left; color: #888; font-weight: 600; font-size: 0.8em; padding: 0.2rem 0.4rem; }
-  td { padding: 0.3rem 0.4rem; border-top: 1px solid #f0f0f0; vertical-align: middle; }
+  th { text-align: left; color: var(--muted); font-weight: 600; font-size: 0.8em; padding: 0.2rem 0.4rem; }
+  td { padding: 0.3rem 0.4rem; border-top: 1px solid var(--row-border); vertical-align: middle; }
   .titlecell .t { font-weight: 500; }
-  .titlecell .sub { color: #999; font-size: 0.82em; }
-  .badge.partial { background: #fde7e7; color: #a12727; padding: 0 0.4rem; border-radius: 999px; font-size: 0.9em; }
+  .titlecell .sub { color: var(--faint); font-size: 0.82em; }
+  .badge.partial { background: var(--error-bg); color: var(--error); padding: 0 0.4rem; border-radius: 999px; font-size: 0.9em; }
   .stage { text-align: center; width: 5.5rem; }
-  .done { color: #2a2; }
+  .done { color: var(--ok); }
   .running { color: #f90; animation: pulse 1.2s ease-in-out infinite; }
   button.link {
-    border: none; background: none; color: #294a7a; cursor: pointer;
+    border: none; background: none; color: var(--accent); cursor: pointer;
     font-size: 0.85em; padding: 0; text-decoration: underline;
   }
-  button.link:disabled { color: #999; cursor: default; }
+  button.link:disabled { color: var(--faint); cursor: default; }
   @keyframes pulse { 50% { opacity: 0.25; } }
   .log { font-family: ui-monospace, monospace; font-size: 0.82rem; max-height: 70vh; overflow-y: auto; }
-  .line { display: flex; gap: 0.7rem; padding: 0.12rem 0; border-bottom: 1px solid #f2f2f2; }
-  .line.warn { color: #8a5a00; }
-  .line.error { color: #a12727; }
-  .ts { color: #999; min-width: 5.5rem; }
-  .comp { color: #294a7a; min-width: 5rem; }
+  .line { display: flex; gap: 0.7rem; padding: 0.12rem 0; border-bottom: 1px solid var(--row-border); }
+  .line.warn { color: var(--warn); }
+  .line.error { color: var(--error); }
+  .ts { color: var(--faint); min-width: 5.5rem; }
+  .comp { color: var(--accent); min-width: 5rem; }
   .action { font-weight: 600; min-width: 11rem; }
-  .detail { color: #666; overflow-wrap: anywhere; }
+  .detail { color: var(--text-secondary); overflow-wrap: anywhere; }
 
   @media (max-width: 700px) {
     .log { font-size: 0.78rem; max-height: 60vh; }
