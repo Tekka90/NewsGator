@@ -80,8 +80,13 @@
 
   async function remove(feed: Feed) {
     if (!confirm(`Delete ${feed.title || feed.url}?`)) return;
-    await api.feeds.remove(feed.id);
-    await load();
+    error = '';
+    try {
+      await api.feeds.remove(feed.id);
+      await load();
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Failed to delete feed';
+    }
   }
 
   function fmt(d: string | null) {
@@ -90,6 +95,8 @@
 </script>
 
 <h1>Feeds</h1>
+
+{#if error}<p class="error">{error}</p>{/if}
 
 <form class="card add" onsubmit={add}>
   <input placeholder="https://example.com/feed.xml" bind:value={url} required type="url" />

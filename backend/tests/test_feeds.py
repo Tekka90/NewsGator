@@ -111,3 +111,49 @@ async def test_new_feed_polled_immediately(
     async with db_session() as s:
         count = await s.scalar(select(func.count(Article.id)))
         assert count == 2
+
+
+async def test_delete_feed_cascades(
+    client: AsyncClient, db_session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Deleting a feed with articles must not 500: articles, vectors, cluster
+    rows and now-empty stories are cleaned up (regression: session.delete(feed)
+    lazy-loaded feed.articles under AsyncSession and failed at flush)."""
+    from sqlalchemy import func, select
+
+    from app.api import feeds as feeds_api
+    from app.models import Article, Feed, Story, StoryRevision, StoryState
+    from app.services.vectorstore import InMemoryVectorStore
+
+    store = InMemoryVectorStore()
+    monkeypatch.setattr(feeds_api, "get_vector_store", lambda session=None: store)
+    await setup_admin(client)
+
+    async with db_session() as s:
+        feed = Feed(url="https://del.example.com/rss", title="Del")
+        s.add(feed)
+        await s.flush()
+        story = Story(title="Ghost", summary="s")
+        s.add(story)
+        await s.flush()
+        a1 = Article(feed_id=feed.id, guid="1", url="https://n/1", story_id=story.id)
+        a2 = Article(feed_id=feed.id, guid="2", url="https://n/2")
+        s.add_all([a1, a2])
+        await s.flush()
+        s.add(StoryRevision(story_id=story.id, version=1, summary="s"))
+        s.add(StoryState(user_id=1, story_id=story.id, is_read=True, read_at_version=1))
+        await s.commit()
+        feed_id, story_id = feed.id, story.id
+        await store.upsert_article(a1.id, [0.1, 0.2])
+        await store.upsert_article(a2.id, [0.1, 0.2])
+        await store.upsert_story_centroid(story_id, [0.1, 0.2])
+
+    r = await client.delete(f"/api/feeds/{feed_id}")
+    assert r.status_code == 204, r.text
+
+    async with db_session() as s:
+        assert await s.scalar(select(func.count(Article.id))) == 0
+        # Story lost all its articles → purged with its revision/state
+        assert await s.get(Story, story_id) is None
+        assert await s.scalar(select(func.count(StoryRevision.id))) == 0
+        assert await s.scalar(select(func.count(StoryState.story_id))) == 0

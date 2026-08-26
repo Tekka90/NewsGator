@@ -3,14 +3,24 @@
 import anyio
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import admin_user
 from app.api.schemas import FeedIn, FeedOut, FeedPatch
 from app.core.db import get_session
-from app.models import Feed
+from app.models import (
+    Article,
+    ClusterDecision,
+    Feed,
+    OverridePair,
+    Story,
+    StoryRevision,
+    StoryState,
+)
+from app.services import activity
 from app.services.ingest import parse_opml, poll_feed, poll_feeds_background
+from app.services.vectorstore import get_vector_store
 
 router = APIRouter(prefix="/feeds", tags=["feeds"], dependencies=[Depends(admin_user)])
 
@@ -107,7 +117,61 @@ async def delete_feed(feed_id: int, session: AsyncSession = Depends(get_session)
     feed = await session.get(Feed, feed_id)
     if feed is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Feed not found")
-    await session.delete(feed)
+    # Bulk cascade by hand: the ORM relationship has no delete cascade, and
+    # session.delete(feed) would try to lazy-load feed.articles at flush time
+    # (fails under AsyncSession) to null out their NOT NULL feed_id.
+    store = get_vector_store(session)
+    article_ids = (
+        await session.scalars(select(Article.id).where(Article.feed_id == feed_id))
+    ).all()
+    story_ids: list[int] = [
+        sid
+        for sid in (
+            await session.scalars(
+                select(Article.story_id)
+                .where(Article.feed_id == feed_id, Article.story_id.is_not(None))
+                .distinct()
+            )
+        ).all()
+        if sid is not None
+    ]
+    for article_id in article_ids:
+        await store.delete_article(article_id)
+    if article_ids:
+        await session.execute(
+            delete(ClusterDecision).where(ClusterDecision.article_id.in_(article_ids))
+        )
+        await session.execute(
+            delete(OverridePair).where(OverridePair.article_id.in_(article_ids))
+        )
+        await session.execute(delete(Article).where(Article.id.in_(article_ids)))
+    await session.execute(delete(Feed).where(Feed.id == feed_id))
+    # Stories left without any article become ghosts — purge them like retention does.
+    empty_story_ids: list[int] = []
+    for story_id in story_ids:
+        remaining = await session.scalar(
+            select(func.count()).select_from(Article).where(Article.story_id == story_id)
+        )
+        if not remaining:
+            empty_story_ids.append(story_id)
+    for story_id in empty_story_ids:
+        await store.delete_story(story_id)
+    if empty_story_ids:
+        await session.execute(
+            delete(StoryRevision).where(StoryRevision.story_id.in_(empty_story_ids))
+        )
+        await session.execute(
+            delete(StoryState).where(StoryState.story_id.in_(empty_story_ids))
+        )
+        await session.execute(delete(Story).where(Story.id.in_(empty_story_ids)))
+    await activity.emit(
+        session,
+        "feeds",
+        "feed_deleted",
+        {"feed_id": feed_id, "title": feed.title, "url": feed.url,
+         "articles_deleted": len(article_ids),
+         "stories_deleted": len(empty_story_ids)},
+    )
     await session.commit()
 
 
