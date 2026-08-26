@@ -5,11 +5,24 @@ Values here are *defaults*; several can be overridden per-install via the SETTIN
 table and the admin GUI (see app.services.settings).
 """
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="", env_file=".env", extra="ignore")
+
+    # Compose passes ${VAR} through even when unset, yielding empty strings —
+    # treat those as "not set" so defaults apply (and they aren't env-locked).
+    @field_validator("qdrant_url", "qdrant_api_key", "embed_base_url", mode="before")
+    @classmethod
+    def _empty_str_is_none(cls, v: object) -> object:
+        return None if v == "" else v
+
+    @field_validator("vector_backend", mode="before")
+    @classmethod
+    def _empty_vector_backend_is_default(cls, v: object) -> object:
+        return "sqlite_vec" if v == "" else v
 
     # Core
     database_url: str = "sqlite+aiosqlite:///./newsgator.db"

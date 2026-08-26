@@ -39,6 +39,14 @@ async def test_qdrant_backend_creates_collections(
 
     monkeypatch.setattr(qdrant_store, "AsyncQdrantClient", FakeClient)
 
+    # ensure_collections now probes the embed endpoint for the real dimension
+    from app.services import llm_client
+
+    async def fake_embed(texts, model=None):
+        return [[0.0] * 1024 for _ in texts]
+
+    monkeypatch.setattr(llm_client, "embed", fake_embed)
+
     async with db_session() as s:
         store = await init_vector_store(s)
     assert set(created) == {qdrant_store.ARTICLES, qdrant_store.STORIES}
@@ -64,6 +72,14 @@ async def test_qdrant_unreachable_falls_back_to_memory(
     from app.services import qdrant_store
 
     monkeypatch.setattr(qdrant_store, "AsyncQdrantClient", BoomClient)
+
+    # embed probe must succeed so we reach the Qdrant (failing) call
+    from app.services import llm_client
+
+    async def fake_embed(texts, model=None):
+        return [[0.0] * 1024 for _ in texts]
+
+    monkeypatch.setattr(llm_client, "embed", fake_embed)
 
     async with db_session() as s:
         with pytest.raises(ConnectionError):

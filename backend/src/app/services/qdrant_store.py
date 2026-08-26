@@ -8,10 +8,10 @@ from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import Distance, PointStruct, VectorParams
 
 from app.core.config import settings
-from app.services.vectorstore import EMBED_DIM
 
-ARTICLES = "articles"
-STORIES = "stories"
+# Prefixed so a shared Qdrant server (used by other apps) stays tidy.
+ARTICLES = "newsgator_articles"
+STORIES = "newsgator_stories"
 
 
 class QdrantVectorStore:
@@ -23,11 +23,25 @@ class QdrantVectorStore:
         )
 
     async def ensure_collections(self) -> None:
+        # Probe the real embedding dimension — a mismatch (e.g. a model that is
+        # not 1024-dim bge-m3) makes every upsert fail silently downstream.
+        from app.services import llm_client
+
+        dim = len((await llm_client.embed(["dimension probe"]))[0])
         for name in (ARTICLES, STORIES):
-            if not await self.client.collection_exists(name):
-                await self.client.create_collection(
-                    name, vectors_config=VectorParams(size=EMBED_DIM, distance=Distance.COSINE)
-                )
+            if await self.client.collection_exists(name):
+                existing = await self.client.get_collection(name)
+                existing_dim = existing.config.params.vectors.size  # type: ignore[union-attr]
+                if existing_dim != dim:
+                    raise RuntimeError(
+                        f"Qdrant collection '{name}' has dim {existing_dim} but the "
+                        f"embed model produces {dim} — recreate the collection or "
+                        f"fix EMBED_MODEL (embeddings-consistency invariant)."
+                    )
+                continue
+            await self.client.create_collection(
+                name, vectors_config=VectorParams(size=dim, distance=Distance.COSINE)
+            )
 
     async def upsert_article(self, article_id: int, vector: list[float]) -> None:
         await self.client.upsert(
