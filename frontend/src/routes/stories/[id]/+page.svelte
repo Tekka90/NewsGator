@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { api, faviconUrl } from '$lib/api';
+  import ReadeckIcon from '$lib/components/ReadeckIcon.svelte';
   import type { StoryDetail, StoryListItem } from '$lib/types';
 
   let story = $state<StoryDetail | null>(null);
@@ -122,8 +123,8 @@
     <a href="/">← back</a>
     <span class="spacer"></span>
     {#if readeckEnabled}
-      <button onclick={saveReadeck} disabled={savingReadeck}>
-        {savingReadeck ? 'Saving…' : 'Save to Readeck'}
+      <button class="iconbtn" onclick={saveReadeck} disabled={savingReadeck} aria-label="Save to Readeck">
+        {#if savingReadeck}Saving…{:else}<ReadeckIcon size={15} /> Save to Readeck{/if}
       </button>
     {/if}
     <button onclick={toggleRead}>{story.is_read ? 'Mark unread' : 'Mark read'}</button>
@@ -215,6 +216,7 @@
 <style>
   .row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
   .spacer { flex: 1; }
+  .iconbtn { display: inline-flex; align-items: center; gap: 0.35rem; }
   h1 { font-size: 1.5rem; margin: 0.5rem 0; overflow-wrap: anywhere; }
   h2 { font-size: 1.05rem; margin-top: 0; }
   .lead {

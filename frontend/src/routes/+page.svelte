@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { api, faviconUrl } from '$lib/api';
   import { currentUser } from '$lib/stores';
+  import ReadeckIcon from '$lib/components/ReadeckIcon.svelte';
   import type { Category, StoryListItem } from '$lib/types';
 
   type Sort = 'updated' | 'published' | 'sources';
@@ -420,12 +421,13 @@
         <span class="spacer"></span>
         {#if readeckEnabled}
           <button
-            class="readbtn"
+            class="readbtn iconbtn"
             title={readeckSaved[story.id] ? 'Saved to Readeck ✓' : 'Save to Readeck'}
+            aria-label="Save to Readeck"
             onclick={(e) => saveReadeck(story, e)}
             disabled={readeckSaving[story.id]}
           >
-            {readeckSaved[story.id] ? '✓' : readeckSaving[story.id] ? '…' : '⇪'}
+            {#if readeckSaved[story.id]}✓{:else if readeckSaving[story.id]}…{:else}<ReadeckIcon size={15} />{/if}
           </button>
         {/if}
         <button
@@ -497,6 +499,7 @@
   }
   .readbtn:hover { border-color: var(--ok); }
   .story.read .readbtn { color: var(--faint); }
+  .iconbtn { display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem; }
   .bulkrow { display: flex; justify-content: flex-end; margin-bottom: 0.4rem; }
   .linkbtn {
     background: none; border: none; color: var(--accent); cursor: pointer;
