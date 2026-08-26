@@ -165,7 +165,12 @@ export const api = {
         content_status: string;
         content_warning: string | null;
         requeued: boolean;
-      }>(`/stories/articles/${articleId}/reprocess`, { method: 'POST' })
+      }>(`/stories/articles/${articleId}/reprocess`, { method: 'POST' }),
+    saveToReadeck: (id: number) =>
+      req<{ bookmark_id: string; href: string; latency_ms: number }>(
+        `/stories/${id}/readeck`,
+        { method: 'POST' }
+      )
   },
 
   settings: {

@@ -73,6 +73,8 @@ the full normative spec — **read it before non-trivial changes**.
 - **Lint/typing**: ruff + mypy; keep them clean.
 - **Migrations**: every schema change = one Alembic revision, committed with the code.
 - **API changes**: update the endpoint table in SPEC.md §6.
+- **Config keys**: every new setting in `core/config.py` must also be added to
+  `docker/.env.example` (commented out, with a one-line doc) in the same change.
 
 ## Current status
 
@@ -128,7 +130,22 @@ everything) skips entries older than the window on the **first poll only**
 (`last_fetched_at IS NULL`); undated entries are always kept, later polls rely on
 dedupe. Skips emit a `backfill_skipped` event. Settable in the add-feed GUI
 select; OPML imports use the server default. `FEED_BACKFILL_DAYS` is
-GUI-overridable via settings.
+GUI-overridable via settings. Readeck integration (2026-08-26, optional):
+`POST /api/stories/{id}/readeck` pushes a story to a self-hosted Readeck
+instance as a permanent bookmark — the content is a generated self-contained
+HTML doc (headline + merged summary + lead image + all source links) uploaded
+via multipart `POST /api/bookmarks` (fields `url`/`title`/`labels`/`created` +
+`html` file), so it survives NewsGator's retention window; the bookmark's
+canonical `url` is the primary source article (earliest published). Enabled
+only when BOTH `READECK_BASE_URL` and `READECK_TOKEN` are set (env or settings
+override; whitelisted keys, env-locked like the rest — empty-string env = unset
+via the config validator). Service `services/readeck.py`: `is_enabled()`,
+`render_story_html()`, `save_story()`; HTTP seam `_post_bookmark` is
+module-level for monkeypatching; emits `save_start`/`save_done`/`save_failed`
+activity events. GUI: "Save to Readeck" button on the story detail page and a
+per-story icon in the list — both probe `GET /api/settings` (admin-only) to
+hide when unconfigured; settings page has the two fields (token is a secret
+input).
 
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,
@@ -136,7 +153,8 @@ Notes on the current code:
 - Services: `ingest.py`, `fulltext.py`, `activity.py` (emit + SSE broadcast + ring
   buffer), `llm_client.py` (mock `chat_json`/`embed` in tests), `prompts.py`,
   `process.py` (queue + `process_article`), `cluster.py`, `vectorstore.py`
-  (+ `qdrant_store.py`), `retention.py`, `feedback.py`. HTTP seams `_http_get` /
+  (+ `qdrant_store.py`), `retention.py`, `feedback.py`, `readeck.py` (optional
+  Readeck push; seam `_post_bookmark`). HTTP seams `_http_get` /
   `_fetch_page` / `_extract_text` are module-level for monkeypatching in tests; the
   vector store is patched via `get_vector_store` on each importing module.
 - Scheduler (`workers/scheduler.py`): 1-min feed tick, hourly freeze + activity prune,

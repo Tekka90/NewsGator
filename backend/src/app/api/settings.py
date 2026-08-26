@@ -42,6 +42,8 @@ OVERRIDABLE = {
     "poll_interval_max_minutes": int,
     "fulltext_min_chars": int,
     "feed_backfill_days": int,
+    "readeck_base_url": str,
+    "readeck_token": str,
 }
 
 

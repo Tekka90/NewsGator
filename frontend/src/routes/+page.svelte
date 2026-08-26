@@ -15,6 +15,9 @@
   let order = $state<Order>('asc');
   let loading = $state(true);
   let isMobile = $state(false);
+  let readeckEnabled = $state(false);
+  let readeckSaving = $state<Record<number, boolean>>({});
+  let readeckSaved = $state<Record<number, boolean>>({});
 
   // --- swipe deck state (mobile card view) ---
   let index = $state(0);
@@ -126,6 +129,13 @@
       } catch {
         /* non-admin users may not list categories */
       }
+      // Optional Readeck feature — the endpoint 404s when not configured.
+      try {
+        const s = await api.settings.get();
+        readeckEnabled = Boolean(s.values.readeck_base_url && s.values.readeck_token);
+      } catch {
+        readeckEnabled = false;
+      }
       await load();
     })();
     // pull-to-refresh on touch devices (no browser chrome in standalone PWA)
@@ -156,6 +166,21 @@
       .patchMe({ story_sort: sort, story_order: order, story_filter: filter })
       .then((u) => ($currentUser = u))
       .catch(() => {});
+  }
+
+  async function saveReadeck(story: StoryListItem, e: Event) {
+    e.preventDefault();
+    e.stopPropagation();
+    readeckSaving[story.id] = true;
+    try {
+      await api.stories.saveToReadeck(story.id);
+      readeckSaved[story.id] = true;
+      setTimeout(() => delete readeckSaved[story.id], 2500);
+    } catch {
+      /* error surfaces via activity feed; keep list quiet */
+    } finally {
+      readeckSaving[story.id] = false;
+    }
   }
 
   function ago(iso: string): string {
@@ -393,6 +418,16 @@
         {#if story.updated_since_read}<span class="badge updated">UPDATED</span>{/if}
         {#if story.is_frozen}<span class="badge frozen">archived</span>{/if}
         <span class="spacer"></span>
+        {#if readeckEnabled}
+          <button
+            class="readbtn"
+            title={readeckSaved[story.id] ? 'Saved to Readeck ✓' : 'Save to Readeck'}
+            onclick={(e) => saveReadeck(story, e)}
+            disabled={readeckSaving[story.id]}
+          >
+            {readeckSaved[story.id] ? '✓' : readeckSaving[story.id] ? '…' : '⇪'}
+          </button>
+        {/if}
         <button
           class="readbtn"
           title={story.is_read ? 'Mark unread' : 'Mark read'}

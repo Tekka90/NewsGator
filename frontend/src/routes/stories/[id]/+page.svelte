@@ -11,12 +11,22 @@
   let error = $state('');
   let reprocessing = $state<number | null>(null);
   let reprocessMsg = $state<Record<number, string>>({});
+  let readeckEnabled = $state(false);
+  let savingReadeck = $state(false);
+  let readeckMsg = $state('');
 
   const id = Number(page.params.id);
 
   onMount(async () => {
     await load();
     allStories = await api.stories.list();
+    // Optional feature — the endpoint 404s when Readeck isn't configured.
+    try {
+      const s = await api.settings.get();
+      readeckEnabled = Boolean(s.values.readeck_base_url && s.values.readeck_token);
+    } catch {
+      readeckEnabled = false; // non-admin or settings unavailable
+    }
   });
 
   async function load() {
@@ -92,14 +102,33 @@
   function hideFav(e: Event) {
     (e.currentTarget as HTMLImageElement).style.visibility = 'hidden';
   }
+
+  async function saveReadeck() {
+    savingReadeck = true;
+    readeckMsg = '';
+    try {
+      const r = await api.stories.saveToReadeck(id);
+      readeckMsg = `✓ saved to Readeck (${r.latency_ms} ms)`;
+    } catch (e) {
+      readeckMsg = e instanceof Error ? e.message : 'Save failed';
+    } finally {
+      savingReadeck = false;
+    }
+  }
 </script>
 
 {#if story}
   <div class="row">
     <a href="/">← back</a>
     <span class="spacer"></span>
+    {#if readeckEnabled}
+      <button onclick={saveReadeck} disabled={savingReadeck}>
+        {savingReadeck ? 'Saving…' : 'Save to Readeck'}
+      </button>
+    {/if}
     <button onclick={toggleRead}>{story.is_read ? 'Mark unread' : 'Mark read'}</button>
   </div>
+  {#if readeckMsg}<p class="ok">{readeckMsg}</p>{/if}
 
   <div class="card">
     <div class="row">

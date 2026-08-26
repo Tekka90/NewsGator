@@ -14,7 +14,10 @@ class Settings(BaseSettings):
 
     # Compose passes ${VAR} through even when unset, yielding empty strings —
     # treat those as "not set" so defaults apply (and they aren't env-locked).
-    @field_validator("qdrant_url", "qdrant_api_key", "embed_base_url", mode="before")
+    @field_validator(
+        "qdrant_url", "qdrant_api_key", "embed_base_url", "readeck_base_url",
+        "readeck_token", mode="before"
+    )
     @classmethod
     def _empty_str_is_none(cls, v: object) -> object:
         return None if v == "" else v
@@ -64,6 +67,10 @@ class Settings(BaseSettings):
 
     # GUI: source favicon proxy cache (hours)
     favicon_cache_hours: int = 168
+
+    # Readeck integration (optional — enabled only when both are set)
+    readeck_base_url: str | None = None
+    readeck_token: str | None = None
 
 
 settings = Settings()

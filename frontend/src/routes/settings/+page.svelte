@@ -39,7 +39,9 @@
     { key: 'retention_days', label: 'Retention (days)' },
     { key: 'feed_disable_after_days', label: 'Disable feed after N days of failures' },
     { key: 'vector_backend', label: 'Vector backend (sqlite_vec | qdrant)' },
-    { key: 'qdrant_url', label: 'Qdrant URL (external)' }
+    { key: 'qdrant_url', label: 'Qdrant URL (external)' },
+    { key: 'readeck_base_url', label: 'Readeck base URL (optional — enables integration)' },
+    { key: 'readeck_token', label: 'Readeck API token', secret: true }
   ];
 
   onMount(async () => {

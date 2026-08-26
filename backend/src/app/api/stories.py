@@ -262,6 +262,66 @@ async def story_detail(
     )
 
 
+class ReadeckOut(BaseModel):
+    bookmark_id: str
+    href: str
+    latency_ms: int
+
+
+@router.post("/{story_id}/readeck")
+async def save_to_readeck(
+    story_id: int,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> ReadeckOut:
+    """Push the story to the configured Readeck instance as a permanent bookmark.
+
+    Optional feature: 404 when readeck_base_url/readeck_token aren't set
+    (env or settings overrides). Emits activity events per invariant 6.
+    """
+    from app.services import readeck
+
+    if not readeck.is_enabled():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Readeck integration is not configured")
+    story = await session.get(Story, story_id)
+    if story is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Story not found")
+    articles = list(
+        (
+            await session.scalars(
+                select(Article).where(Article.story_id == story_id).order_by(Article.id)
+            )
+        ).all()
+    )
+    await activity.emit(
+        session, "readeck", "save_start", {"story_id": story.id, "sources": len(articles)}
+    )
+    await session.commit()
+    try:
+        result = await readeck.save_story(story, articles)
+    except readeck.ReadeckError as exc:
+        await activity.emit(
+            session, "readeck", "save_failed",
+            {"story_id": story.id, "error": str(exc)}, level="error",
+        )
+        await session.commit()
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+    await activity.emit(
+        session, "readeck", "save_done",
+        {
+            "story_id": story.id,
+            "bookmark_id": result["bookmark_id"],
+            "latency_ms": result["latency_ms"],
+        },
+    )
+    await session.commit()
+    return ReadeckOut(
+        bookmark_id=result["bookmark_id"],
+        href=result["href"],
+        latency_ms=result["latency_ms"],
+    )
+
+
 class ReprocessOut(BaseModel):
     chars: int
     path: str
