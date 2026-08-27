@@ -110,6 +110,7 @@
     try {
       const r = await api.stories.saveToReadeck(id);
       readeckMsg = `✓ saved to Readeck (${r.latency_ms} ms)`;
+      if (story) story.readeck_bookmark_id = r.bookmark_id; // grey the button
     } catch (e) {
       readeckMsg = e instanceof Error ? e.message : 'Save failed';
     } finally {
@@ -123,7 +124,15 @@
     <a href="/">← back</a>
     <span class="spacer"></span>
     {#if readeckEnabled}
-      <button class="iconbtn" onclick={saveReadeck} disabled={savingReadeck} aria-label="Save to Readeck">
+      {@const saved = Boolean(story.readeck_bookmark_id)}
+      <button
+        class="iconbtn"
+        class:saved
+        onclick={saveReadeck}
+        disabled={savingReadeck}
+        aria-label="Save to Readeck"
+        title={saved ? 'Already saved to Readeck — save again' : 'Save to Readeck'}
+      >
         {#if savingReadeck}Saving…{:else}<ReadeckIcon size={15} /> Save to Readeck{/if}
       </button>
     {/if}
@@ -217,6 +226,7 @@
   .row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
   .spacer { flex: 1; }
   .iconbtn { display: inline-flex; align-items: center; gap: 0.35rem; }
+  .iconbtn.saved { color: var(--disabled-text); border-color: var(--disabled-bg); opacity: 0.75; }
   h1 { font-size: 1.5rem; margin: 0.5rem 0; overflow-wrap: anywhere; }
   h2 { font-size: 1.05rem; margin-top: 0; }
   .lead {

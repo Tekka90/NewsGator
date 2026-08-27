@@ -18,7 +18,6 @@
   let isMobile = $state(false);
   let readeckEnabled = $state(false);
   let readeckSaving = $state<Record<number, boolean>>({});
-  let readeckSaved = $state<Record<number, boolean>>({});
 
   // --- swipe deck state (mobile card view) ---
   let index = $state(0);
@@ -174,9 +173,8 @@
     e.stopPropagation();
     readeckSaving[story.id] = true;
     try {
-      await api.stories.saveToReadeck(story.id);
-      readeckSaved[story.id] = true;
-      setTimeout(() => delete readeckSaved[story.id], 2500);
+      const r = await api.stories.saveToReadeck(story.id);
+      story.readeck_bookmark_id = r.bookmark_id; // persisted server-side
     } catch {
       /* error surfaces via activity feed; keep list quiet */
     } finally {
@@ -364,6 +362,19 @@
         {#if current.updated_since_read}<span class="badge updated">UPDATED</span>{/if}
         {#if current.is_frozen}<span class="badge frozen">archived</span>{/if}
         <span class="spacer"></span>
+        {#if readeckEnabled}
+          {@const saved = Boolean(current.readeck_bookmark_id)}
+          <button
+            class="readbtn iconbtn"
+            class:saved
+            title={saved ? 'Already saved to Readeck — save again' : 'Save to Readeck'}
+            aria-label="Save to Readeck"
+            onclick={(e) => current && saveReadeck(current, e)}
+            disabled={readeckSaving[current.id]}
+          >
+            {#if readeckSaving[current.id]}…{:else}<ReadeckIcon size={15} />{/if}
+          </button>
+        {/if}
         <span class="age">{ago(current.published_at ?? current.last_updated_at)}</span>
       </div>
       {#if current.image_url}
@@ -420,14 +431,16 @@
         {#if story.is_frozen}<span class="badge frozen">archived</span>{/if}
         <span class="spacer"></span>
         {#if readeckEnabled}
+          {@const saved = Boolean(story.readeck_bookmark_id)}
           <button
             class="readbtn iconbtn"
-            title={readeckSaved[story.id] ? 'Saved to Readeck ✓' : 'Save to Readeck'}
+            class:saved
+            title={saved ? 'Already saved to Readeck — save again' : 'Save to Readeck'}
             aria-label="Save to Readeck"
             onclick={(e) => saveReadeck(story, e)}
             disabled={readeckSaving[story.id]}
           >
-            {#if readeckSaved[story.id]}✓{:else if readeckSaving[story.id]}…{:else}<ReadeckIcon size={15} />{/if}
+            {#if readeckSaving[story.id]}…{:else}<ReadeckIcon size={15} />{/if}
           </button>
         {/if}
         <button
@@ -500,6 +513,8 @@
   .readbtn:hover { border-color: var(--ok); }
   .story.read .readbtn { color: var(--faint); }
   .iconbtn { display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem; }
+  /* Already pushed to Readeck — grey it out (still re-clickable to re-save). */
+  .readbtn.saved { color: var(--disabled-text); border-color: var(--disabled-bg); opacity: 0.6; }
   .bulkrow { display: flex; justify-content: flex-end; margin-bottom: 0.4rem; }
   .linkbtn {
     background: none; border: none; color: var(--accent); cursor: pointer;

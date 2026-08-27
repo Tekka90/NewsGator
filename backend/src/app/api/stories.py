@@ -44,6 +44,7 @@ class StoryListItem(BaseModel):
     last_updated_at: datetime
     is_read: bool
     updated_since_read: bool
+    readeck_bookmark_id: str | None
 
 
 class ArticleOut(BaseModel):
@@ -86,6 +87,7 @@ class StoryDetail(BaseModel):
     updated_since_read: bool
     articles: list[ArticleOut]
     revisions: list[RevisionOut]
+    readeck_bookmark_id: str | None
 
 
 def _article_out(a: Article) -> ArticleOut:
@@ -202,6 +204,7 @@ async def list_stories(
                 last_updated_at=story.last_updated_at,
                 is_read=is_read,
                 updated_since_read=updated,
+                readeck_bookmark_id=story.readeck_bookmark_id,
             )
         )
     if sort == "published":
@@ -259,6 +262,7 @@ async def story_detail(
         updated_since_read=updated,
         articles=[_article_out(a) for a in articles],
         revisions=[RevisionOut.model_validate(r) for r in revisions],
+        readeck_bookmark_id=story.readeck_bookmark_id,
     )
 
 
@@ -306,6 +310,7 @@ async def save_to_readeck(
         )
         await session.commit()
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+    story.readeck_bookmark_id = result["bookmark_id"] or None
     await activity.emit(
         session, "readeck", "save_done",
         {

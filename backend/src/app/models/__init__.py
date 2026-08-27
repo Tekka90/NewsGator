@@ -135,6 +135,8 @@ class Story(Base):
     is_frozen: Mapped[bool] = mapped_column(Boolean, default=False)
     first_seen_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
     last_updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    # Readeck bookmark UID once the story has been pushed (None = not saved)
+    readeck_bookmark_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     articles: Mapped[list["Article"]] = relationship(back_populates="story")
 

@@ -58,6 +58,7 @@ export interface StoryListItem {
   last_updated_at: string;
   is_read: boolean;
   updated_since_read: boolean;
+  readeck_bookmark_id: string | null;
 }
 
 export interface StoryArticle {

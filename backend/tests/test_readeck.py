@@ -97,6 +97,16 @@ async def test_save_posts_multipart_and_returns_bookmark(
     assert "Article Two" in html
     assert 'src="https://img.example.com/lead.jpg"' in html
 
+    # bookmark id persisted on the story and surfaced in the API
+    r = await client.get(f"/api/stories/{story_id}")
+    assert r.json()["readeck_bookmark_id"] == "abc123"
+    r = await client.get("/api/stories?filter=all")
+    item = next(s for s in r.json() if s["id"] == story_id)
+    assert item["readeck_bookmark_id"] == "abc123"
+    async with db_session() as s:
+        story = await s.get(Story, story_id)
+        assert story is not None and story.readeck_bookmark_id == "abc123"
+
     # activity events emitted (invariant 6)
     async with db_session() as s:
         from sqlalchemy import select

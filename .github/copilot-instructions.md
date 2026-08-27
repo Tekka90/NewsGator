@@ -142,10 +142,15 @@ override; whitelisted keys, env-locked like the rest — empty-string env = unse
 via the config validator). Service `services/readeck.py`: `is_enabled()`,
 `render_story_html()`, `save_story()`; HTTP seam `_post_bookmark` is
 module-level for monkeypatching; emits `save_start`/`save_done`/`save_failed`
-activity events. GUI: "Save to Readeck" button on the story detail page and a
-per-story icon in the list — both probe `GET /api/settings` (admin-only) to
-hide when unconfigured; settings page has the two fields (token is a secret
-input). Settings page is organized in grouped sections (LLM server / Vector
+activity events. GUI: "Save to Readeck" button on the story detail page, a
+per-story icon in the list, and the same icon on the mobile swipe-deck card —
+all probe `GET /api/settings` (admin-only) to hide when unconfigured; settings
+page has the two fields (token is a secret input). On success the bookmark UID
+is stored on `story.readeck_bookmark_id` (Alembic 0009, nullable) and returned
+by `GET /api/stories` + `GET /api/stories/{id}`; the GUI greys the button when
+set (still re-clickable to re-save). The legacy-DB stamp table in `main.py`
+(`_LEGACY_STAMPS`) must get a new top entry whenever a revision adds a column.
+Settings page is organized in grouped sections (LLM server / Vector
 store / Readeck / Clustering / Ingestion), each external service with its own
 "Test connection" button backed by a `POST /api/settings/test-{service}`
 probe endpoint (test-llm, test-qdrant, test-readeck) — probes return `ok` +
