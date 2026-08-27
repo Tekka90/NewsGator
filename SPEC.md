@@ -303,6 +303,7 @@ v1 is **data-first, no online learning**:
 |---|---|
 | `POST /auth/login`, `POST /auth/logout` | session auth; login/setup also return the signed token in the body — clients that cannot persist cookies (iOS standalone PWAs) send it as `Authorization: Bearer <token>` (or `?token=` for SSE) |
 | `GET/PATCH /me` | profile + per-user preferences: summary language, story-list filter (`story_filter`, default `unread`) and ordering (`story_sort`/`story_order`) — shared across the user's devices |
+| `GET /users`, `POST /users`, `PATCH /users/{id}`, `DELETE /users/{id}` | user management (admin): list, create (username/password/admin flag), reset password or toggle admin, delete. First-run `/auth/setup` only creates the initial admin; additional users come from here. Guards: the last admin can be neither demoted nor deleted, and a user cannot delete themselves; deleting a user bulk-removes their `STORY_STATE` rows |
 | `GET /stories?filter=all\|unread\|updated&category=&sort=updated\|published\|sources&order=asc\|desc` | story list with **per-user** flags; sort by article publication date (default), last update, or source count, ascending (default: oldest first) or descending; unknown dates always last |
 | `GET /stories/{id}` | story detail: merged summary + source articles + revision history |
 | `POST /stories/{id}/read` | sets `read_at_version = story.version` (per user) |

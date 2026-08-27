@@ -52,6 +52,30 @@ class MePatch(BaseModel):
     story_filter: str | None = Field(default=None, pattern="^(all|unread|updated)$")
 
 
+# --- admin user management ---
+
+
+class UserCreateIn(BaseModel):
+    username: str = Field(min_length=3, max_length=64)
+    password: str = Field(min_length=8)
+    is_admin: bool = False
+
+
+class UserPatchIn(BaseModel):
+    password: str | None = Field(default=None, min_length=8)
+    is_admin: bool | None = None
+
+
+class ManagedUserOut(BaseModel):
+    id: int
+    username: str
+    is_admin: bool
+    summary_language: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 # --- feeds ---
 
 

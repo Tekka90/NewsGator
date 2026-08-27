@@ -4,6 +4,7 @@ import type {
   AuthUser,
   Category,
   Feed,
+  ManagedUser,
   StoryDetail,
   StoryListItem,
   UsageByFeed,
@@ -101,6 +102,15 @@ export const api = {
     story_order?: 'asc' | 'desc';
     story_filter?: 'all' | 'unread' | 'updated';
   }) => req<User>('/auth/me', { method: 'PATCH', body: patch }),
+
+  users: {
+    list: () => req<ManagedUser[]>('/users'),
+    create: (u: { username: string; password: string; is_admin?: boolean }) =>
+      req<ManagedUser>('/users', { method: 'POST', body: u }),
+    update: (id: number, patch: { password?: string; is_admin?: boolean }) =>
+      req<ManagedUser>(`/users/${id}`, { method: 'PATCH', body: patch }),
+    remove: (id: number) => req<void>(`/users/${id}`, { method: 'DELETE' })
+  },
 
   feeds: {
     list: () => req<Feed[]>('/feeds'),

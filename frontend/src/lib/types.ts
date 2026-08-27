@@ -16,6 +16,15 @@ export interface AuthUser extends User {
   token: string;
 }
 
+/** Admin user-management view (GET /api/users). */
+export interface ManagedUser {
+  id: number;
+  username: string;
+  is_admin: boolean;
+  summary_language: string;
+  created_at: string;
+}
+
 // --- LLM usage metrics (admin Usage page) ---
 
 export interface UsageTotals {

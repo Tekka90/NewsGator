@@ -199,6 +199,17 @@ stage/model/feed tables, and a **client-side price playground** ($/1M tokens
 in localStorage, cost computed in the page — deliberately NOT a server
 setting, so providers/models can be compared live). `_LEGACY_STAMPS` got a
 0010 top entry keyed on `("llm_usage", "estimated")`.
+User management (2026-08-27): `/auth/setup` still only creates the initial
+admin — all other accounts come from the admin-only `/api/users` router
+(`api/users.py`, router-level `Depends(admin_user)`): `GET` list,
+`POST` create (409 on duplicate username), `PATCH /{id}` reset password
+and/or toggle admin, `DELETE /{id}`. Guards: the last admin can be neither
+demoted nor deleted (400), self-delete is refused, and deletion bulk-removes
+the user's `StoryState` rows by hand (no cascade). Emits `user_created` /
+`user_deleted` activity events. No schema change — the `User` model already
+had everything. GUI: "Users (admin)" card on the Settings page (create form,
+reset password via prompt, make/revoke admin, delete) backed by
+`api.users.*` in `lib/api.ts` + `ManagedUser` type.
 
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,

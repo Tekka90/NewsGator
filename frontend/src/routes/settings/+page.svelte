@@ -2,12 +2,17 @@
   import { onMount } from 'svelte';
   import { api } from '$lib/api';
   import { currentUser } from '$lib/stores';
-  import type { Category } from '$lib/types';
+  import type { Category, ManagedUser } from '$lib/types';
 
   let language = $state('');
   let saved = $state(false);
   let categories = $state<Category[]>([]);
   let newCategory = $state('');
+  let users = $state<ManagedUser[]>([]);
+  let newUsername = $state('');
+  let newUserPassword = $state('');
+  let newUserAdmin = $state(false);
+  let userError = $state('');
   let sys = $state<Record<string, string | number>>({});
   let overridden = $state<string[]>([]);
   let envLocked = $state<string[]>([]);
@@ -88,6 +93,7 @@
     language = $currentUser?.summary_language ?? '';
     if ($currentUser?.is_admin) {
       categories = await api.categories.list();
+      users = await api.users.list();
       const s = await api.settings.get();
       sys = s.values;
       original = { ...s.values };
@@ -152,6 +158,59 @@
     await api.categories.remove(c.id);
     categories = await api.categories.list();
   }
+
+  async function addUser(e: SubmitEvent) {
+    e.preventDefault();
+    userError = '';
+    try {
+      await api.users.create({
+        username: newUsername,
+        password: newUserPassword,
+        is_admin: newUserAdmin
+      });
+    } catch (err) {
+      userError = err instanceof Error ? err.message : String(err);
+      return;
+    }
+    newUsername = '';
+    newUserPassword = '';
+    newUserAdmin = false;
+    users = await api.users.list();
+  }
+
+  async function resetPassword(u: ManagedUser) {
+    const password = prompt(`New password for ${u.username} (min 8 chars):`);
+    if (!password) return;
+    userError = '';
+    try {
+      await api.users.update(u.id, { password });
+    } catch (err) {
+      userError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  async function toggleAdmin(u: ManagedUser) {
+    userError = '';
+    try {
+      await api.users.update(u.id, { is_admin: !u.is_admin });
+    } catch (err) {
+      userError = err instanceof Error ? err.message : String(err);
+      return;
+    }
+    users = await api.users.list();
+  }
+
+  async function removeUser(u: ManagedUser) {
+    if (!confirm(`Delete user "${u.username}"? Their read state is lost.`)) return;
+    userError = '';
+    try {
+      await api.users.remove(u.id);
+    } catch (err) {
+      userError = err instanceof Error ? err.message : String(err);
+      return;
+    }
+    users = await api.users.list();
+  }
 </script>
 
 <h1>Settings</h1>
@@ -181,6 +240,44 @@
           {#if c.name !== 'Uncategorized'}
             <button class="link" onclick={() => removeCategory(c)}>delete</button>
           {/if}
+        </li>
+      {/each}
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Users (admin)</h2>
+    <form class="add" onsubmit={addUser}>
+      <input bind:value={newUsername} placeholder="Username" minlength="3" required />
+      <input
+        type="password"
+        bind:value={newUserPassword}
+        placeholder="Password"
+        minlength="8"
+        autocomplete="new-password"
+        required
+      />
+      <label class="inline">
+        <input type="checkbox" bind:checked={newUserAdmin} /> admin
+      </label>
+      <button type="submit">Add user</button>
+    </form>
+    {#if userError}<p class="bad">{userError}</p>{/if}
+    <ul>
+      {#each users as u (u.id)}
+        <li>
+          {u.username}
+          {#if u.is_admin}<span class="ovr">admin</span>{/if}
+          {#if u.id === $currentUser?.id}<span class="hint">(you)</span>{/if}
+          <span class="actions">
+            <button class="linkbtn" onclick={() => resetPassword(u)}>reset password</button>
+            <button class="linkbtn" onclick={() => toggleAdmin(u)}>
+              {u.is_admin ? 'revoke admin' : 'make admin'}
+            </button>
+            {#if u.id !== $currentUser?.id}
+              <button class="link" onclick={() => removeUser(u)}>delete</button>
+            {/if}
+          </span>
         </li>
       {/each}
     </ul>
@@ -321,6 +418,8 @@
     border-radius: 999px; padding: 0 0.4rem; margin-left: 0.3rem;
   }
   .ovr.env { color: var(--accent); background: var(--chip-bg); }
+  .inline { display: inline-flex; align-items: center; gap: 0.3rem; }
+  .actions { margin-left: 0.6rem; display: inline-flex; gap: 0.5rem; align-items: center; }
   input:disabled { background: var(--disabled-bg); color: var(--disabled-text); cursor: not-allowed; }
   .ok { color: var(--ok); }
   .bad { color: var(--error); }
