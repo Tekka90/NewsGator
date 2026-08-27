@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     # Language policy (SPEC §1): summaries/embeddings in this language; GUI English-only
     summary_language: str = "en"
 
+    # Sharing: languages offered when sharing a story (comma-separated ISO 639-1
+    # codes, filtered to the known list in prompts.LANGUAGE_NAMES). Translation
+    # is done on demand by the LLM; "as is" sharing never calls the LLM.
+    share_languages: str = "en,fr,de,es,it,pt,nl"
+
     # Vector store: "sqlite_vec" (default, zero-ops) or "qdrant" (external)
     vector_backend: str = "sqlite_vec"
     qdrant_url: str | None = None

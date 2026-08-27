@@ -155,6 +155,22 @@ store / Readeck / Clustering / Ingestion), each external service with its own
 "Test connection" button backed by a `POST /api/settings/test-{service}`
 probe endpoint (test-llm, test-qdrant, test-readeck) — probes return `ok` +
 errors, never leak secrets (only hints like a key suffix).
+Story sharing (2026-08-27, always available — no external service): a
+`ShareButton.svelte` component sits next to the Readeck button in all three
+places (story detail, list row icon, swipe-deck card icon). Clicking opens a
+language picker: "As is" calls `POST /api/stories/{id}/share` with no
+language (never touches the LLM); any other language (from
+`GET /api/stories/share-languages`, driven by the `SHARE_LANGUAGES` config —
+comma-separated ISO codes filtered to `prompts.LANGUAGE_NAMES`, whitelisted
+in settings + GUI "Sharing" group) translates headline + summary on demand
+via `prompts.translate_story_text` / `llm_client.chat_json`. The endpoint
+returns `{title, text, url, translated, latency_ms}`; the component hands it
+to `navigator.share` (native iOS/browser share sheet — iMessage etc.) with a
+clipboard-write fallback. Service `services/share.py`: `available_languages()`,
+`render_share_text()`, `prepare_share()`; LLM seam `_translate` is
+module-level for monkeypatching; emits `share` events
+`prepare_start`/`prepare_done`/`prepare_failed`. The `/share-languages` GET
+route is declared **before** `/{story_id}` so the literal path wins.
 
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,

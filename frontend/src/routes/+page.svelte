@@ -3,6 +3,7 @@
   import { api, faviconUrl } from '$lib/api';
   import { currentUser } from '$lib/stores';
   import ReadeckIcon from '$lib/components/ReadeckIcon.svelte';
+  import ShareButton from '$lib/components/ShareButton.svelte';
   import type { Category, StoryListItem } from '$lib/types';
 
   type Sort = 'updated' | 'published' | 'sources';
@@ -375,6 +376,7 @@
             {#if readeckSaving[current.id]}…{:else}<ReadeckIcon size={15} />{/if}
           </button>
         {/if}
+        <ShareButton storyId={current.id} iconOnly buttonClass="readbtn" />
         <span class="age">{ago(current.published_at ?? current.last_updated_at)}</span>
       </div>
       {#if current.image_url}
@@ -443,6 +445,7 @@
             {#if readeckSaving[story.id]}…{:else}<ReadeckIcon size={15} />{/if}
           </button>
         {/if}
+        <ShareButton storyId={story.id} iconOnly buttonClass="readbtn" />
         <button
           class="readbtn"
           title={story.is_read ? 'Mark unread' : 'Mark read'}

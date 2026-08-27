@@ -170,7 +170,21 @@ export const api = {
       req<{ bookmark_id: string; href: string; latency_ms: number }>(
         `/stories/${id}/readeck`,
         { method: 'POST' }
-      )
+      ),
+    shareLanguages: () =>
+      req<{ summary_language: string; languages: { code: string; name: string }[] }>(
+        '/stories/share-languages'
+      ),
+    // language = ISO code from shareLanguages(); null = share as-is (no LLM call)
+    share: (id: number, language: string | null) =>
+      req<{
+        title: string;
+        text: string;
+        url: string;
+        language: string;
+        translated: boolean;
+        latency_ms: number;
+      }>(`/stories/${id}/share`, { method: 'POST', body: { language } })
   },
 
   settings: {

@@ -44,6 +44,7 @@ OVERRIDABLE = {
     "feed_backfill_days": int,
     "readeck_base_url": str,
     "readeck_token": str,
+    "share_languages": str,
 }
 
 

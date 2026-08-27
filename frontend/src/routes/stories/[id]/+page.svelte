@@ -3,6 +3,7 @@
   import { page } from '$app/state';
   import { api, faviconUrl } from '$lib/api';
   import ReadeckIcon from '$lib/components/ReadeckIcon.svelte';
+  import ShareButton from '$lib/components/ShareButton.svelte';
   import type { StoryDetail, StoryListItem } from '$lib/types';
 
   let story = $state<StoryDetail | null>(null);
@@ -136,6 +137,7 @@
         {#if savingReadeck}Saving…{:else}<ReadeckIcon size={15} /> Save to Readeck{/if}
       </button>
     {/if}
+    <ShareButton storyId={id} />
     <button onclick={toggleRead}>{story.is_read ? 'Mark unread' : 'Mark read'}</button>
   </div>
   {#if readeckMsg}<p class="ok">{readeckMsg}</p>{/if}

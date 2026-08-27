@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import current_user
+from app.core.config import settings
 from app.core.db import get_session
 from app.models import (
     Article,
@@ -218,6 +219,28 @@ async def list_stories(
     return out
 
 
+class ShareLanguage(BaseModel):
+    code: str
+    name: str
+
+
+class ShareLanguagesOut(BaseModel):
+    summary_language: str
+    languages: list[ShareLanguage]
+
+
+# Declared before /{story_id} so the literal path wins over the int param.
+@router.get("/share-languages")
+async def share_languages(user: User = Depends(current_user)) -> ShareLanguagesOut:
+    """Languages offered by the share picker (from SHARE_LANGUAGES)."""
+    from app.services import share
+
+    return ShareLanguagesOut(
+        summary_language=settings.summary_language,
+        languages=[ShareLanguage.model_validate(lang) for lang in share.available_languages()],
+    )
+
+
 @router.get("/{story_id}")
 async def story_detail(
     story_id: int,
@@ -325,6 +348,76 @@ async def save_to_readeck(
         href=result["href"],
         latency_ms=result["latency_ms"],
     )
+
+
+class ShareIn(BaseModel):
+    # ISO code from GET /stories/share-languages; null/"" = share as-is (no LLM call)
+    language: str | None = None
+
+
+class ShareOut(BaseModel):
+    title: str
+    text: str
+    url: str
+    language: str
+    translated: bool
+    latency_ms: int
+
+
+@router.post("/{story_id}/share")
+async def share_story(
+    story_id: int,
+    body: ShareIn,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> ShareOut:
+    """Build the share card (headline + summary + source links), translated on
+    demand via the LLM. Always available — no external service to configure.
+    Emits activity events per invariant 6."""
+    from app.services import llm_client, share
+
+    story = await session.get(Story, story_id)
+    if story is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Story not found")
+    articles = list(
+        (
+            await session.scalars(
+                select(Article).where(Article.story_id == story_id).order_by(Article.id)
+            )
+        ).all()
+    )
+    await activity.emit(
+        session, "share", "prepare_start",
+        {"story_id": story.id, "language": body.language or "original"},
+    )
+    await session.commit()
+    try:
+        result = await share.prepare_share(story, articles, body.language)
+    except share.ShareError as exc:
+        await activity.emit(
+            session, "share", "prepare_failed",
+            {"story_id": story.id, "error": str(exc)}, level="error",
+        )
+        await session.commit()
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    except llm_client.LLMError as exc:
+        await activity.emit(
+            session, "share", "prepare_failed",
+            {"story_id": story.id, "error": str(exc)}, level="error",
+        )
+        await session.commit()
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+    await activity.emit(
+        session, "share", "prepare_done",
+        {
+            "story_id": story.id,
+            "language": result["language"],
+            "translated": result["translated"],
+            "latency_ms": result["latency_ms"],
+        },
+    )
+    await session.commit()
+    return ShareOut.model_validate(result)
 
 
 class ReprocessOut(BaseModel):

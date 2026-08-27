@@ -98,6 +98,25 @@ Reply with JSON: {{"summary": "...", "headline": "..."}}"""
     return system, user
 
 
+def translate_story_text(title: str, summary: str, target_language: str) -> tuple[str, str]:
+    """Translate a story headline + summary into the target language (sharing)."""
+    system = (
+        "You are a professional translator. Translate faithfully, keep the tone "
+        "factual and neutral, and never add or drop facts. "
+        "Reply with ONLY a valid JSON object."
+    )
+    user = f"""Translate the following news headline and summary into {target_language}.
+Keep proper nouns (people, places, organizations) in their standard form.
+
+Reply with JSON: {{"title": "...", "summary": "..."}}
+
+Headline: {title}
+
+Summary:
+{summary}"""
+    return system, user
+
+
 def pairwise_same_event(summary_a: str, summary_b: str) -> tuple[str, str]:
     """Gray-zone clustering confirmation (SPEC §4)."""
     system = (

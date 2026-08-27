@@ -290,6 +290,8 @@ v1 is **data-first, no online learning**:
 | `POST /settings/test-llm`, `POST /settings/test-qdrant`, `POST /settings/test-readeck` | connection probes for the external services (admin); return `ok` + errors without leaking secrets |
 | `POST /stories/{id}/merge` / `POST /articles/{id}/move` | manual override when clustering is wrong (important for trust) |
 | `POST /stories/{id}/readeck` | push the story to Readeck as a permanent, self-contained bookmark (headline + summary + all source links as uploaded HTML; canonical `url` = primary source article). 404 when Readeck isn't configured; 502 on upstream failure. On success the bookmark UID is stored on `story.readeck_bookmark_id` (surfaced in list + detail so the GUI can grey out the button). Optional — enabled only when both `READECK_BASE_URL` and `READECK_TOKEN` are set (env or settings override) |
+| `GET /stories/share-languages` | languages offered by the share picker (from `SHARE_LANGUAGES`, ISO codes filtered to known names) + the current summary language |
+| `POST /stories/{id}/share` | build the share card (headline + merged summary + all source links; `url` = primary source article) for the client-side Web Share API / clipboard. Body `{language}` = ISO code for on-demand LLM translation of headline + summary; null/omitted = share as-is (no LLM call). Always available — nothing to configure. 400 on unsupported language or incomplete translation, 502 on LLM failure |
 | `GET /health`, `GET /stats` | ops |
 | `GET /favicon?host=` | cached favicon proxy for source logos in story cards (auth required; never a third-party favicon service — cache TTL via `FAVICON_CACHE_HOURS`) |
 

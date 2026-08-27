@@ -60,6 +60,11 @@
       ]
     },
     {
+      title: 'Sharing',
+      hint: 'Languages offered when sharing a story (comma-separated ISO codes, e.g. en,fr,de). Translation happens on demand via the LLM.',
+      fields: [{ key: 'share_languages', label: 'Share languages' }]
+    },
+    {
       title: 'Clustering',
       hint: 'Tune via the feedback report below before changing thresholds.',
       fields: [
