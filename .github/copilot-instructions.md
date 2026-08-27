@@ -124,7 +124,13 @@ side-scrolls the whole PWA, nav included) — wide tables sit in an
 report), global inputs are `max-width: 100%; box-sizing: border-box`, flex
 rows that hold inputs use `flex-wrap: wrap` + `min-width: 0`, and the mobile
 nav links use `flex: 1 1 0; min-width: 0` so they shrink instead of pushing
-the Log out button off-screen. Source logos in card meta rows: `GET /api/stories` returns `source_hosts` (distinct article
+the Log out button off-screen. On the Stories page the title + filter bar are
+sticky (`position: sticky; top: var(--nav-h)` — the layout measures the nav
+height into the `--nav-h` CSS var via a ResizeObserver, z-index 20: above
+cards, below the ShareButton menu/sheet and the nav), and marking a story read
+in the desktop list smooth-scrolls down (`scrollPastStory`, desktop only) so
+the dimmed card slides out behind the header and the next story lands right
+under it. Source logos in card meta rows: `GET /api/stories` returns `source_hosts` (distinct article
 hosts per story, ≤5) and the GUI renders them via a cached, auth-protected
 favicon proxy `GET /api/favicon?host=` (`api/favicons.py`; `_fetch_favicon`
 is the monkeypatch seam; `FAVICON_CACHE_HOURS`, failures cached 1h) — never a

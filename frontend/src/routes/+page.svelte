@@ -19,6 +19,9 @@
   let isMobile = $state(false);
   let readeckEnabled = $state(false);
   let readeckSaving = $state<Record<number, boolean>>({});
+  // Sticky title + filter bar — its height is measured at click time so a
+  // just-read story can be scrolled out exactly behind it.
+  let pagehead = $state<HTMLElement>();
 
   // --- swipe deck state (mobile card view) ---
   let index = $state(0);
@@ -208,12 +211,28 @@
     (e.currentTarget as HTMLImageElement).remove();
   }
 
+  /** Desktop list: after marking a story read, glide down so the greyed-out
+      card slides up behind the sticky header and the next story takes its place. */
+  function scrollPastStory(id: number) {
+    if (isMobile) return;
+    const card = document.querySelector(`[data-story="${id}"]`);
+    const next = card?.nextElementSibling;
+    if (!(next instanceof HTMLElement) || !next.classList.contains('story')) return;
+    const headerH =
+      (document.querySelector('.shell nav')?.getBoundingClientRect().height ?? 0) +
+      (pagehead?.getBoundingClientRect().height ?? 0);
+    const top = next.getBoundingClientRect().top + window.scrollY - headerH - 4;
+    // only ever scroll down — never yank the page back up
+    if (top > window.scrollY) window.scrollTo({ top, behavior: 'smooth' });
+  }
+
   async function toggleRead(story: StoryListItem) {
     if (story.is_read) {
       story.is_read = false;
       await api.stories.unread(story.id).catch(() => {});
     } else {
       story.is_read = true;
+      scrollPastStory(story.id);
       await api.stories.read(story.id).catch(() => {});
     }
   }
@@ -278,45 +297,47 @@
   });
 </script>
 
-<h1>Stories</h1>
+<div class="pagehead" bind:this={pagehead}>
+  <h1>Stories</h1>
 
-{#if isMobile && (pullDist > 0 || refreshing)}
-  <div class="pullhint" style:height="{refreshing ? 36 : pullDist}px">
-    <span class:spinning={refreshing}>↓</span>
-    <span class="pulltext">{refreshing ? 'Refreshing…' : pullDist >= 60 ? 'Release to refresh' : 'Pull to refresh'}</span>
-  </div>
-{/if}
+  {#if isMobile && (pullDist > 0 || refreshing)}
+    <div class="pullhint" style:height="{refreshing ? 36 : pullDist}px">
+      <span class:spinning={refreshing}>↓</span>
+      <span class="pulltext">{refreshing ? 'Refreshing…' : pullDist >= 60 ? 'Release to refresh' : 'Pull to refresh'}</span>
+    </div>
+  {/if}
 
-<div class="toolbar card">
-  <div class="filters">
-    {#each ['all', 'unread', 'updated'] as f}
-      <button
-        class:active={filter === f}
-        onclick={() => { filter = f as typeof filter; savePrefs(); load(); }}
-      >
-        {f === 'all' ? 'All' : f === 'unread' ? 'Unread' : 'Updated'}
-      </button>
-    {/each}
-  </div>
-  <div class="tools">
-    {#if categories.length}
-      <select bind:value={category} onchange={load}>
-        <option value="">All categories</option>
-        {#each categories as c (c.id)}<option value={c.name}>{c.name}</option>{/each}
+  <div class="toolbar card">
+    <div class="filters">
+      {#each ['all', 'unread', 'updated'] as f}
+        <button
+          class:active={filter === f}
+          onclick={() => { filter = f as typeof filter; savePrefs(); load(); }}
+        >
+          {f === 'all' ? 'All' : f === 'unread' ? 'Unread' : 'Updated'}
+        </button>
+      {/each}
+    </div>
+    <div class="tools">
+      {#if categories.length}
+        <select bind:value={category} onchange={load}>
+          <option value="">All categories</option>
+          {#each categories as c (c.id)}<option value={c.name}>{c.name}</option>{/each}
+        </select>
+      {/if}
+      <select bind:value={sort} onchange={() => { savePrefs(); load(); }}>
+        <option value="published">Article date</option>
+        <option value="updated">Processing date</option>
+        <option value="sources">Source count</option>
       </select>
-    {/if}
-    <select bind:value={sort} onchange={() => { savePrefs(); load(); }}>
-      <option value="published">Article date</option>
-      <option value="updated">Processing date</option>
-      <option value="sources">Source count</option>
-    </select>
-    <button
-      class="dir"
-      title={order === 'desc' ? 'Newest / most first — click to reverse' : 'Oldest / least first — click to reverse'}
-      onclick={() => { order = order === 'desc' ? 'asc' : 'desc'; savePrefs(); load(); }}
-    >
-      {order === 'desc' ? '↓' : '↑'}
-    </button>
+      <button
+        class="dir"
+        title={order === 'desc' ? 'Newest / most first — click to reverse' : 'Oldest / least first — click to reverse'}
+        onclick={() => { order = order === 'desc' ? 'asc' : 'desc'; savePrefs(); load(); }}
+      >
+        {order === 'desc' ? '↓' : '↑'}
+      </button>
+    </div>
   </div>
 </div>
 
@@ -425,7 +446,7 @@
     </div>
   {/if}
   {#each stories as story (story.id)}
-    <div class="card story" class:read={story.is_read}>
+    <div class="card story" class:read={story.is_read} data-story={story.id}>
       <div class="row">
         <span class="chip">{story.category}</span>
         {#if !story.is_read}<span class="badge new">NEW</span>{/if}
@@ -485,6 +506,23 @@
 {/if}
 
 <style>
+  /* Sticky header: the title + filter bar stay put while stories scroll behind.
+     top: --nav-h (measured in the layout) keeps it tucked right under the nav.
+     z-index 20: above story cards, below the share menu (31) / sheet (40) and
+     the nav (50). The negative margins + matching padding stretch the opaque
+     background over main's gutters so cards never peek through. */
+  .pagehead {
+    position: sticky;
+    top: var(--nav-h, 0px);
+    z-index: 20;
+    background: var(--bg);
+    margin: -1.5rem -1rem 0;
+    padding: 1.5rem 1rem 0;
+  }
+  .pagehead h1 { margin-top: 0; }
+  @media (max-width: 700px) {
+    .pagehead { margin: -0.8rem -0.6rem 0; padding: 0.8rem 0.6rem 0; }
+  }
   .toolbar { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
   .filters { display: flex; gap: 0.25rem; flex: 1; min-width: 0; }
   .filters button {

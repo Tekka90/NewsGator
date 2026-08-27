@@ -335,7 +335,10 @@ user must be able to fix it. Corrections can later feed threshold tuning.
   overridable, persisted server-side), default-sorted by article publication date
   (oldest first — per-user overridable, persisted server-side) with read stories
   dimmed or in a separate tab. All story content is in the configured `SUMMARY_LANGUAGE`;
-  GUI chrome (labels, buttons) is English-only in v1. On narrow screens the main
+  GUI chrome (labels, buttons) is English-only in v1. The title and filter bar
+  are sticky: story cards scroll behind them, and marking a story read in the
+  desktop list smooth-scrolls down so the dimmed card slides out behind the
+  header and the next story takes its place. On narrow screens the main
   view is a card deck: swipe left marks the story read and opens the next one,
   swipe right goes back to the previous one.
 - **Story view**: merged summary, "what changed" accordion (revisions), list of source

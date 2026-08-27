@@ -8,9 +8,23 @@
   let { children } = $props();
   let ready = $state(false);
   let queueDepth = $state(0);
+  // Height of the sticky nav, exposed as --nav-h so pages can stick their own
+  // toolbars right below it (stories list header, …) without hardcoding pixels.
+  let navEl = $state<HTMLElement>();
   let isPublic = $derived(
     page.url.pathname === '/login' || page.url.pathname === '/setup'
   );
+
+  $effect(() => {
+    if (!navEl) return;
+    const el = navEl;
+    const set = () =>
+      document.documentElement.style.setProperty('--nav-h', `${el.offsetHeight}px`);
+    set();
+    const ro = new ResizeObserver(set);
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
 
   onMount(async () => {
     try {
@@ -59,7 +73,7 @@
   {@render children()}
 {:else}
   <div class="shell">
-    <nav>
+    <nav bind:this={navEl}>
       <strong class="brand">NewsGator</strong>
       <a href="/" class:active={page.url.pathname === '/'}>Stories</a>
       <a href="/feeds" class:active={page.url.pathname.startsWith('/feeds')}>Feeds</a>
