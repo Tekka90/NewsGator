@@ -107,7 +107,8 @@ erDiagram
         string guid          "dedupe key (feed_id, guid)"
         string url
         string title
-        string image_url   "first RSS image: media:content → media:thumbnail → image enclosure;
+        string image_url   "first RSS image: media:content → media:thumbnail → image enclosure
+                            → first real <img> in the entry HTML (skips pixels/emoji);
                             else og:image recovered from the page during full-text fetch"
         text   raw_content   "from RSS"
         text   full_text     "fetched from source page (trafilatura)"
@@ -129,7 +130,7 @@ erDiagram
         text   summary        "merged summary, in SUMMARY_LANGUAGE"
         string category
         string image_url      "lead image: first member article with an image
-                               (RSS media, else og:image from the page)"
+                               (RSS media / inline <img>, else og:image from the page)"
         blob   centroid       "recency-weighted mean of member embeddings"
         int    version        "bumped on every content change"
         bool   is_frozen      "true after freeze window; no new auto-attachments"

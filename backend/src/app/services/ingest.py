@@ -5,10 +5,11 @@ events and persists article state immediately.
 """
 
 import asyncio
+import re
 import time
 from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
-from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
 
 import anyio
 import feedparser
@@ -101,7 +102,9 @@ def _entry_published(entry: feedparser.FeedParserDict) -> datetime | None:
 def _entry_image(entry: feedparser.FeedParserDict) -> str | None:
     """First image URL from the RSS entry.
 
-    Priority: media:content → media:thumbnail → image/* enclosures/links.
+    Priority: media:content → media:thumbnail → image/* enclosures/links →
+    first meaningful <img> in the entry's own HTML body (WordPress feeds like
+    bbox-mag embed the lead image there instead of using media tags).
     """
     for media in entry.get("media_content") or []:
         url = media.get("url")
@@ -122,6 +125,35 @@ def _entry_image(entry: feedparser.FeedParserDict) -> str | None:
             and str(link.get("type", "")).startswith("image/")
         ):
             return str(link["href"])
+    return _inline_image(entry)
+
+
+_IMG_SRC_RE = re.compile(r"<img\b[^>]*?src=[\"']([^\"']+)[\"'][^>]*>", re.IGNORECASE)
+_PIXEL_RE = re.compile(r"\b(?:width|height)\s*=\s*[\"']?1(?:px)?[\"']?[\s>]", re.IGNORECASE)
+
+
+def _inline_image(entry: feedparser.FeedParserDict) -> str | None:
+    """First real <img src> in the entry's HTML content/summary.
+
+    Skips data: URIs, 1x1 tracking pixels, and emoji/smiley sprites.
+    """
+    html = ""
+    if entry.get("content"):
+        html = str(entry.content[0].get("value", ""))
+    elif entry.get("summary"):
+        html = str(entry.summary)
+    for match in _IMG_SRC_RE.finditer(html):
+        src, tag = match.group(1), match.group(0)
+        if src.startswith(("data:", "//feedsportal.com", "//feedburner.com")):
+            continue
+        if _PIXEL_RE.search(tag) or "emoji" in src or "smiley" in src:
+            continue
+        if src.startswith("//"):
+            return "https:" + src
+        if src.startswith(("http://", "https://")):
+            return src
+        base = str(entry.get("link", ""))
+        return urljoin(base, src) if base else None
     return None
 
 

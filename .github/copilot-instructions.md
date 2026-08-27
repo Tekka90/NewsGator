@@ -86,10 +86,11 @@ threshold report), external Qdrant backend option, Dockerfile + compose. 116 pyt
 tests green, ruff + mypy + svelte-check clean. Post-release additions: OPML feed
 import (`POST /api/feeds/import-opml` + Feeds-page upload), LLM key handling fixes
 (GUI only persists changed fields; test-llm shows key hint), story images
-(`article.image_url` from RSS media/enclosures → `story.image_url` lead image,
-backfilled on attach/merge; Alembic 0005; when the RSS entry has no media, the
-direct full-text fetch also recovers the page's `og:image` via trafilatura
-metadata — always on, `image_recovered` flag in the `fulltext_fetch` event), headline refresh (the merge LLM call
+(`article.image_url` from RSS media/enclosures, else the first real `<img>` in
+the entry HTML — pixels/emoji skipped — else the page's `og:image` recovered
+during the direct full-text fetch via trafilatura metadata; both always on, no
+setting) → `story.image_url` lead image, backfilled on attach/merge; Alembic
+0005; `image_recovered` flag in the `fulltext_fetch` event, headline refresh (the merge LLM call
 also returns a new `headline` when new facts bump `story.version`), immediate
 first poll (adding a feed or OPML-importing kicks `poll_feeds_background` in
 `ingest.py` right away — skipped when `ENVIRONMENT=test`, like the scheduler).

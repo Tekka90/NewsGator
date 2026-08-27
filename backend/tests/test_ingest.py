@@ -90,9 +90,11 @@ async def test_poll_creates_articles_and_dedupes(
 async def test_poll_extracts_article_image(
     db_session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """image_url comes from the RSS entry: media:content / thumbnail / image enclosure."""
+    """image_url comes from the RSS entry: media:content / thumbnail / image
+    enclosure, else the first meaningful <img> in the entry's own HTML."""
     rss = b"""<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/"><channel>
+<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/"
+ xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel>
 <title>Img Feed</title>
 <item>
   <title>With media content</title>
@@ -117,13 +119,28 @@ async def test_poll_extracts_article_image(
   <link>https://news.example.com/i4</link>
   <guid>img-4</guid>
 </item>
+<item>
+  <title>Inline image in content</title>
+  <link>https://news.example.com/i5</link>
+  <guid>img-5</guid>
+  <content:encoded><![CDATA[<p><img width="1200" height="675"
+    src="https://img.example.com/inline.jpg" alt="lead" /> body</p>]]></content:encoded>
+</item>
+<item>
+  <title>Pixel and emoji before real image</title>
+  <link>https://news.example.com/i6</link>
+  <guid>img-6</guid>
+  <description><![CDATA[<img src="https://img.example.com/track.gif" width="1" height="1" />
+    <img src="https://img.example.com/emoji/1f600.png" />
+    <img src="/relative/d.jpg" />]]></description>
+</item>
 </channel></rss>
 """
     monkeypatch.setattr(ingest, "_http_get", _ok_http(rss))
     feed = await _make_feed(db_session, fetch_fulltext=False)
 
     async with db_session() as s:
-        assert await ingest.poll_feed(s, await s.get(Feed, feed.id)) == 4
+        assert await ingest.poll_feed(s, await s.get(Feed, feed.id)) == 6
         by_guid = {
             a.guid: a.image_url
             for a in (await s.scalars(select(Article))).all()
@@ -132,6 +149,9 @@ async def test_poll_extracts_article_image(
     assert by_guid["img-2"] == "https://img.example.com/b.jpg"
     assert by_guid["img-3"] == "https://img.example.com/c.jpg"
     assert by_guid["img-4"] is None
+    assert by_guid["img-5"] == "https://img.example.com/inline.jpg"
+    # tracking pixel + emoji skipped; relative src resolved against the link
+    assert by_guid["img-6"] == "https://news.example.com/relative/d.jpg"
 
 
 async def test_poll_cross_feed_url_dedupe(db_session, monkeypatch: pytest.MonkeyPatch) -> None:
