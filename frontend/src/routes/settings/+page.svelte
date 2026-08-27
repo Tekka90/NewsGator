@@ -372,16 +372,18 @@
         {/if}
       </p>
       {#if report.candidates.length}
-        <table>
-          <thead><tr><th>τ</th><th>precision</th><th>recall</th><th>F1</th></tr></thead>
-          <tbody>
-            {#each report.candidates as c (c.tau)}
-              <tr class:best={c.tau === report.suggested_tau_attach}>
-                <td>{c.tau}</td><td>{c.precision}</td><td>{c.recall}</td><td>{c.f1}</td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>τ</th><th>precision</th><th>recall</th><th>F1</th></tr></thead>
+            <tbody>
+              {#each report.candidates as c (c.tau)}
+                <tr class:best={c.tau === report.suggested_tau_attach}>
+                  <td>{c.tau}</td><td>{c.precision}</td><td>{c.recall}</td><td>{c.f1}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
       {/if}
     {/if}
   </div>
@@ -398,7 +400,8 @@
     padding: 0.2rem 0.6rem; cursor: pointer; color: var(--accent); font-size: 0.9em;
   }
   .linkbtn:disabled { color: var(--disabled-text); border-color: var(--disabled-bg); cursor: not-allowed; }
-  .add { display: flex; gap: 0.5rem; }
+  .add { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .add input { flex: 1 1 9rem; min-width: 0; }
   .link {
     background: none;
     border: none;
@@ -412,6 +415,10 @@
     grid-template-columns: 1fr 1fr;
     gap: 0 1.5rem;
   }
+  .grid input { width: 100%; }
+  @media (max-width: 700px) {
+    .grid { grid-template-columns: 1fr; }
+  }
   .row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.6rem; }
   .ovr {
     font-size: 0.72em; color: var(--warn); background: var(--warn-bg);
@@ -424,6 +431,7 @@
   .ok { color: var(--ok); }
   .bad { color: var(--error); }
   .hint { color: var(--frozen-text); font-size: 0.9em; }
+  .tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   table { border-collapse: collapse; margin-top: 0.5rem; }
   td, th { border: 1px solid var(--table-border); padding: 0.25rem 0.8rem; text-align: right; }
   tr.best td { background: var(--ok-bg); font-weight: 600; }

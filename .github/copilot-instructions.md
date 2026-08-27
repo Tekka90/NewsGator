@@ -117,7 +117,14 @@ reports as macOS to UA sniffing. Dark mode follows the OS via
 `prefers-color-scheme`: all colors are CSS custom properties defined in
 `routes/+layout.svelte` (`--bg`/`--surface`/`--text`/`--accent`/…) with a
 dark override block — never hardcode hex colors in component styles;
-`app.html` carries `color-scheme` + media-scoped `theme-color` metas. Source logos in card meta rows: `GET /api/stories` returns `source_hosts` (distinct article
+`app.html` carries `color-scheme` + media-scoped `theme-color` metas.
+Mobile layout rule: nothing may overflow the viewport horizontally (it
+side-scrolls the whole PWA, nav included) — wide tables sit in an
+`overflow-x: auto` wrapper (`.tablewrap` pattern: Activity, Usage, Settings
+report), global inputs are `max-width: 100%; box-sizing: border-box`, flex
+rows that hold inputs use `flex-wrap: wrap` + `min-width: 0`, and the mobile
+nav links use `flex: 1 1 0; min-width: 0` so they shrink instead of pushing
+the Log out button off-screen. Source logos in card meta rows: `GET /api/stories` returns `source_hosts` (distinct article
 hosts per story, ≤5) and the GUI renders them via a cached, auth-protected
 favicon proxy `GET /api/favicon?host=` (`api/favicons.py`; `_fetch_favicon`
 is the monkeypatch seam; `FAVICON_CACHE_HOURS`, failures cached 1h) — never a

@@ -172,19 +172,29 @@
   .shell nav a.active { color: #fff; font-weight: 600; }
   .logoutbtn { white-space: nowrap; }
   @media (max-width: 700px) {
-    /* single compact line — no wrapping to a second row, no empty bands */
+    /* single compact line — no wrapping to a second row, no empty bands.
+       Links must be allowed to shrink (flex-basis 0 + min-width 0) or the
+       row overflows on narrow phones and pushes the whole page sideways. */
     .shell nav {
       flex-wrap: nowrap;
-      gap: 0.6rem;
-      padding: 0.45rem 0.6rem;
+      gap: 0.4rem;
+      padding: 0.45rem 0.5rem;
       padding-top: calc(0.45rem + env(safe-area-inset-top, 0px));
-      font-size: 0.88rem;
+      font-size: 0.84rem;
     }
     .shell nav .brand { display: none; }       /* links say where you are */
     .shell nav .user { display: none; }        /* username hidden on mobile */
     .shell nav .spacer { display: none; }
-    .shell nav a { flex: 1 0 auto; text-align: center; }
-    .shell nav .logoutbtn { flex: 0 0 auto; padding: 0.2rem 0.55rem; font-size: 0.85rem; }
+    .shell nav a {
+      flex: 1 1 0;
+      min-width: 0;
+      text-align: center;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .shell nav .processing { flex: 0 0 auto; }
+    .shell nav .logoutbtn { flex: 0 0 auto; padding: 0.2rem 0.5rem; font-size: 0.85rem; }
   }
   .shell nav a {
     color: #cfd3da;
@@ -231,6 +241,9 @@
     border-radius: 6px;
     background: var(--surface);
     color: var(--text);
+    /* default size=20 (~11rem) must never push a container past the viewport */
+    max-width: 100%;
+    box-sizing: border-box;
   }
   :global(label) {
     display: block;

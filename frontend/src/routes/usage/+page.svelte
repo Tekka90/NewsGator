@@ -272,6 +272,7 @@
     border-radius: 8px;
     padding: 0.8rem 1rem;
     min-width: 11rem;
+    flex: 1 1 11rem;
   }
   .card h3 { margin: 0 0 0.3rem; font-size: 0.9rem; color: var(--text-secondary); }
   .card .big { font-size: 1.6rem; font-weight: 700; }
@@ -292,8 +293,14 @@
     background: var(--accent);
     border-radius: 2px 2px 0 0;
   }
-  .tables section { margin-bottom: 1.5rem; }
-  table { border-collapse: collapse; width: 100%; background: var(--surface); border: 1px solid var(--table-border); border-radius: 8px; }
+  .tables section {
+    margin-bottom: 1.5rem;
+    /* tables are wider than a phone viewport — scroll inside the section
+       (same pattern as the Activity page) instead of overflowing the page */
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  table { border-collapse: collapse; width: 100%; min-width: 30rem; background: var(--surface); border: 1px solid var(--table-border); border-radius: 8px; }
   th, td { text-align: left; padding: 0.4rem 0.7rem; border-bottom: 1px solid var(--row-border); font-size: 0.9rem; }
   th { color: var(--text-secondary); font-weight: 600; }
   .est { color: var(--warn); font-weight: 700; margin-left: 0.25rem; cursor: help; }
