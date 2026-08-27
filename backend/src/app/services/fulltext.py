@@ -118,6 +118,23 @@ def _extract_text(html: str) -> str | None:
         return None
 
 
+def _extract_image(html: str) -> str | None:
+    """Lead image from page metadata (og:image / twitter:image via trafilatura).
+
+    Used when the RSS entry carried no media — most article pages still expose
+    an og:image even when the feed has no media enclosure (frandroid, …).
+    """
+    import trafilatura
+
+    try:
+        meta = trafilatura.extract_metadata(html)
+        if meta is not None and meta.image:
+            return str(meta.image)
+    except Exception:
+        pass
+    return None
+
+
 def _looks_paywalled(text: str) -> bool:
     lowered = text.lower()
     return any(marker in lowered for marker in PAYWALL_MARKERS)
@@ -148,6 +165,10 @@ async def fetch_full_text(session: AsyncSession, article: Article, feed: Feed) -
     # 1. direct
     html = await _fetch_page(article.url, cookies=cookies)
     if html:
+        # Feeds without media enclosures still publish an og:image on the page;
+        # recover it here so the story gets a lead image (cluster backfills it).
+        if article.image_url is None:
+            article.image_url = await anyio.to_thread.run_sync(_extract_image, html)
         candidate = await anyio.to_thread.run_sync(_extract_text, html)
         if candidate and len(candidate) >= settings.fulltext_min_chars:
             if not _looks_paywalled(candidate):
@@ -194,6 +215,12 @@ async def fetch_full_text(session: AsyncSession, article: Article, feed: Feed) -
         session,
         "fulltext",
         "fulltext_fetch",
-        {"article_id": article.id, "path": path, "chars": len(text or ""), "reason": reason},
+        {
+            "article_id": article.id,
+            "path": path,
+            "chars": len(text or ""),
+            "reason": reason,
+            "image_recovered": bool(article.image_url),
+        },
         level="info" if path != "rss_only" else "warn",
     )

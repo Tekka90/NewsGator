@@ -107,7 +107,8 @@ erDiagram
         string guid          "dedupe key (feed_id, guid)"
         string url
         string title
-        string image_url   "first RSS image: media:content → media:thumbnail → image enclosure"
+        string image_url   "first RSS image: media:content → media:thumbnail → image enclosure;
+                            else og:image recovered from the page during full-text fetch"
         text   raw_content   "from RSS"
         text   full_text     "fetched from source page (trafilatura)"
         string language      "ISO 639-1, detected"
@@ -127,7 +128,8 @@ erDiagram
         string title          "LLM-generated headline, in SUMMARY_LANGUAGE"
         text   summary        "merged summary, in SUMMARY_LANGUAGE"
         string category
-        string image_url      "lead image: first member article with an RSS image"
+        string image_url      "lead image: first member article with an image
+                               (RSS media, else og:image from the page)"
         blob   centroid       "recency-weighted mean of member embeddings"
         int    version        "bumped on every content change"
         bool   is_frozen      "true after freeze window; no new auto-attachments"
@@ -168,7 +170,7 @@ Per poll cycle, for each new article:
 ```mermaid
 flowchart TD
     A[New article fetched] --> B[Dedupe by feed_id+guid<br/>and canonical URL]
-    B --> B1[Fetch full text from source URL<br/>trafilatura; fallback to RSS content]
+    B --> B1[Fetch full text from source URL<br/>trafilatura; fallback to RSS content.<br/>Recovers og:image when the RSS entry had no media]
     B1 --> C[Detect language]
     C --> D{language == SUMMARY_LANGUAGE?}
     D -- no --> E[LLM: translate-and-summarize<br/>into SUMMARY_LANGUAGE]

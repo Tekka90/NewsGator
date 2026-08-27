@@ -438,6 +438,48 @@ async def test_paywall_marker_detection() -> None:
     assert fulltext._looks_paywalled(LONG_TEXT) is False
 
 
+# --- og:image recovery ---
+
+OG_HTML = (
+    '<html><head><meta property="og:image" content="https://img.example.com/og.jpg">'
+    "</head><body>article</body></html>"
+)
+
+
+async def test_fulltext_recovers_og_image(db_session, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Feed had no media enclosure → og:image from the page becomes article.image_url."""
+    _patch_extract(monkeypatch, LONG_TEXT)
+    _patch_pages(monkeypatch, {"https://news.example.com": OG_HTML})
+    feed, article = await _article(db_session)
+
+    async with db_session() as s:
+        await _run_fulltext(s, feed, article)
+        a = await s.get(Article, article.id)
+        assert a is not None
+        assert a.image_url == "https://img.example.com/og.jpg"
+        detail = await s.scalar(
+            select(ActivityEvent.detail).where(ActivityEvent.action == "fulltext_fetch")
+        )
+        assert detail is not None and '"image_recovered": true' in detail
+
+
+async def test_fulltext_keeps_feed_image(db_session, monkeypatch: pytest.MonkeyPatch) -> None:
+    """An image already provided by the feed is never overwritten by og:image."""
+    _patch_extract(monkeypatch, LONG_TEXT)
+    _patch_pages(monkeypatch, {"https://news.example.com": OG_HTML})
+    feed, article = await _article(db_session)
+
+    async with db_session() as s:
+        a = await s.get(Article, article.id)
+        assert a is not None
+        a.image_url = "https://img.example.com/from-feed.jpg"
+        await s.commit()
+        await _run_fulltext(s, feed, article)
+        a = await s.get(Article, article.id)
+        assert a is not None
+        assert a.image_url == "https://img.example.com/from-feed.jpg"
+
+
 async def test_reprocess_article_endpoint(
     client, db_session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
