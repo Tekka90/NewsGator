@@ -166,9 +166,15 @@ language (never touches the LLM); any other language (from
 comma-separated ISO codes filtered to `prompts.LANGUAGE_NAMES`, whitelisted
 in settings + GUI "Sharing" group) translates headline + summary on demand
 via `prompts.translate_story_text` / `llm_client.chat_json`. The endpoint
-returns `{title, text, url, translated, latency_ms}`; the component hands it
-to `navigator.share` (native iOS/browser share sheet — iMessage etc.) with a
-clipboard-write fallback. Service `services/share.py`: `available_languages()`,
+returns `{title, text, url, translated, latency_ms}`; the component then shows
+a preview sheet with explicit **Share…** (Web Share API) / **Copy** buttons —
+the share/clipboard call must happen on a fresh click because the translation
+round-trip consumes the original gesture's transient user activation (both
+`navigator.share` and `navigator.clipboard` require it, and both are
+secure-context-only → legacy `execCommand('copy')` fallback for plain-HTTP
+LAN access). The primary link is folded into the shared **text**, not the
+separate `url` field: some share targets (Messages…) drop `text` when `url`
+is set. Service `services/share.py`: `available_languages()`,
 `render_share_text()`, `prepare_share()`; LLM seam `_translate` is
 module-level for monkeypatching; emits `share` events
 `prepare_start`/`prepare_done`/`prepare_failed`. The `/share-languages` GET
