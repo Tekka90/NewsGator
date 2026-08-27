@@ -227,3 +227,36 @@ class OverridePair(Base):
     story_id: Mapped[int] = mapped_column(ForeignKey("story.id"))
     label: Mapped[str] = mapped_column(String(16))  # same|different
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+
+class LLMUsage(Base):
+    """One row per external LLM call, for usage/cost/performance metrics.
+
+    Append-only; never purged by retention (rows are tiny and full history is
+    the point). article_id/story_id/feed_id are plain ints WITHOUT foreign keys:
+    retention and feed deletion remove articles/feeds, and the metrics history
+    must survive them (feed_id is denormalized at insert time for per-source
+    stats). Token fields come from the OpenAI `usage` object and are nullable —
+    some local servers omit it; those rows carry estimated=True with a
+    chars-per-token heuristic instead.
+    """
+
+    __tablename__ = "llm_usage"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ts: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
+    # summarize|embed|cluster_embed|pairwise|novelty|headline|merge|share_translate|backfill_embed
+    kind: Mapped[str] = mapped_column(String(32), index=True)
+    endpoint: Mapped[str] = mapped_column(String(8), default="chat")  # chat|embed
+    model: Mapped[str] = mapped_column(String(128), default="")
+    prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    completion_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cached_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reasoning_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # True when the server returned no `usage` and tokens were estimated
+    estimated: Mapped[bool] = mapped_column(Boolean, default=False)
+    latency_ms: Mapped[int] = mapped_column(Integer, default=0)
+    article_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    story_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    feed_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)

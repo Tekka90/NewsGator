@@ -64,6 +64,9 @@
       <a href="/" class:active={page.url.pathname === '/'}>Stories</a>
       <a href="/feeds" class:active={page.url.pathname.startsWith('/feeds')}>Feeds</a>
       <a href="/activity" class:active={page.url.pathname.startsWith('/activity')}>Activity</a>
+      {#if $currentUser?.is_admin}
+        <a href="/usage" class:active={page.url.pathname.startsWith('/usage')}>Usage</a>
+      {/if}
       <a href="/settings" class:active={page.url.pathname.startsWith('/settings')}>Settings</a>
       <span class="spacer"></span>
       {#if queueDepth > 0}

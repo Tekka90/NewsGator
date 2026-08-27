@@ -13,6 +13,7 @@ Usage (from backend/, venv active, env set):
 
 import argparse
 import asyncio
+import time
 
 import numpy as np
 from sqlalchemy import select
@@ -20,7 +21,7 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.core.db import get_session, init_engine
 from app.models import Article, Story
-from app.services import llm_client
+from app.services import llm_client, usage
 from app.services.vectorstore import init_vector_store
 
 BATCH = 32
@@ -48,11 +49,24 @@ async def backfill(dry_run: bool = False) -> None:
         for i in range(0, len(articles), BATCH):
             chunk = articles[i : i + BATCH]
             texts = [f"{a.title}\n\n{a.summary}" for a in chunk]
+            start = time.monotonic()
             vectors = await llm_client.embed(texts)
+            batch_latency = int((time.monotonic() - start) * 1000)
+            # One usage row per batch: the server's `usage` covers the whole
+            # batch, so recording per-article would multiply the tokens.
+            usage.record(
+                session,
+                "backfill_embed",
+                endpoint="embed",
+                model=settings.embed_model,
+                latency_ms=batch_latency,
+                prompt_chars=sum(len(t) for t in texts),
+            )
             for article, vec in zip(chunk, vectors, strict=True):
                 await store.upsert_article(article.id, vec)
             done += len(chunk)
             print(f"  articles embedded {done}/{len(articles)}")
+        await session.commit()
 
         # 2) story centroids = mean of member article vectors
         stories = (await session.scalars(select(Story))).all()

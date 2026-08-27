@@ -82,7 +82,7 @@ the full normative spec — **read it before non-trivial changes**.
 0001–0004), full pipeline (ingest → fulltext chain → summarize → embed → cluster →
 story versioning → freeze → retention), stories API with per-user read state, SSE
 activity stream, SvelteKit GUI (stories/feeds/activity/settings with admin editors +
-threshold report), external Qdrant backend option, Dockerfile + compose. 75 pytest
+threshold report), external Qdrant backend option, Dockerfile + compose. 116 pytest
 tests green, ruff + mypy + svelte-check clean. Post-release additions: OPML feed
 import (`POST /api/feeds/import-opml` + Feeds-page upload), LLM key handling fixes
 (GUI only persists changed fields; test-llm shows key hint), story images
@@ -173,6 +173,25 @@ clipboard-write fallback. Service `services/share.py`: `available_languages()`,
 module-level for monkeypatching; emits `share` events
 `prepare_start`/`prepare_done`/`prepare_failed`. The `/share-languages` GET
 route is declared **before** `/{story_id}` so the literal path wins.
+LLM usage metrics (2026-08-27): every external LLM call appends one row to
+`llm_usage` (Alembic 0010; append-only, never purged, ids are plain ints
+without FKs so history survives retention/feed deletion — `feed_id` is
+denormalized at insert for per-source stats). Capture: `llm_client` extracts
+the OpenAI `usage` object into a **task-local ContextVar `last_usage`**
+(signatures unchanged so test monkeypatching still works); call sites pass it
+to `services/usage.py::record()` (kinds: summarize/embed/cluster_embed/
+pairwise/novelty/headline/merge/share_translate/backfill_embed — probes
+deliberately excluded), which stores prompt/completion/total/cached/reasoning
+tokens + latency; when the server omits `usage`, a chars÷4 heuristic fills in
+and the row is flagged `estimated` (GUI shows a warning banner). API (admin):
+`GET /api/usage/summary?period=day|month|all` (totals + by-kind/by-model with
+tok/s — completion tok/s for chat, prompt tok/s for embeddings),
+`GET /api/usage/daily?days=`, `GET /api/usage/by-feed`. GUI: `/usage` page
+(nav link admin-only) with Today/Month/All-time cards, per-day CSS bar chart,
+stage/model/feed tables, and a **client-side price playground** ($/1M tokens
+in localStorage, cost computed in the page — deliberately NOT a server
+setting, so providers/models can be compared live). `_LEGACY_STAMPS` got a
+0010 top entry keyed on `("llm_usage", "estimated")`.
 
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,
@@ -181,7 +200,8 @@ Notes on the current code:
   buffer), `llm_client.py` (mock `chat_json`/`embed` in tests), `prompts.py`,
   `process.py` (queue + `process_article`), `cluster.py`, `vectorstore.py`
   (+ `qdrant_store.py`), `retention.py`, `feedback.py`, `readeck.py` (optional
-  Readeck push; seam `_post_bookmark`). HTTP seams `_http_get` /
+  Readeck push; seam `_post_bookmark`), `usage.py` (LLM token metrics;
+  `record()` reads the `llm_client.last_usage` ContextVar). HTTP seams `_http_get` /
   `_fetch_page` / `_extract_text` are module-level for monkeypatching in tests; the
   vector store is patched via `get_vector_store` on each importing module.
 - Scheduler (`workers/scheduler.py`): 1-min feed tick, hourly freeze + activity prune,

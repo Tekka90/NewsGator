@@ -8,6 +8,7 @@ are configured here.
 
 import json
 import time
+from contextvars import ContextVar
 from typing import Any
 
 from openai import AsyncOpenAI
@@ -18,6 +19,37 @@ from app.core.config import settings
 
 class LLMError(RuntimeError):
     pass
+
+
+# Token usage of the most recent call in the CURRENT async task (None when the
+# server omitted `usage` — some local servers do). A ContextVar keeps concurrent
+# callers (LLM queue worker vs. GUI-triggered calls) isolated without changing
+# the chat_json/embed signatures that tests monkeypatch. Read by services/usage.
+last_usage: ContextVar[dict[str, Any] | None] = ContextVar("llm_last_usage", default=None)
+
+
+def _extract_usage(resp: Any) -> dict[str, Any] | None:
+    """Normalize the OpenAI `usage` object to a plain dict (None if absent).
+
+    Standard fields: prompt/completion/total tokens. Newer servers add details
+    (cached prompt tokens, reasoning tokens) — collected when present.
+    """
+    u = getattr(resp, "usage", None)
+    if u is None:
+        return None
+    prompt_details = getattr(u, "prompt_tokens_details", None)
+    completion_details = getattr(u, "completion_tokens_details", None)
+    return {
+        "prompt_tokens": getattr(u, "prompt_tokens", None),
+        "completion_tokens": getattr(u, "completion_tokens", None),
+        "total_tokens": getattr(u, "total_tokens", None),
+        "cached_tokens": getattr(prompt_details, "cached_tokens", None)
+        if prompt_details
+        else None,
+        "reasoning_tokens": getattr(completion_details, "reasoning_tokens", None)
+        if completion_details
+        else None,
+    }
 
 
 def _chat_client() -> AsyncOpenAI:
@@ -44,6 +76,7 @@ async def chat_json(
     """Chat completion expecting a JSON object. Validates + retries once on
     parse failure (SPEC §8). Returns (parsed_json, latency_ms)."""
     start = time.monotonic()
+    last_usage.set(None)
     messages: list[ChatCompletionMessageParam] = [
         {"role": "system", "content": system},
         {"role": "user", "content": user},
@@ -57,6 +90,9 @@ async def chat_json(
                 response_format={"type": "json_object"},
                 temperature=0.2,
             )
+            # Usage of the successful attempt (a failed first attempt's tokens
+            # are lost — acceptable, retries are rare).
+            last_usage.set(_extract_usage(resp))
             content = resp.choices[0].message.content or ""
             parsed = json.loads(content)
             if not isinstance(parsed, dict):
@@ -79,12 +115,14 @@ async def chat_json(
 
 async def embed(texts: list[str], *, model: str | None = None) -> list[list[float]]:
     """Embeddings for a batch of texts."""
+    last_usage.set(None)
     try:
         resp = await _embed_client().embeddings.create(
             model=model or settings.embed_model, input=texts
         )
     except Exception as exc:
         raise LLMError(f"Embedding request failed: {exc}") from exc
+    last_usage.set(_extract_usage(resp))
     return [list(d.embedding) for d in resp.data]
 
 

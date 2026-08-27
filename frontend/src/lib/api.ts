@@ -1,6 +1,16 @@
 /** Typed API client — all backend calls go through here. */
 
-import type { AuthUser, Category, Feed, StoryDetail, StoryListItem, User } from './types';
+import type {
+  AuthUser,
+  Category,
+  Feed,
+  StoryDetail,
+  StoryListItem,
+  UsageByFeed,
+  UsageDailyRow,
+  UsageSummary,
+  User
+} from './types';
 
 const BASE = '/api';
 const TOKEN_KEY = 'newsgator_token';
@@ -227,5 +237,12 @@ export const api = {
         candidates: { tau: number; precision: number; recall: number; f1: number }[];
         suggested_tau_attach: number | null;
       }>('/settings/threshold-report')
+  },
+
+  usage: {
+    summary: (period: 'day' | 'month' | 'all') =>
+      req<UsageSummary>(`/usage/summary?period=${period}`),
+    daily: (days: number = 90) => req<{ days: number; rows: UsageDailyRow[] }>(`/usage/daily?days=${days}`),
+    byFeed: () => req<UsageByFeed>('/usage/by-feed')
   }
 };

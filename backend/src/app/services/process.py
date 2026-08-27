@@ -9,15 +9,17 @@ Clustering (the `clustered` stage) lands in Milestone 4; articles park in
 """
 
 import asyncio
+import time
 
 import anyio
 from langdetect import LangDetectException, detect
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.db import get_session
 from app.models import Article, Category
-from app.services import activity, llm_client, prompts
+from app.services import activity, llm_client, prompts, usage
 from app.services.vectorstore import get_vector_store
 
 _queue: asyncio.Queue[int] = asyncio.Queue()
@@ -128,6 +130,16 @@ async def summarize_article(session: AsyncSession, article: Article) -> bool:
     category = str(result.get("category", ""))
     article.category = category if category in taxonomy else "Uncategorized"
     article.processing_state = "summarized"
+    usage.record(
+        session,
+        "summarize",
+        endpoint="chat",
+        model=settings.llm_model,
+        latency_ms=latency_ms,
+        article=article,
+        prompt_chars=len(system) + len(user),
+        completion_chars=len(article.summary),
+    )
     await activity.emit(
         session,
         "llm",
@@ -143,7 +155,19 @@ async def embed_article(session: AsyncSession, article: Article) -> None:
     if not article.summary:
         article.processing_state = "embedded"  # nothing meaningful to embed
         return
-    vectors = await llm_client.embed([f"{article.title}\n\n{article.summary}"])
+    text = f"{article.title}\n\n{article.summary}"
+    start = time.monotonic()
+    vectors = await llm_client.embed([text])
+    latency_ms = int((time.monotonic() - start) * 1000)
+    usage.record(
+        session,
+        "embed",
+        endpoint="embed",
+        model=settings.embed_model,
+        latency_ms=latency_ms,
+        article=article,
+        prompt_chars=len(text),
+    )
     store = get_vector_store(session)
     await store.upsert_article(article.id, vectors[0])
     article.processing_state = "embedded"

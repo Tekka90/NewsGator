@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 
 from app.api import activity as activity_api
-from app.api import auth, categories, favicons, feeds, ops, stories
+from app.api import auth, categories, favicons, feeds, ops, stories, usage
 from app.api import settings as settings_api
 from app.core.config import settings
 from app.core.db import get_engine, get_session, init_engine
@@ -59,6 +59,7 @@ def create_app() -> FastAPI:
     app.include_router(stories.router, prefix="/api")
     app.include_router(activity_api.router, prefix="/api")
     app.include_router(favicons.router, prefix="/api")
+    app.include_router(usage.router, prefix="/api")
     return app
 
 
@@ -90,6 +91,15 @@ ALEMBIC_DIR = BACKEND_DIR / "alembic"
 # no alembic_version table. Each entry maps schema markers that must ALL be
 # present to the revision such a DB should be stamped at, newest first.
 _LEGACY_STAMPS: list[tuple[list[tuple[str, str]], str]] = [
+    (
+        [
+            ("llm_usage", "estimated"),
+            ("story", "readeck_bookmark_id"),
+            ("feed", "backfill_days"),
+            ("user", "story_filter"),
+        ],
+        "0010_llm_usage",
+    ),
     (
         [
             ("story", "readeck_bookmark_id"),

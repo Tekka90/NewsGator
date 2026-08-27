@@ -416,6 +416,20 @@ async def share_story(
             "latency_ms": result["latency_ms"],
         },
     )
+    if result["translated"]:
+        # Token usage of the on-demand translation (metrics, SPEC §3 llm_usage)
+        from app.services import usage
+
+        usage.record(
+            session,
+            "share_translate",
+            endpoint="chat",
+            model=settings.llm_model,
+            latency_ms=result["latency_ms"],
+            story_id=story.id,
+            prompt_chars=len(story.title) + len(story.summary),
+            completion_chars=len(result["title"]) + len(result["text"]),
+        )
     await session.commit()
     return ShareOut.model_validate(result)
 

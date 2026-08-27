@@ -12,6 +12,7 @@ Centroids are recency-weighted running means (24h half-life, SPEC §5), stored i
 the vector store; every decision is logged for the threshold-tuning report (§5).
 """
 
+import time
 from datetime import UTC, datetime, timedelta
 
 import numpy as np
@@ -20,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models import Article, ClusterDecision, Story, StoryRevision
-from app.services import activity, llm_client, prompts
+from app.services import activity, llm_client, prompts, usage
 from app.services.vectorstore import cosine_similarity, get_vector_store
 
 HALF_LIFE_HOURS = 24.0
@@ -36,9 +37,20 @@ async def cluster_article(session: AsyncSession, article_id: int) -> None:
     ):
         return
 
+    embed_text = f"{article.title}\n\n{article.summary}"
+    start = time.monotonic()
     vec = np.asarray(
-        (await llm_client.embed([f"{article.title}\n\n{article.summary}"]))[0],
+        (await llm_client.embed([embed_text]))[0],
         dtype=np.float32,
+    )
+    usage.record(
+        session,
+        "cluster_embed",
+        endpoint="embed",
+        model=settings.embed_model,
+        latency_ms=int((time.monotonic() - start) * 1000),
+        article=article,
+        prompt_chars=len(embed_text),
     )
     store = get_vector_store(session)
 
@@ -97,6 +109,16 @@ async def _gray_zone_check(
     try:
         system, user = prompts.pairwise_same_event(story.summary, article.summary)
         result, latency_ms = await llm_client.chat_json(system, user)
+        usage.record(
+            session,
+            "pairwise",
+            endpoint="chat",
+            model=settings.llm_model,
+            latency_ms=latency_ms,
+            article=article,
+            story_id=story.id,
+            prompt_chars=len(system) + len(user),
+        )
         await activity.emit(
             session,
             "cluster",
@@ -133,8 +155,20 @@ async def _create_story(
 
     try:
         system, user = prompts.story_headline([article.summary])
-        result, _ = await llm_client.chat_json(system, user)
-        story.title = str(result.get("headline", "")) or article.title
+        result, latency_ms = await llm_client.chat_json(system, user)
+        headline = str(result.get("headline", ""))
+        usage.record(
+            session,
+            "headline",
+            endpoint="chat",
+            model=settings.llm_model,
+            latency_ms=latency_ms,
+            article=article,
+            story_id=story.id,
+            prompt_chars=len(system) + len(user),
+            completion_chars=len(headline),
+        )
+        story.title = headline or article.title
     except llm_client.LLMError:
         story.title = article.title  # headline is cosmetic; fall back to article title
 
@@ -154,7 +188,17 @@ async def _attach_to_story(
     has_new_facts = True
     try:
         system, user = prompts.novelty_check(story.summary, article.summary)
-        result, _ = await llm_client.chat_json(system, user)
+        result, latency_ms = await llm_client.chat_json(system, user)
+        usage.record(
+            session,
+            "novelty",
+            endpoint="chat",
+            model=settings.llm_model,
+            latency_ms=latency_ms,
+            article=article,
+            story_id=story.id,
+            prompt_chars=len(system) + len(user),
+        )
         has_new_facts = bool(result.get("new_facts", True))
     except llm_client.LLMError:
         pass  # on LLM failure assume new facts (safer than losing updates)
@@ -162,7 +206,17 @@ async def _attach_to_story(
     if has_new_facts:
         try:
             system, user = prompts.merge_story_summary(story.summary, article.summary)
-            merged, _ = await llm_client.chat_json(system, user)
+            merged, latency_ms = await llm_client.chat_json(system, user)
+            usage.record(
+                session,
+                "merge",
+                endpoint="chat",
+                model=settings.llm_model,
+                latency_ms=latency_ms,
+                article=article,
+                story_id=story.id,
+                prompt_chars=len(system) + len(user),
+            )
             story.summary = str(merged.get("summary") or story.summary)
             # Headline refresh: new facts may shift the story's angle
             story.title = str(merged.get("headline") or story.title)

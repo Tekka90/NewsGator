@@ -151,7 +151,29 @@ erDiagram
         text summary
         datetime created_at
     }
+
+    LLM_USAGE {
+        int id PK
+        datetime ts
+        string kind           "summarize|embed|cluster_embed|pairwise|novelty|headline|merge|share_translate|backfill_embed"
+        string endpoint       "chat|embed"
+        string model
+        int prompt_tokens     "nullable — from the OpenAI `usage` object"
+        int completion_tokens "nullable"
+        int total_tokens      "nullable"
+        int cached_tokens     "nullable, when the server reports prompt caching"
+        int reasoning_tokens  "nullable, when the server reports reasoning"
+        bool estimated        "true when the server omitted `usage` → chars/4 heuristic"
+        int latency_ms
+        int article_id        "no FK — metrics survive retention"
+        int story_id          "no FK"
+        int feed_id           "no FK, denormalized at insert for per-source stats"
+    }
 ```
+
+`LLM_USAGE` is append-only and **never purged by retention** — one row per external
+LLM call, full history is the point (cloud-readiness metrics). Cost estimation is a
+GUI-side playground (prices entered on the Usage page, never a server setting).
 
 ### Key derived flag
 
@@ -295,6 +317,7 @@ v1 is **data-first, no online learning**:
 | `GET /stories/share-languages` | languages offered by the share picker (from `SHARE_LANGUAGES`, ISO codes filtered to known names) + the current summary language |
 | `POST /stories/{id}/share` | build the share card (headline + merged summary + all source links; `url` = primary source article) for the client-side Web Share API / clipboard. Body `{language}` = ISO code for on-demand LLM translation of headline + summary; null/omitted = share as-is (no LLM call). Always available — nothing to configure. 400 on unsupported language or incomplete translation, 502 on LLM failure |
 | `GET /health`, `GET /stats` | ops |
+| `GET /usage/summary?period=day\|month\|all`, `GET /usage/daily?days=`, `GET /usage/by-feed` | LLM token-usage metrics (admin): totals + per-kind/per-model breakdowns with throughput (tok/s), per-day series, per-source-feed history. Token counts flagged `estimated` when the server omitted `usage` |
 | `GET /favicon?host=` | cached favicon proxy for source logos in story cards (auth required; never a third-party favicon service — cache TTL via `FAVICON_CACHE_HOURS`) |
 
 Manual merge/split is a deliberate feature: clustering *will* be wrong sometimes, and the
@@ -323,6 +346,11 @@ user must be able to fix it. Corrections can later feed threshold tuning.
   fetches (and which fallback path was used), LLM summarization in progress, clustering
   decisions, errors — backed by the SSE endpoint below. A compact "now processing"
   indicator is also visible in the main story view.
+- **Usage page (admin)**: LLM token-usage dashboard — today / this month / all-time
+  cards, per-day chart, per-stage / per-model / per-feed tables with tok/s throughput,
+  and a client-side price playground ($ per 1M tokens, localStorage) projecting what
+  the same usage would cost on a cloud provider. A warning banner shows the share of
+  calls whose token counts were estimated (server returned no `usage` object).
 - Filters: category, unread / updated-since-read, language of sources.
 
 ---

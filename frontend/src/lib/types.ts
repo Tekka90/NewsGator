@@ -16,6 +16,54 @@ export interface AuthUser extends User {
   token: string;
 }
 
+// --- LLM usage metrics (admin Usage page) ---
+
+export interface UsageTotals {
+  calls: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  cached_tokens: number;
+  reasoning_tokens: number;
+  estimated_calls: number;
+}
+
+export interface UsageGroup extends UsageTotals {
+  endpoint: 'chat' | 'embed';
+  latency_ms: number;
+  tokens_per_s: number | null;
+}
+
+export interface UsageSummary {
+  period: 'day' | 'month' | 'all';
+  totals: UsageTotals;
+  by_kind: (UsageGroup & { kind: string })[];
+  by_model: (UsageGroup & { model: string })[];
+}
+
+export interface UsageDailyRow {
+  day: string;
+  kind: string;
+  calls: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  latency_ms: number;
+}
+
+export interface UsageByFeed {
+  feeds: {
+    feed_id: number | null;
+    title: string;
+    url: string | null;
+    calls: number;
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+    estimated_calls: number;
+  }[];
+}
+
 export interface PipelineRow {
   id: number;
   title: string;
