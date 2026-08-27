@@ -37,6 +37,29 @@
     open = false;
   }
 
+  /** Clipboard copy that also works in insecure contexts (plain HTTP on the
+   *  LAN), where navigator.clipboard is undefined. */
+  function copyToClipboard(text: string): boolean {
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).catch(() => {});
+      return true;
+    }
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try {
+      ok = document.execCommand('copy');
+    } catch {
+      ok = false;
+    }
+    ta.remove();
+    return ok;
+  }
+
   async function pick(language: string | null, e: Event) {
     e.preventDefault();
     e.stopPropagation();
@@ -47,10 +70,11 @@
       const card = await api.stories.share(storyId, language);
       if (navigator.share) {
         await navigator.share({ title: card.title, text: card.text, url: card.url });
-      } else {
-        await navigator.clipboard.writeText(`${card.title}\n\n${card.text}\n${card.url}`);
+      } else if (copyToClipboard(`${card.title}\n\n${card.text}\n${card.url}`)) {
         copied = true;
         setTimeout(() => (copied = false), 2000);
+      } else {
+        error = 'Share is unavailable on this browser — open the site over HTTPS (or localhost)';
       }
     } catch (err) {
       // user dismissed the native share sheet — not an error
