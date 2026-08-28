@@ -1,10 +1,34 @@
 # NewsGator
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Self-hosted, multi-user news reader that clusters articles about the same event into
 **Stories** using an external OpenAI-compatible LLM.
 
 🌐 **[Project page](https://tekka90.github.io/NewsGator/)** — why it exists, the
 philosophy behind it, and how it feels to use.
+
+## Features
+
+- **Stories, not article lists** — RSS feeds are ingested, full-text fetched
+  (trafilatura + readability fallback), summarized in your language, embedded, and
+  clustered into Stories with a merged summary that versions as new facts arrive.
+- **Your LLM, your data** — works with any OpenAI-compatible server (oMLX, Ollama,
+  llama.cpp, LM Studio…). Nothing is hardcoded to a provider; articles never leave
+  infrastructure you chose.
+- **Multi-user with per-user read state** — read stories that receive new facts come
+  back as "updated", never as unread noise.
+- **Full visibility** — live activity stream (SSE) for every pipeline stage, and LLM
+  token-usage metrics per day/stage/model/feed with a price playground.
+- **Quality-of-life** — PWA (installable, works on iOS), dark mode, mobile swipe
+  deck, OPML import, favicons, story sharing with on-demand translation, optional
+  Readeck integration.
+- **Simple to run** — one Docker container, SQLite by default (sqlite-vec for
+  vectors), optional external Qdrant.
+
+| Stories (desktop) | Story detail | Swipe deck (mobile) |
+| --- | --- | --- |
+| ![Stories list](docs/assets/shots/stories-desktop.png) | ![Story detail](docs/assets/shots/story-detail.png) | ![Mobile deck](docs/assets/shots/deck-mobile.png) |
 
 See [SPEC.md](SPEC.md) for the normative spec and
 [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for the milestone checklist.
@@ -45,3 +69,12 @@ feeds on the Feeds page.
 cd backend && pytest && ruff check src tests && mypy src
 cd frontend && npm run check && npm run build
 ```
+
+## Contributing & security
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and ground rules,
+and [SECURITY.md](SECURITY.md) for how to report a vulnerability.
+
+## License
+
+[MIT](LICENSE)
