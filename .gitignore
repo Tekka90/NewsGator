@@ -2,6 +2,8 @@ __pycache__/
 *.pyc
 .venv/
 *.db
+*.db-shm
+*.db-wal
 node_modules/
 .svelte-kit/
 build/
@@ -11,3 +13,4 @@ build/
 !**/.env.example
 .vscode/
 backend/newsgator.db-journal
+backend/demo_assets/

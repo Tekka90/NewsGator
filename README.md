@@ -3,6 +3,9 @@
 Self-hosted, multi-user news reader that clusters articles about the same event into
 **Stories** using an external OpenAI-compatible LLM.
 
+🌐 **[Project page](https://tekka90.github.io/NewsGator/)** — why it exists, the
+philosophy behind it, and how it feels to use.
+
 See [SPEC.md](SPEC.md) for the normative spec and
 [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for the milestone checklist.
 

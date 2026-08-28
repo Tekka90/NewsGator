@@ -253,3 +253,11 @@ Notes on the current code:
 - Frontend: SvelteKit 5 runes + adapter-node; dev proxy `/api → :8000` in
   `frontend/vite.config.ts`, production proxy in `frontend/src/hooks.server.ts`
   (`BACKEND_URL`).
+- Project site (2026-08-28): `docs/index.html` is a self-contained GitHub Pages
+  landing page (serve `main` /`docs`); screenshots in `docs/assets/shots/` are
+  captured against a seeded demo DB, never the production instance. Regenerate:
+  `backend/src/app/scripts/seed_demo.py` writes fake feeds/stories/activity/usage
+  (login `admin`/`demo1234`) + SVG lead images under `backend/demo_assets/`
+  (gitignored; serve via `python -m http.server 8899 --directory demo_assets`),
+  run the backend with `DATABASE_URL=sqlite+aiosqlite:///<abs path>/demo.db`
+  (absolute — the DB lands in the process cwd otherwise) and `ENVIRONMENT=test`.
