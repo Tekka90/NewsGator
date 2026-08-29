@@ -57,6 +57,6 @@ jobs:
         if: github.event_name == 'release'
         uses: actions/attest-build-provenance@v2
         with:
-          subject-name: index.docker.io/yourusername/newsgator
+          subject-name: index.docker.io/tekka90/newsgator
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
