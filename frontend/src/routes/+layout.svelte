@@ -231,13 +231,31 @@
   }
   main {
     max-width: 960px;
-    margin: 1.5rem auto;
-    padding: 0 1rem;
+    margin: 0 auto;
+    padding: 1.5rem 1rem;
+    /* normal flow height — full-viewport pages (chat) override via flex below */
+    min-height: 100vh;
+    min-height: 100dvh;
+    box-sizing: border-box;
+  }
+  /* Full-viewport pages (chat): fill the visible area below the sticky nav.
+     The nav is sticky so it never gives space back; flex-1 on the page wrap
+     tracks the *actual* visible height (incl. iOS toolbar show/hide) instead
+     of relying on 100vh/100dvh + margin arithmetic, which overflows when the
+     nav is present. :global — .chatwrap lives in the child page component. */
+  :global(.shell main:has(> .chatwrap)) {
+    display: flex;
+    flex-direction: column;
+    padding-top: 0;
+    padding-bottom: 0;
   }
   @media (max-width: 700px) {
     main {
-      margin: 0.8rem auto;
-      padding: 0 0.6rem;
+      padding: 0.8rem 0.6rem;
+    }
+    :global(.shell main:has(> .chatwrap)) {
+      padding-top: 0;
+      padding-bottom: 0;
     }
   }
   :global(button) {

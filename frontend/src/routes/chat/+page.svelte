@@ -161,12 +161,22 @@
   .chatwrap {
     display: flex;
     flex-direction: column;
-    /* 100vh on iOS includes the area under the dynamic bottom toolbar, which
-       pushed the composer below the fold — dvh tracks the *visible* height. */
-    height: calc(100vh - var(--nav-h, 0px) - 2.4rem);
-    height: calc(100dvh - var(--nav-h, 0px) - 2.4rem);
+    /* Fill the visible height given by main (which is display:flex + min-height
+       100dvh). flex:1 tracks the real visible area — including iOS toolbar
+       show/hide — so the composer stays pinned to the bottom without scrolling. */
+    flex: 1;
+    min-height: 0;
     max-width: 60rem;
     margin: 0 auto;
+    width: 100%;
+    box-sizing: border-box;
+    /* top offset moved here (main's own top padding is removed for this page) */
+    padding-top: 1.5rem;
+  }
+  @media (max-width: 700px) {
+    .chatwrap {
+      padding-top: 0.8rem;
+    }
   }
   .chathead {
     display: flex;
