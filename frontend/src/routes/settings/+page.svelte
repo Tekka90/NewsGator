@@ -34,13 +34,16 @@
   } | null>(null);
 
   // Story RSS feed: per-user, tokenized URL the user pastes into a reader.
+  // The token is fetched fresh from the backend on mount — localStorage may be
+  // empty even with a valid session cookie (iOS standalone PWA mid-session).
+  let feedToken = $state(getToken());
   let feedCategory = $state('');
   let feedUnread = $state(false);
   let feedCopied = $state(false);
   let feedCategories = $state<string[]>([]);
   const feedUrl = $derived.by(() => {
-    if (typeof window === 'undefined') return '';
-    const params = new URLSearchParams({ token: getToken() });
+    if (typeof window === 'undefined' || !feedToken) return '';
+    const params = new URLSearchParams({ token: feedToken });
     if (feedCategory) params.set('category', feedCategory);
     if (feedUnread) params.set('unread', '1');
     return `${window.location.origin}/api/feed.xml?${params}`;
@@ -129,6 +132,13 @@
 
   onMount(async () => {
     language = $currentUser?.summary_language ?? '';
+    // Token for the RSS URL: prefer a fresh one from the backend (works when
+    // localStorage lost it), fall back to whatever is already stored.
+    try {
+      feedToken = (await api.sessionToken()).token;
+    } catch {
+      /* keep the localStorage value */
+    }
     // Categories for the feed filter come from the stories list — the taxonomy
     // endpoint is admin-only.
     const stories = await api.stories.list();

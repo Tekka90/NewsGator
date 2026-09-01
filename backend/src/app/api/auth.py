@@ -58,6 +58,17 @@ async def logout(response: Response) -> None:
     response.delete_cookie(SESSION_COOKIE)
 
 
+@router.post("/session-token")
+async def session_token(user: User = Depends(current_user)) -> dict[str, str]:
+    """Issue a fresh portable token for the authenticated user.
+
+    Clients that need the token outside the Bearer/cookie flow (RSS readers
+    subscribing to /feed.xml, which cannot set headers or persist cookies)
+    call this to (re)obtain it — localStorage may be empty even when the
+    session cookie is valid (e.g. iOS standalone PWA mid-session)."""
+    return {"token": make_session_token(user.id)}
+
+
 @router.get("/me")
 async def me(user: User = Depends(current_user)) -> UserOut:
     return UserOut.model_validate(user)

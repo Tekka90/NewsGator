@@ -97,6 +97,23 @@ async def test_feed_requires_auth(client: AsyncClient) -> None:
     assert r.status_code == 401
 
 
+async def test_session_token_endpoint(client: AsyncClient) -> None:
+    """RSS card helper: issues a fresh portable token for the session-cookie
+    user (covers the iOS standalone PWA case where localStorage lost it)."""
+    await setup_admin(client)  # authenticated via cookie only
+    r = await client.post("/api/auth/session-token")
+    assert r.status_code == 200
+    token = r.json()["token"]
+    assert token
+    client.cookies.clear()
+    r = await client.get(f"/api/feed.xml?token={token}")
+    assert r.status_code == 200
+
+    client.cookies.clear()
+    r = await client.post("/api/auth/session-token")
+    assert r.status_code == 401
+
+
 async def test_feed_renders_stories(client: AsyncClient, db_session) -> None:
     s1_id, s2_id = await _make_stories(db_session)
     token = await _token(client)

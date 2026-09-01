@@ -278,7 +278,12 @@ ready-to-paste URL from `window.location.origin` + the localStorage session
 token, with a category dropdown (options derived from `api.stories.list()` —
 the `/categories` taxonomy endpoint is admin-only) and an Unread-only toggle;
 the Copy button uses `navigator.clipboard` with an `execCommand('copy')`
-fallback for plain-HTTP LAN access (same pattern as ShareButton).
+fallback for plain-HTTP LAN access (same pattern as ShareButton). The token is
+fetched fresh from `POST /auth/session-token` on mount (falling back to
+localStorage) — that endpoint issues a portable token for the authenticated
+user and exists because localStorage may be empty mid-session even with a
+valid cookie (observed on iOS standalone PWA, where the URL rendered with an
+empty `token=`).
 
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,
