@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api } from '$lib/api';
+  import { api, getToken } from '$lib/api';
   import { currentUser } from '$lib/stores';
   import type { Category, ManagedUser } from '$lib/types';
 
@@ -32,6 +32,35 @@
     candidates: { tau: number; precision: number; recall: number; f1: number }[];
     suggested_tau_attach: number | null;
   } | null>(null);
+
+  // Story RSS feed: per-user, tokenized URL the user pastes into a reader.
+  let feedCategory = $state('');
+  let feedUnread = $state(false);
+  let feedCopied = $state(false);
+  let feedCategories = $state<string[]>([]);
+  const feedUrl = $derived.by(() => {
+    if (typeof window === 'undefined') return '';
+    const params = new URLSearchParams({ token: getToken() });
+    if (feedCategory) params.set('category', feedCategory);
+    if (feedUnread) params.set('unread', '1');
+    return `${window.location.origin}/api/feed.xml?${params}`;
+  });
+
+  async function copyFeedUrl() {
+    try {
+      await navigator.clipboard.writeText(feedUrl);
+    } catch {
+      // Clipboard API is secure-context-only — fall back for plain-HTTP LAN use
+      const el = document.createElement('textarea');
+      el.value = feedUrl;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      el.remove();
+    }
+    feedCopied = true;
+    setTimeout(() => (feedCopied = false), 2000);
+  }
 
   type Field = { key: string; label: string; secret?: boolean };
   // Grouped so each external service stays together with its test button.
@@ -100,6 +129,10 @@
 
   onMount(async () => {
     language = $currentUser?.summary_language ?? '';
+    // Categories for the feed filter come from the stories list — the taxonomy
+    // endpoint is admin-only.
+    const stories = await api.stories.list();
+    feedCategories = [...new Set(stories.map((s) => s.category))].sort();
     if ($currentUser?.is_admin) {
       categories = await api.categories.list();
       users = await api.users.list();
@@ -233,6 +266,32 @@
   </label>
   <button onclick={saveLanguage}>Save</button>
   {#if saved}<span class="ok">Saved ✓</span>{/if}
+</div>
+
+<div class="card">
+  <h2>Story RSS feed</h2>
+  <p class="hint">
+    Subscribe to your clustered stories from any RSS reader. The URL carries your
+    session token — treat it like a password.
+  </p>
+  <div class="feedopts">
+    <label>
+      Category
+      <select bind:value={feedCategory}>
+        <option value="">All categories</option>
+        {#each feedCategories as c (c)}
+          <option value={c}>{c}</option>
+        {/each}
+      </select>
+    </label>
+    <label class="check">
+      <input type="checkbox" bind:checked={feedUnread} /> Unread only
+    </label>
+  </div>
+  <div class="feedurl">
+    <input readonly value={feedUrl} onfocus={(e) => e.currentTarget.select()} />
+    <button onclick={copyFeedUrl}>{feedCopied ? 'Copied ✓' : 'Copy'}</button>
+  </div>
 </div>
 
 {#if $currentUser?.is_admin}
@@ -411,6 +470,11 @@
   .linkbtn:disabled { color: var(--disabled-text); border-color: var(--disabled-bg); cursor: not-allowed; }
   .add { display: flex; gap: 0.5rem; flex-wrap: wrap; }
   .add input { flex: 1 1 9rem; min-width: 0; }
+  .feedopts { display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: 0.6rem; }
+  .feedopts label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.9em; }
+  .feedopts .check { flex-direction: row; align-items: center; gap: 0.35rem; padding-bottom: 0.35rem; }
+  .feedurl { display: flex; gap: 0.5rem; }
+  .feedurl input { flex: 1 1 0; min-width: 0; font-family: monospace; font-size: 0.85em; }
   .link {
     background: none;
     border: none;

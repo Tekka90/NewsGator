@@ -324,6 +324,7 @@ v1 is **data-first, no online learning**:
 | `GET /health`, `GET /stats` | ops |
 | `GET /usage/summary?period=day\|month\|all`, `GET /usage/daily?days=`, `GET /usage/by-feed` | LLM token-usage metrics (admin): totals + per-kind/per-model breakdowns with throughput (tok/s), per-day series, per-source-feed history. Token counts flagged `estimated` when the server omitted `usage` |
 | `GET /favicon?host=` | cached favicon proxy for source logos in story cards (auth required; never a third-party favicon service — cache TTL via `FAVICON_CACHE_HOURS`) |
+| `GET /feed.xml?category=&unread=1&limit=` | the story archive as an RSS 2.0 feed — each item is one story (headline, merged summary, lead image as `media:content`, primary source article as link). guid is the stable `story:{id}`; `pubDate` is the original article publication date and `atom:updated` tracks the latest revision date, so a version bump marks the item updated without re-notifying it. Auth via `?token=` (RSS readers can't set headers) |
 
 Manual merge/split is a deliberate feature: clustering *will* be wrong sometimes, and the
 user must be able to fix it. Corrections can later feed threshold tuning.
