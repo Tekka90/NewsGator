@@ -2,8 +2,13 @@
   /** Chatbot: ask questions across the whole story archive (RAG).
    *  Each turn retrieves grounding stories fresh from the server and grounds
    *  the answer on their summaries; cited stories render as clickable cards.
-   *  Conversation history is kept client-side only (stateless server). */
+   *  The server is stateless — conversation history is kept client-side and
+   *  persisted in localStorage (per user) so it survives navigation, reloads
+   *  and PWA restarts on the same device. */
+  import { tick } from 'svelte';
+  import { browser } from '$app/environment';
   import { api, faviconUrl } from '$lib/api';
+  import { currentUser } from '$lib/stores';
   import type { ChatStory } from '$lib/types';
 
   type Turn =
@@ -11,10 +16,37 @@
     | { role: 'assistant'; text: string; stories: ChatStory[]; latency_ms: number }
     | { role: 'error'; text: string };
 
+  const MAX_STORED_TURNS = 100;
+  let storageKey = $derived(`newsgator_chat:${$currentUser?.username ?? 'anon'}`);
+
+  // Restored synchronously at init — must happen before the persist $effect
+  // below first runs, or the empty initial value would overwrite the archive.
+  function loadTurns(): Turn[] {
+    if (!browser) return [];
+    try {
+      const raw = localStorage.getItem(storageKey);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return []; // corrupted entry — start fresh
+    }
+  }
+
   let question = $state('');
-  let turns = $state<Turn[]>([]);
+  let turns = $state<Turn[]>(loadTurns());
   let busy = $state(false);
   let listEl = $state<HTMLElement>();
+  let taEl = $state<HTMLTextAreaElement>();
+
+  // Persist on every change (Clear button included — it just empties turns).
+  $effect(() => {
+    if (!browser) return;
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(turns.slice(-MAX_STORED_TURNS)));
+    } catch {
+      /* quota exceeded — keep chatting in memory */
+    }
+  });
 
   function scrollToBottom() {
     requestAnimationFrame(() => {
@@ -22,10 +54,19 @@
     });
   }
 
+  // Grow the composer with its content (1 row → up to ~9rem), reset after send.
+  function autogrow() {
+    if (!taEl) return;
+    taEl.style.height = 'auto';
+    taEl.style.height = `${Math.min(taEl.scrollHeight, 144)}px`;
+  }
+
   async function send() {
     const q = question.trim();
     if (!q || busy) return;
     question = '';
+    await tick(); // let the emptied value flush before measuring height
+    autogrow();
     busy = true;
     turns = [...turns, { role: 'user', text: q }];
     scrollToBottom();
@@ -103,10 +144,13 @@
 
   <form class="composer" onsubmit={(e) => { e.preventDefault(); send(); }}>
     <textarea
+      bind:this={taEl}
       bind:value={question}
       onkeydown={onKeydown}
-      placeholder="Ask a question… (Enter to send, Shift+Enter for a newline)"
+      oninput={autogrow}
+      placeholder="Ask a question…"
       rows="1"
+      enterkeyhint="send"
       disabled={busy}
     ></textarea>
     <button type="submit" disabled={busy || !question.trim()}>Send</button>
@@ -117,7 +161,10 @@
   .chatwrap {
     display: flex;
     flex-direction: column;
-    height: calc(100vh - var(--nav-h, 0px) - 2rem);
+    /* 100vh on iOS includes the area under the dynamic bottom toolbar, which
+       pushed the composer below the fold — dvh tracks the *visible* height. */
+    height: calc(100vh - var(--nav-h, 0px) - 2.4rem);
+    height: calc(100dvh - var(--nav-h, 0px) - 2.4rem);
     max-width: 60rem;
     margin: 0 auto;
   }
@@ -233,20 +280,26 @@
   }
   .composer {
     display: flex;
+    align-items: flex-end;
     gap: 0.5rem;
     padding-top: 0.5rem;
+    /* iOS: keep the composer clear of the home-indicator band */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     border-top: 1px solid var(--border, #e2e2e2);
   }
   .composer textarea {
     flex: 1;
     min-width: 0;
     resize: none;
-    padding: 0.55rem 0.7rem;
+    padding: 0.6rem 0.7rem;
     border-radius: 10px;
     border: 1px solid var(--border, #ccc);
     background: var(--surface, #fff);
     color: var(--text);
     font: inherit;
+    /* iOS auto-zooms focused inputs under 16px and then mis-scrolls the page */
+    font-size: 1rem;
+    line-height: 1.35;
     max-width: 100%;
     box-sizing: border-box;
   }

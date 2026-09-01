@@ -248,12 +248,20 @@ for monkeypatching; prompt `prompts.chat_answer` returns
 `{"answer", "story_ids"}` (JSON mode, citations by id). Returns
 `{answer, stories[], latency_ms}`; each story carries
 `id/title/category/image_url/last_updated_at/source_hosts/similarity/cited` so
-the GUI renders clickable citation cards. Stateless — the client keeps
-conversation history. Records usage kinds `chat_embed`/`chat_answer` and emits
+the GUI renders clickable citation cards. Stateless server — the client keeps
+conversation history and persists it in localStorage (key
+`newsgator_chat:<username>`, capped at 100 turns) so it survives navigation
+and PWA restarts on the same device; no cross-device sync (no chat table).
+Records usage kinds `chat_embed`/`chat_answer` and emits
 `chat_query` activity events (start/done/failed). Config `CHAT_ENABLED`
 (404 when off), `CHAT_TOP_K`, `CHAT_CANDIDATES` — all whitelisted in settings.
 GUI: `/chat` page (`routes/chat/+page.svelte`, message list + citation cards +
 `api.chat.ask`), a "Chat" nav link, and a "Chatbot" group on the Settings page.
+The chat page must use `100dvh` (not `100vh`) for its height — iOS Safari's
+`100vh` includes the area under the dynamic bottom toolbar, hiding the
+composer; the composer also gets `safe-area-inset-bottom` padding, and the
+textarea is `font-size: 1rem` (iOS auto-zooms smaller inputs) with
+auto-grow (1 row → ~9rem).
 
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,
