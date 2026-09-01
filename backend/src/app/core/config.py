@@ -73,6 +73,11 @@ class Settings(BaseSettings):
     # GUI: source favicon proxy cache (hours)
     favicon_cache_hours: int = 168
 
+    # Chatbot (RAG over story centroids + summaries — SPEC §10)
+    chat_enabled: bool = True
+    chat_top_k: int = 12  # stories handed to the LLM as grounding
+    chat_candidates: int = 40  # ANN candidates re-ranked by exact cosine
+
     # Readeck integration (optional — enabled only when both are set)
     readeck_base_url: str | None = None
     readeck_token: str | None = None

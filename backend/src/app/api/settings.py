@@ -45,6 +45,9 @@ OVERRIDABLE = {
     "readeck_base_url": str,
     "readeck_token": str,
     "share_languages": str,
+    "chat_enabled": bool,
+    "chat_top_k": int,
+    "chat_candidates": int,
 }
 
 

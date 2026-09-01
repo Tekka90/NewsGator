@@ -127,6 +127,25 @@ export interface SimilarStory {
   similarity: number | null;
 }
 
+// --- Chatbot (POST /api/chat) ---
+
+export interface ChatStory {
+  id: number;
+  title: string;
+  category: string;
+  image_url: string | null;
+  last_updated_at: string;
+  source_hosts: string[];
+  similarity: number | null;
+  cited: boolean;
+}
+
+export interface ChatResponse {
+  answer: string;
+  stories: ChatStory[];
+  latency_ms: number;
+}
+
 export interface StoryArticle {
   id: number;
   title: string;

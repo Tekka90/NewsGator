@@ -70,6 +70,15 @@
       fields: [{ key: 'share_languages', label: 'Share languages' }]
     },
     {
+      title: 'Chatbot',
+      hint: 'RAG question-answering over the story archive. Answers are grounded on retrieved story summaries.',
+      fields: [
+        { key: 'chat_enabled', label: 'Chat enabled (1 = on, 0 = off)' },
+        { key: 'chat_top_k', label: 'Stories handed to the LLM (top-K)' },
+        { key: 'chat_candidates', label: 'ANN candidates re-ranked (per question)' }
+      ]
+    },
+    {
       title: 'Clustering',
       hint: 'Tune via the feedback report below before changing thresholds.',
       fields: [

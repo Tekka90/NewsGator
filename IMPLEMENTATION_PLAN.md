@@ -171,6 +171,21 @@ config validated; image build is the one step to run on the target machine)
 
 ---
 
+## Post-release additions
+
+- Story chatbot ✅ (2026-09-01): `POST /api/chat` RAG question-answering over the
+  story archive — question embedded with `EMBED_MODEL`, ANN over story centroids +
+  exact cosine re-rank, top-`CHAT_TOP_K` summaries ground the answer, LLM cites
+  stories by id. `services/chat.py` (seams `_embed_query`/`_answer`), prompt
+  `prompts.chat_answer`, `api/chat.py`, usage kinds `chat_embed`/`chat_answer`,
+  `chat_query` activity events, config `CHAT_ENABLED`/`CHAT_TOP_K`/`CHAT_CANDIDATES`
+  (whitelisted). History is server-side (Alembic 0011 `chat_message`, per user,
+  citations denormalized into `stories_json`) so it follows the user across
+  devices; `GET/DELETE /api/chat/history`. GUI: `/chat` page + nav link +
+  Settings "Chatbot" group.
+
+---
+
 ## Engineering rules (apply to every milestone)
 
 - Everything configurable lives in the settings table/env — **no hardcoded constants**

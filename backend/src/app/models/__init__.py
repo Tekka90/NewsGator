@@ -246,6 +246,7 @@ class LLMUsage(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     ts: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
     # summarize|embed|cluster_embed|pairwise|novelty|headline|merge|share_translate|backfill_embed
+    # |chat_embed|chat_answer
     kind: Mapped[str] = mapped_column(String(32), index=True)
     endpoint: Mapped[str] = mapped_column(String(8), default="chat")  # chat|embed
     model: Mapped[str] = mapped_column(String(128), default="")
@@ -260,3 +261,25 @@ class LLMUsage(Base):
     article_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     story_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     feed_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+
+
+class ChatMessage(Base):
+    """One chat turn (user question or assistant answer), per user (SPEC §10).
+
+    Server-side so history follows the user across devices (the localStorage
+    copy was per-device only). The assistant row carries its citation cards in
+    `stories_json`. story_id FKs are intentionally absent — chat history must
+    survive story retention/deletion (denormalized, like llm_usage).
+    """
+
+    __tablename__ = "chat_message"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), index=True)
+    role: Mapped[str] = mapped_column(String(16))  # user|assistant|error
+    content: Mapped[str] = mapped_column(Text, default="")
+    # assistant citation cards: [{id,title,category,image_url,last_updated_at,
+    #   source_hosts,similarity,cited}] — empty for user/error rows
+    stories_json: Mapped[str] = mapped_column(Text, default="[]")
+    latency_ms: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
