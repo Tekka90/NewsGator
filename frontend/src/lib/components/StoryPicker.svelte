@@ -16,12 +16,27 @@
   let {
     load,
     placeholder = 'Select story…',
-    selected = $bindable(null)
+    selected = $bindable()
   }: {
     load: () => Promise<SimilarStory[]>;
     placeholder?: string;
     selected?: SimilarStory | null;
   } = $props();
+
+  // Own the value locally and mirror it through the binding — this also makes
+  // the component safe when the bound expression is initially `undefined`
+  // (e.g. `bind:selected={record[id]}` before first pick), which Svelte 5
+  // rejects when the prop declares a fallback value.
+  let sel = $state<SimilarStory | null>(selected ?? null);
+
+  // Parent cleared the selection after executing (Move/Merge) → reset the input.
+  $effect(() => {
+    if (selected === null && sel !== null) {
+      sel = null;
+      query = '';
+      open = false;
+    }
+  });
 
   let open = $state(false);
   let query = $state('');
@@ -55,11 +70,13 @@
   }
 
   function onInput() {
+    sel = null;
     selected = null; // text no longer reflects a pick — disarm the action button
     void openPicker();
   }
 
   function pick(c: SimilarStory) {
+    sel = c;
     selected = c;
     query = c.title;
     open = false;
