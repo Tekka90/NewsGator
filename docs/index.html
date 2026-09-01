@@ -221,7 +221,7 @@ h2 { font-family: var(--font-display); font-weight: 700; letter-spacing: -.03em;
 .phone .placeholder { aspect-ratio: 9/18.5; display: grid; place-items: center; color: var(--muted); font-family: var(--font-mono); font-size: 12px; text-align: center; padding: 20px; background: repeating-linear-gradient(45deg, rgba(255,255,255,.02) 0 14px, transparent 14px 28px); }
 
 /* ---------- features ---------- */
-.features { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 56px; }
+.features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 56px; }
 @media (max-width: 1000px) { .features { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 560px) { .features { grid-template-columns: 1fr; } }
 .feature {
@@ -440,6 +440,15 @@ footer a { color: var(--muted); text-decoration: none; } footer a:hover { color:
           ones that matter — at the source, as it should be.</p>
         </div>
       </div>
+      <div class="step reveal">
+        <div class="rail"><div class="bubble">💬</div><div class="wire"></div></div>
+        <div>
+          <h3>You ask <span class="tag">CHAT YOUR ARCHIVE</span></h3>
+          <p>Not sure where you read something? Just ask. Your question is matched against
+          every Story by meaning, and the answer cites its sources as clickable cards —
+          so you can jump straight to the original.</p>
+        </div>
+      </div>
     </div>
   </div>
 </section>
@@ -507,13 +516,14 @@ footer a { color: var(--muted); text-decoration: none; } footer a:hover { color:
     </div>
     <div class="features">
       <div class="feature reveal"><div class="ico">🗞️</div><h4>Story clustering</h4><p>Duplicate coverage merges into one Story with a versioned, evolving summary.</p></div>
-      <div class="feature reveal d1"><div class="ico">🌍</div><h4>Your language</h4><p>Headlines and summaries written in the language you configure — per user.</p></div>
-      <div class="feature reveal d2"><div class="ico">📤</div><h4>Share, translated</h4><p>Share a Story to family in <em>their</em> language — translated on demand, sources included.</p></div>
-      <div class="feature reveal d3"><div class="ico">📑</div><h4>Readeck export</h4><p>One tap pushes a permanent, self-contained copy to your Readeck instance.</p></div>
-      <div class="feature reveal"><div class="ico">👁️</div><h4>Honest read state</h4><p>Read stays read. New facts on a read Story badge it “updated”, never unread.</p></div>
-      <div class="feature reveal d1"><div class="ico">👥</div><h4>Multi-user</h4><p>Admin-managed accounts; read state and language are per user.</p></div>
-      <div class="feature reveal d2"><div class="ico">📱</div><h4>PWA + dark mode</h4><p>Installs on iOS &amp; Android, follows your OS theme, works on flaky networks.</p></div>
-      <div class="feature reveal d3"><div class="ico">📈</div><h4>Full observability</h4><p>Live activity stream of every pipeline decision, plus an LLM usage dashboard.</p></div>
+      <div class="feature reveal d1"><div class="ico">💬</div><h4>Chat your archive</h4><p>Ask questions across everything you've loaded — the answer is grounded in your Stories and cites its sources.</p></div>
+      <div class="feature reveal d2"><div class="ico">🌍</div><h4>Your language</h4><p>Headlines and summaries written in the language you configure — per user.</p></div>
+      <div class="feature reveal d3"><div class="ico">📤</div><h4>Share, translated</h4><p>Share a Story to family in <em>their</em> language — translated on demand, sources included.</p></div>
+      <div class="feature reveal"><div class="ico">📑</div><h4>Readeck export</h4><p>One tap pushes a permanent, self-contained copy to your Readeck instance.</p></div>
+      <div class="feature reveal d1"><div class="ico">👁️</div><h4>Honest read state</h4><p>Read stays read. New facts on a read Story badge it “updated”, never unread.</p></div>
+      <div class="feature reveal d2"><div class="ico">👥</div><h4>Multi-user</h4><p>Admin-managed accounts; read state and language are per user.</p></div>
+      <div class="feature reveal d3"><div class="ico">📱</div><h4>PWA + dark mode</h4><p>Installs on iOS &amp; Android, follows your OS theme, works on flaky networks.</p></div>
+      <div class="feature reveal"><div class="ico">📈</div><h4>Full observability</h4><p>Live activity stream of every pipeline decision, plus an LLM usage dashboard.</p></div>
     </div>
   </div>
 </section>

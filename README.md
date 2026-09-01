@@ -18,6 +18,11 @@ philosophy behind it, and how it feels to use.
   infrastructure you chose.
 - **Multi-user with per-user read state** — read stories that receive new facts come
   back as "updated", never as unread noise.
+- **Ask your archive** — a built-in chatbot answers questions across everything
+  you've loaded (RAG): your question is embedded and matched against story
+  centroids, the top story summaries ground the answer, and cited stories are
+  rendered as clickable cards. History is stored per user, so it follows you
+  across devices.
 - **Full visibility** — live activity stream (SSE) for every pipeline stage, and LLM
   token-usage metrics per day/stage/model/feed with a price playground.
 - **Quality-of-life** — PWA (installable, works on iOS), dark mode, mobile swipe
