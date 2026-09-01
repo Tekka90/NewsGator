@@ -17,32 +17,38 @@
     | { role: 'error'; text: string };
 
   const MAX_STORED_TURNS = 100;
-  let storageKey = $derived(`newsgator_chat:${$currentUser?.username ?? 'anon'}`);
-
-  // Restored synchronously at init — must happen before the persist $effect
-  // below first runs, or the empty initial value would overwrite the archive.
-  function loadTurns(): Turn[] {
-    if (!browser) return [];
-    try {
-      const raw = localStorage.getItem(storageKey);
-      const parsed = raw ? JSON.parse(raw) : [];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return []; // corrupted entry — start fresh
-    }
-  }
 
   let question = $state('');
-  let turns = $state<Turn[]>(loadTurns());
+  let turns = $state<Turn[]>([]);
   let busy = $state(false);
   let listEl = $state<HTMLElement>();
   let taEl = $state<HTMLTextAreaElement>();
 
-  // Persist on every change (Clear button included — it just empties turns).
+  // History is keyed per user. `ready` gates the persist effect so we never
+  // write the empty initial state over a saved conversation before the user
+  // (and thus the correct key) is known — see the race guarded below.
+  let ready = $state(false);
+  let key = $state('');
+
   $effect(() => {
-    if (!browser) return;
+    const username = $currentUser?.username;
+    if (!username || !browser) return;
+    key = `newsgator_chat:${username}`;
     try {
-      localStorage.setItem(storageKey, JSON.stringify(turns.slice(-MAX_STORED_TURNS)));
+      const raw = localStorage.getItem(key);
+      const parsed = raw ? JSON.parse(raw) : [];
+      turns = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      turns = []; // corrupted entry — start fresh
+    }
+    ready = true; // only enable persistence after the load above
+  });
+
+  // Persist on every change, but only once the user's history has been loaded.
+  $effect(() => {
+    if (!ready || !key || !browser) return;
+    try {
+      localStorage.setItem(key, JSON.stringify(turns.slice(-MAX_STORED_TURNS)));
     } catch {
       /* quota exceeded — keep chatting in memory */
     }
@@ -161,21 +167,20 @@
   .chatwrap {
     display: flex;
     flex-direction: column;
-    /* Fill the visible height given by main (which is display:flex + min-height
-       100dvh). flex:1 tracks the real visible area — including iOS toolbar
-       show/hide — so the composer stays pinned to the bottom without scrolling. */
-    flex: 1;
-    min-height: 0;
+    /* Fill the visible area below the sticky nav. Use the *dynamic* viewport
+       height so iOS toolbar show/hide is tracked; subtract the nav height
+       (sticky, never gives space back) and the layout's vertical margins. */
+    height: calc(100vh - var(--nav-h, 0px) - 3rem);
+    height: calc(100dvh - var(--nav-h, 0px) - 3rem);
     max-width: 60rem;
     margin: 0 auto;
     width: 100%;
     box-sizing: border-box;
-    /* top offset moved here (main's own top padding is removed for this page) */
-    padding-top: 1.5rem;
   }
   @media (max-width: 700px) {
     .chatwrap {
-      padding-top: 0.8rem;
+      height: calc(100vh - var(--nav-h, 0px) - 1.6rem);
+      height: calc(100dvh - var(--nav-h, 0px) - 1.6rem);
     }
   }
   .chathead {
@@ -306,7 +311,7 @@
     border: 1px solid var(--border, #ccc);
     background: var(--surface, #fff);
     color: var(--text);
-    font: inherit;
+    font-family: inherit;
     /* iOS auto-zooms focused inputs under 16px and then mis-scrolls the page */
     font-size: 1rem;
     line-height: 1.35;
@@ -314,13 +319,16 @@
     box-sizing: border-box;
   }
   .composer button {
-    padding: 0 1.1rem;
+    padding: 0.6rem 1.1rem;
     border-radius: 10px;
     border: none;
     background: var(--accent, #2f6fed);
     color: #fff;
     cursor: pointer;
     flex-shrink: 0;
+    white-space: nowrap;
+    font-size: 1rem;
+    align-self: stretch;
   }
   .composer button:disabled {
     opacity: 0.5;

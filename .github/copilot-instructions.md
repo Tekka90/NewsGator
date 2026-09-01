@@ -257,12 +257,13 @@ Records usage kinds `chat_embed`/`chat_answer` and emits
 (404 when off), `CHAT_TOP_K`, `CHAT_CANDIDATES` — all whitelisted in settings.
 GUI: `/chat` page (`routes/chat/+page.svelte`, message list + citation cards +
 `api.chat.ask`), a "Chat" nav link, and a "Chatbot" group on the Settings page.
-The chat page fills the visible viewport via flex, not `100vh`/`100dvh` math:
-the layout's `main` is `min-height: 100dvh` + `display:flex` (scoped
-`:global(.shell main:has(> .chatwrap))`) and `.chatwrap` is `flex:1;
-min-height:0` — this tracks the *actual* visible height under mobile Safari's
-show/hide URL bar (where `100dvh` + the layout's top margin still overflowed
-and pushed the composer off-screen). The composer gets
+Chat history is persisted per user in localStorage (`newsgator_chat:<username>`,
+100-turn cap) — a `ready` flag gates the persist `$effect` so the empty initial
+state never overwrites a saved conversation before the username (and key) is
+known; it is device-local, not synced across a user's devices. The chat wrap
+height is computed as `100dvh - var(--nav-h) - margins` (NOT a flex-fill on a
+`min-height:100dvh` main, which breaks desktop by forcing an empty full-height
+page); `100dvh` tracks iOS toolbar show/hide, the composer gets
 `safe-area-inset-bottom` padding, and the textarea is `font-size: 1rem` (iOS
 auto-zooms smaller inputs) with auto-grow (1 row → ~9rem).
 
