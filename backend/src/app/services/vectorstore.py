@@ -26,6 +26,10 @@ class VectorStore(Protocol):
         """Return the stored centroid vector, or None."""
         ...
 
+    async def get_article_vector(self, article_id: int) -> list[float] | None:
+        """Return the stored article embedding, or None."""
+        ...
+
     async def search_story_centroids(
         self, vector: list[float], *, limit: int = 5
     ) -> list[tuple[int, float]]:
@@ -109,6 +113,15 @@ class SqliteVecStore:
             return None
         return np.frombuffer(row[0], dtype=np.float32).tolist()
 
+    async def get_article_vector(self, article_id: int) -> list[float] | None:
+        rows = await self.session.execute(
+            text("SELECT embedding FROM vec_article WHERE rowid = :id"), {"id": article_id}
+        )
+        row = rows.first()
+        if row is None:
+            return None
+        return np.frombuffer(row[0], dtype=np.float32).tolist()
+
     async def delete_article(self, article_id: int) -> None:
         await self._exec("DELETE FROM vec_article WHERE rowid = :id", {"id": article_id})
 
@@ -134,6 +147,10 @@ class InMemoryVectorStore:
 
     async def get_story_centroid(self, story_id: int) -> list[float] | None:
         vec = self.centroids.get(story_id)
+        return None if vec is None else vec.tolist()
+
+    async def get_article_vector(self, article_id: int) -> list[float] | None:
+        vec = self.articles.get(article_id)
         return None if vec is None else vec.tolist()
 
     async def search_story_centroids(

@@ -118,6 +118,15 @@ export interface StoryListItem {
   readeck_bookmark_id: string | null;
 }
 
+/** Merge/move candidate from the proximity-ranked endpoints
+ * (GET /stories/{id}/similar, GET /stories/articles/{id}/similar-stories).
+ * similarity = exact cosine, null = unscored recency fallback. */
+export interface SimilarStory {
+  id: number;
+  title: string;
+  similarity: number | null;
+}
+
 export interface StoryArticle {
   id: number;
   title: string;

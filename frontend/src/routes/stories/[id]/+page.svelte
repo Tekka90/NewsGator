@@ -4,12 +4,12 @@
   import { api, faviconUrl } from '$lib/api';
   import ReadeckIcon from '$lib/components/ReadeckIcon.svelte';
   import ShareButton from '$lib/components/ShareButton.svelte';
-  import type { StoryDetail, StoryListItem } from '$lib/types';
+  import StoryPicker from '$lib/components/StoryPicker.svelte';
+  import type { SimilarStory, StoryDetail } from '$lib/types';
 
   let story = $state<StoryDetail | null>(null);
-  let allStories = $state<StoryListItem[]>([]);
-  let mergeTarget = $state('');
-  let moveTargets = $state<Record<number, string>>({});
+  let mergeSel = $state<SimilarStory | null>(null);
+  let moveSels = $state<Record<number, SimilarStory | null>>({});
   let error = $state('');
   let reprocessing = $state<number | null>(null);
   let reprocessMsg = $state<Record<number, string>>({});
@@ -21,7 +21,6 @@
 
   onMount(async () => {
     await load();
-    allStories = await api.stories.list();
     // Optional feature — the endpoint 404s when Readeck isn't configured.
     try {
       const s = await api.settings.get();
@@ -43,11 +42,11 @@
   }
 
   async function merge() {
-    if (!mergeTarget) return;
+    if (!mergeSel) return;
     error = '';
     try {
-      await api.stories.merge(id, Number(mergeTarget));
-      mergeTarget = '';
+      await api.stories.merge(id, mergeSel.id);
+      mergeSel = null;
       await load();
     } catch (e) {
       error = e instanceof Error ? e.message : 'Merge failed';
@@ -55,12 +54,12 @@
   }
 
   async function moveArticle(articleId: number) {
-    const target = moveTargets[articleId];
+    const target = moveSels[articleId];
     if (!target) return;
     error = '';
     try {
-      await api.stories.moveArticle(articleId, Number(target));
-      moveTargets[articleId] = '';
+      await api.stories.moveArticle(articleId, target.id);
+      moveSels[articleId] = null;
       await load();
     } catch (e) {
       error = e instanceof Error ? e.message : 'Move failed';
@@ -195,13 +194,14 @@
           {#if reprocessMsg[article.id]}<span class="small">{reprocessMsg[article.id]}</span>{/if}
           <span class="spacer"></span>
           <span>move to:</span>
-          <select class="target" bind:value={moveTargets[article.id]}>
-            <option value="">…</option>
-            {#each allStories.filter((s) => s.id !== story!.id) as s (s.id)}
-              <option value={s.id}>{s.title}</option>
-            {/each}
-          </select>
-          <button onclick={() => moveArticle(article.id)}>Move</button>
+          <StoryPicker
+            load={() => api.stories.similarForArticle(article.id)}
+            placeholder="Filter stories…"
+            bind:selected={moveSels[article.id]}
+          />
+          <button onclick={() => moveArticle(article.id)} disabled={!moveSels[article.id]}>
+            Move
+          </button>
         </div>
       </div>
     {/each}
@@ -211,13 +211,12 @@
     <h2>Merge another story into this one</h2>
     {#if error}<p class="warn">{error}</p>{/if}
     <div class="row">
-      <select class="target" bind:value={mergeTarget}>
-        <option value="">Select story…</option>
-        {#each allStories.filter((s) => s.id !== story!.id) as s (s.id)}
-          <option value={s.id}>{s.title}</option>
-        {/each}
-      </select>
-      <button onclick={merge} disabled={!mergeTarget}>Merge</button>
+      <StoryPicker
+        load={() => api.stories.similar(id)}
+        placeholder="Filter stories…"
+        bind:selected={mergeSel}
+      />
+      <button onclick={merge} disabled={!mergeSel}>Merge</button>
     </div>
   </div>
 {:else}
@@ -255,8 +254,6 @@
   .age { color: var(--muted); font-size: 0.85em; margin-left: 0.4rem; }
   .revision p { margin: 0.3rem 0 0.8rem; color: var(--text-secondary); }
   .link { overflow-wrap: anywhere; }
-  /* long story titles must never push the card wider than the screen */
-  .target { max-width: 100%; min-width: 0; flex: 1 1 14rem; }
 
   @media (max-width: 700px) {
     h1 { font-size: 1.25rem; }

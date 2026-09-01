@@ -5,6 +5,7 @@ import type {
   Category,
   Feed,
   ManagedUser,
+  SimilarStory,
   StoryDetail,
   StoryListItem,
   UsageByFeed,
@@ -162,6 +163,11 @@ export const api = {
       return req<StoryListItem[]>(`/stories?${params}`);
     },
     detail: (id: number) => req<StoryDetail>(`/stories/${id}`),
+    // proximity-ranked merge candidates (centroid cosine, best-first)
+    similar: (id: number) => req<SimilarStory[]>(`/stories/${id}/similar`),
+    // proximity-ranked move candidates for a source (article embedding cosine)
+    similarForArticle: (articleId: number) =>
+      req<SimilarStory[]>(`/stories/articles/${articleId}/similar-stories`),
     read: (id: number) => req<void>(`/stories/${id}/read`, { method: 'POST' }),
     unread: (id: number) => req<void>(`/stories/${id}/unread`, { method: 'POST' }),
     diff: (id: number, fromVersion: number) =>

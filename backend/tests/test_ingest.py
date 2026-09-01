@@ -1,6 +1,7 @@
 """Ingestion + full-text chain tests (Milestone 2)."""
 
 from datetime import UTC, datetime, timedelta
+from email.utils import format_datetime
 
 import pytest
 from sqlalchemy import func, select
@@ -9,14 +10,23 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.models import ActivityEvent, Article, Feed
 from app.services import fulltext, ingest
 
-RSS = b"""<?xml version="1.0" encoding="UTF-8"?>
+
+def _rfc822(dt: datetime) -> str:
+    return format_datetime(dt.astimezone(UTC))
+
+
+# Fixture dates are relative to now — hardcoded dates age out of the first-poll
+# backfill window (default 7 days) and silently shrink the fixtures.
+_FRESH = _rfc822(datetime.now(UTC) - timedelta(hours=1))
+
+RSS = f"""<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"><channel>
 <title>Test Feed</title>
 <item>
   <title>Apple announces iPhone 18</title>
   <link>https://news.example.com/iphone18?utm_source=rss&amp;utm_medium=feed</link>
   <guid>item-1</guid>
-  <pubDate>Mon, 24 Aug 2026 08:00:00 GMT</pubDate>
+  <pubDate>{_FRESH}</pubDate>
   <description>Short excerpt about the iPhone 18 launch.</description>
 </item>
 <item>
@@ -25,7 +35,7 @@ RSS = b"""<?xml version="1.0" encoding="UTF-8"?>
   <guid>item-2</guid>
 </item>
 </channel></rss>
-"""
+""".encode()
 
 LONG_TEXT = "Long extracted article body. " * 30  # > fulltext_min_chars (400)
 
@@ -182,14 +192,14 @@ async def test_poll_304_not_modified(db_session, monkeypatch: pytest.MonkeyPatch
         assert f is not None and f.consecutive_failures == 0
 
 
-RSS_MIXED_AGES = b"""<?xml version="1.0" encoding="UTF-8"?>
+RSS_MIXED_AGES = f"""<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"><channel>
 <title>Backfill Feed</title>
 <item>
   <title>Fresh news</title>
   <link>https://bf.example.com/fresh</link>
   <guid>fresh-1</guid>
-  <pubDate>Mon, 24 Aug 2026 08:00:00 GMT</pubDate>
+  <pubDate>{_FRESH}</pubDate>
 </item>
 <item>
   <title>Ancient news</title>
@@ -203,7 +213,7 @@ RSS_MIXED_AGES = b"""<?xml version="1.0" encoding="UTF-8"?>
   <guid>nodate-1</guid>
 </item>
 </channel></rss>
-"""
+""".encode()
 
 
 async def test_first_poll_backfill_window(db_session, monkeypatch: pytest.MonkeyPatch) -> None:

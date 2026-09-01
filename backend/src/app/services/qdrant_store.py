@@ -54,7 +54,13 @@ class QdrantVectorStore:
         )
 
     async def get_story_centroid(self, story_id: int) -> list[float] | None:
-        points = await self.client.retrieve(STORIES, ids=[story_id], with_vectors=True)
+        return await self._retrieve_vector(STORIES, story_id)
+
+    async def get_article_vector(self, article_id: int) -> list[float] | None:
+        return await self._retrieve_vector(ARTICLES, article_id)
+
+    async def _retrieve_vector(self, collection: str, point_id: int) -> list[float] | None:
+        points = await self.client.retrieve(collection, ids=[point_id], with_vectors=True)
         if not points or points[0].vector is None:
             return None
         vec = points[0].vector

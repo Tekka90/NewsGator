@@ -4,6 +4,7 @@ manual merge/move (logged as labeled pairs — invariant 9)."""
 from collections.abc import Iterable
 from datetime import UTC, datetime
 
+import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
@@ -24,7 +25,7 @@ from app.models import (
 )
 from app.services import activity, process
 from app.services.fulltext import fetch_full_text
-from app.services.vectorstore import get_vector_store
+from app.services.vectorstore import cosine_similarity, get_vector_store
 
 router = APIRouter(prefix="/stories", tags=["stories"])
 
@@ -548,6 +549,105 @@ async def story_diff(
             for r in revisions
         ],
     }
+
+
+class SimilarStoryOut(BaseModel):
+    id: int
+    title: str
+    # exact cosine similarity to the query vector; None = unscored fallback
+    # (no centroid/embedding available → recency order)
+    similarity: float | None
+
+
+# Candidate cap for the merge/move pickers — plenty for a dropdown.
+SIMILAR_LIMIT = 50
+
+
+async def _rank_candidates(
+    session: AsyncSession,
+    query_vec: list[float],
+    exclude_ids: set[int],
+) -> list[SimilarStoryOut]:
+    """ANN candidates, re-ranked by exact cosine.
+
+    sqlite-vec's raw ANN score is a 1/(1+L2) proxy, not cosine — re-ranking
+    (same pattern as cluster.py) keeps the percentage shown in the GUI honest
+    across all vector backends.
+    """
+    store = get_vector_store(session)
+    qv = np.asarray(query_vec, dtype=np.float32)
+    ranked: list[SimilarStoryOut] = []
+    for sid, _approx in await store.search_story_centroids(query_vec, limit=SIMILAR_LIMIT):
+        if sid in exclude_ids:
+            continue
+        story = await session.get(Story, sid)
+        if story is None:
+            continue
+        centroid = await store.get_story_centroid(sid)
+        if centroid is None:
+            continue
+        ranked.append(
+            SimilarStoryOut(
+                id=sid,
+                title=story.title,
+                similarity=cosine_similarity(qv, np.asarray(centroid)),
+            )
+        )
+    ranked.sort(key=lambda c: c.similarity or 0.0, reverse=True)
+    return ranked
+
+
+async def _recent_candidates(
+    session: AsyncSession, exclude_ids: set[int]
+) -> list[SimilarStoryOut]:
+    """No query vector available — fall back to most-recent stories, unscored."""
+    stories = (
+        await session.scalars(
+            select(Story)
+            .order_by(Story.last_updated_at.desc())
+            .limit(SIMILAR_LIMIT + len(exclude_ids))
+        )
+    ).all()
+    return [
+        SimilarStoryOut(id=s.id, title=s.title, similarity=None)
+        for s in stories
+        if s.id not in exclude_ids
+    ][:SIMILAR_LIMIT]
+
+
+@router.get("/{story_id}/similar")
+async def similar_stories(
+    story_id: int,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[SimilarStoryOut]:
+    """Merge candidates for the story picker, ranked by proximity
+    (centroid-vs-centroid cosine). Read-only probe — no activity event."""
+    story = await session.get(Story, story_id)
+    if story is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Story not found")
+    centroid = await get_vector_store(session).get_story_centroid(story_id)
+    if centroid is None:
+        return await _recent_candidates(session, {story_id})
+    return await _rank_candidates(session, centroid, {story_id})
+
+
+@router.get("/articles/{article_id}/similar-stories")
+async def similar_stories_for_article(
+    article_id: int,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[SimilarStoryOut]:
+    """Move-target candidates for a source, ranked by proximity (article
+    embedding vs story centroids). Read-only probe — no activity event."""
+    article = await session.get(Article, article_id)
+    if article is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Article not found")
+    exclude = {article.story_id} if article.story_id is not None else set()
+    vec = await get_vector_store(session).get_article_vector(article_id)
+    if vec is None:
+        return await _recent_candidates(session, exclude)
+    return await _rank_candidates(session, vec, exclude)
 
 
 class MergeIn(BaseModel):

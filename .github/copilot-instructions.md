@@ -223,6 +223,21 @@ the user's `StoryState` rows by hand (no cascade). Emits `user_created` /
 had everything. GUI: "Users (admin)" card on the Settings page (create form,
 reset password via prompt, make/revoke admin, delete) backed by
 `api.users.*` in `lib/api.ts` + `ManagedUser` type.
+Proximity-ranked story pickers (2026-09-01): the story detail page's merge and
+per-source move dropdowns are `StoryPicker.svelte` comboboxes (type to filter
+by title, ↑/↓/Enter/Esc keyboard nav, pick only *selects* — the Move/Merge
+button still executes). Candidates come from two read-only endpoints —
+`GET /api/stories/{id}/similar` (centroid-vs-centroid) and
+`GET /api/stories/articles/{id}/similar-stories` (article embedding vs
+centroids) — ANN then **exact cosine re-rank** (same pattern as cluster.py;
+sqlite-vec's raw score is a `1/(1+L2)` proxy, so never display it as-is),
+`[{id, title, similarity}]` best-first with self/current story excluded,
+unscored recency fallback (`similarity: null`) when no vector exists, cap
+`SIMILAR_LIMIT = 50`. The `VectorStore` protocol gained
+`get_article_vector` (all three backends; Qdrant via a shared
+`_retrieve_vector` helper). Picker candidates load lazily on first open so a
+many-source story costs no requests until a picker is used; the score renders
+as a rounded % chip. No schema change, no activity events (read-only probes).
 
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,
