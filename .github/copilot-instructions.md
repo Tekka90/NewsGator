@@ -264,6 +264,26 @@ group on the Settings page. The chat wrap height is `100dvh - var(--nav-h) -
 margins` (NOT a flex-fill on a `min-height:100dvh` main, which breaks desktop);
 the composer gets `safe-area-inset-bottom` padding, and the textarea is
 `font-size: 1rem` with auto-grow (1 row → ~9rem).
+Story RSS feed (2026-09-01): `GET /api/feed.xml` (`api/feed.py`) exposes the
+story archive as RSS 2.0 — each item is one story (headline, merged summary,
+lead image as `media:content`, primary source article = earliest published as
+link). guid is the stable `story:{id}`; `pubDate` is the original article
+publication date and `atom:updated` the latest revision date, so a version
+bump marks the item updated without re-notifying it, and source-only attaches
+change neither (invariant 3). Auth reuses `current_user`, so readers pass
+`?token=`; optional `category` / `unread=1` / `limit` filters. Read-only — no
+LLM, no activity events, no schema change. The Settings page has a per-user
+"Story RSS feed" card (visible to all users, not just admins) that builds the
+ready-to-paste URL from `window.location.origin` + the localStorage session
+token, with a category dropdown (options derived from `api.stories.list()` —
+the `/categories` taxonomy endpoint is admin-only) and an Unread-only toggle;
+the Copy button uses `navigator.clipboard` with an `execCommand('copy')`
+fallback for plain-HTTP LAN access (same pattern as ShareButton). The token is
+fetched fresh from `POST /auth/session-token` on mount (falling back to
+localStorage) — that endpoint issues a portable token for the authenticated
+user and exists because localStorage may be empty mid-session even with a
+valid cookie (observed on iOS standalone PWA, where the URL rendered with an
+empty `token=`).
 
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,

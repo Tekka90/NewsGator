@@ -98,6 +98,10 @@ export const api = {
       setToken('');
     }
   },
+  // Fresh portable token for flows that can't use cookies/headers (RSS readers
+  // on /feed.xml). Works even when localStorage lost the token — the session
+  // cookie authenticates this call.
+  sessionToken: () => req<{ token: string }>('/auth/session-token', { method: 'POST' }),
   me: () => req<User>('/auth/me'),
   patchMe: (patch: {
     summary_language?: string;
