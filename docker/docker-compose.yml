@@ -1,8 +1,10 @@
 services:
   newsgator:
-    build:
-      context: ..
-      dockerfile: Dockerfile
+    image: tekka90/newsgator:latest
+    # If you prefer to build locally, uncomment the build section below:
+    # build:
+    #   context: ..
+    #   dockerfile: Dockerfile
     ports:
       - "3000:3000"   # GUI
       - "8000:8000"   # API (optional exposure; GUI proxies /api)

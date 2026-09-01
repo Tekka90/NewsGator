@@ -35,6 +35,16 @@ See [SPEC.md](SPEC.md) for the normative spec and
 
 ## Docker (production)
 
+Using the official image:
+
+```bash
+cd docker
+cp .env.example .env   # set SECRET_KEY + LLM_BASE_URL for your LLM server
+docker compose up
+```
+
+Or build from source:
+
 ```bash
 cd docker
 cp .env.example .env   # set SECRET_KEY + LLM_BASE_URL for your LLM server
