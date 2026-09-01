@@ -4,6 +4,7 @@ import type {
   AuthUser,
   Category,
   ChatResponse,
+  ChatStory,
   Feed,
   ManagedUser,
   SimilarStory,
@@ -265,6 +266,11 @@ export const api = {
 
   chat: {
     ask: (question: string) =>
-      req<ChatResponse>('/chat', { method: 'POST', body: { question } })
+      req<ChatResponse>('/chat', { method: 'POST', body: { question } }),
+    history: () =>
+      req<{ role: string; content: string; stories: ChatStory[]; latency_ms: number }[]>(
+        '/chat/history'
+      ),
+    clearHistory: () => req<void>('/chat/history', { method: 'DELETE' })
   }
 };

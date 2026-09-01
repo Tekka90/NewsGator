@@ -78,8 +78,10 @@ async def test_legacy_create_all_db_stamped_and_upgraded(
     sync_conn.execute("ALTER TABLE user DROP COLUMN story_filter")
     sync_conn.execute("ALTER TABLE feed DROP COLUMN backfill_days")
     sync_conn.execute("ALTER TABLE story DROP COLUMN readeck_bookmark_id")
-    # llm_usage was added by revision 0010 — a real pre-0005 DB never had it
+    # llm_usage (0010) and chat_message (0011) were added by later revisions —
+    # a real pre-0005 DB never had them
     sync_conn.execute("DROP TABLE llm_usage")
+    sync_conn.execute("DROP TABLE chat_message")
     sync_conn.commit()
     sync_conn.close()
     db.init_engine(engine_url)  # reconnect after the sync-side ALTER
@@ -93,6 +95,7 @@ async def test_legacy_create_all_db_stamped_and_upgraded(
     assert "backfill_days" in _columns(path, "feed")
     assert "readeck_bookmark_id" in _columns(path, "story")
     assert "estimated" in _columns(path, "llm_usage")
+    assert "stories_json" in _columns(path, "chat_message")
 
 
 async def test_already_at_head_is_noop(engine_url: str, tmp_path) -> None:

@@ -179,7 +179,10 @@ config validated; image build is the one step to run on the target machine)
   stories by id. `services/chat.py` (seams `_embed_query`/`_answer`), prompt
   `prompts.chat_answer`, `api/chat.py`, usage kinds `chat_embed`/`chat_answer`,
   `chat_query` activity events, config `CHAT_ENABLED`/`CHAT_TOP_K`/`CHAT_CANDIDATES`
-  (whitelisted). GUI: `/chat` page + nav link + Settings "Chatbot" group.
+  (whitelisted). History is server-side (Alembic 0011 `chat_message`, per user,
+  citations denormalized into `stories_json`) so it follows the user across
+  devices; `GET/DELETE /api/chat/history`. GUI: `/chat` page + nav link +
+  Settings "Chatbot" group.
 
 ---
 

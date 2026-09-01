@@ -95,6 +95,16 @@ ALEMBIC_DIR = BACKEND_DIR / "alembic"
 _LEGACY_STAMPS: list[tuple[list[tuple[str, str]], str]] = [
     (
         [
+            ("chat_message", "stories_json"),
+            ("llm_usage", "estimated"),
+            ("story", "readeck_bookmark_id"),
+            ("feed", "backfill_days"),
+            ("user", "story_filter"),
+        ],
+        "0011_chat_message",
+    ),
+    (
+        [
             ("llm_usage", "estimated"),
             ("story", "readeck_bookmark_id"),
             ("feed", "backfill_days"),

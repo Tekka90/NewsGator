@@ -14,11 +14,11 @@ tests, like the other services.
 from typing import Any
 
 import numpy as np
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.models import Article, Story
+from app.models import Article, ChatMessage, Story
 from app.services import activity, llm_client, prompts, usage
 from app.services.vectorstore import cosine_similarity, get_vector_store
 
@@ -222,8 +222,59 @@ async def ask(
         },
     )
     await session.commit()
+    _persist_turn(session, user_id=user_id, question=question,
+                  answer=answer, stories=out_stories, latency_ms=latency_ms)
+    await session.commit()
     return {
         "answer": answer,
         "stories": out_stories,
         "latency_ms": latency_ms,
     }
+
+
+def _persist_turn(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    question: str,
+    answer: str,
+    stories: list[dict[str, Any]],
+    latency_ms: int,
+) -> None:
+    """Append the user question + assistant answer to server-side history so it
+    follows the user across devices. Caller commits. Never raises — history
+    must not break the answer path."""
+    import json
+
+    try:
+        session.add(
+            ChatMessage(user_id=user_id, role="user", content=question)
+        )
+        session.add(
+            ChatMessage(
+                user_id=user_id,
+                role="assistant",
+                content=answer,
+                stories_json=json.dumps(stories, ensure_ascii=False, default=str),
+                latency_ms=latency_ms,
+            )
+        )
+    except Exception:  # history must never break the answer
+        pass
+
+
+async def get_history(session: AsyncSession, user_id: int) -> list[ChatMessage]:
+    """Return the user's chat turns oldest-first (capped at the most recent)."""
+    rows = (
+        await session.scalars(
+            select(ChatMessage)
+            .where(ChatMessage.user_id == user_id)
+            .order_by(ChatMessage.created_at, ChatMessage.id)
+        )
+    ).all()
+    return list(rows)
+
+
+async def clear_history(session: AsyncSession, user_id: int) -> None:
+    await session.execute(delete(ChatMessage).where(ChatMessage.user_id == user_id))
+    await session.commit()

@@ -102,6 +102,44 @@ async def test_chat_answer_with_citations(
     assert st["source_hosts"] == ["news.example.com"]
 
 
+async def test_chat_history_persisted_and_cleared(
+    client: AsyncClient, db_session, store: InMemoryVectorStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    story_id = await _make_story(db_session)
+    await setup_admin(client)
+    await store.upsert_story_centroid(story_id, _vec(0))
+
+    async def fake_embed(texts):
+        return [_vec(0)]
+
+    async def fake_answer(system, user):
+        return {"answer": "An answer.", "story_ids": [story_id]}, 50
+
+    monkeypatch.setattr(chat, "_embed_query", fake_embed)
+    monkeypatch.setattr(chat, "_answer", fake_answer)
+
+    # history starts empty
+    assert (await client.get("/api/chat/history")).json() == []
+
+    await client.post("/api/chat", json={"question": "what happened?"})
+    hist = (await client.get("/api/chat/history")).json()
+    assert [m["role"] for m in hist] == ["user", "assistant"]
+    assert hist[0]["content"] == "what happened?"
+    assert hist[1]["content"] == "An answer."
+    assert hist[1]["stories"][0]["id"] == story_id
+    assert hist[1]["latency_ms"] == 50
+
+    # clear wipes it
+    assert (await client.delete("/api/chat/history")).status_code == 204
+    assert (await client.get("/api/chat/history")).json() == []
+
+
+async def test_chat_history_requires_auth(client: AsyncClient) -> None:
+    assert (await client.get("/api/chat/history")).status_code == 401
+    assert (await client.delete("/api/chat/history")).status_code == 401
+
+
 async def test_chat_no_matching_stories(
     client: AsyncClient, db_session, store: InMemoryVectorStore,
     monkeypatch: pytest.MonkeyPatch,

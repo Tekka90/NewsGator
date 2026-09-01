@@ -55,3 +55,44 @@ async def ask(
     except chat.ChatError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
     return ChatOut(**result)
+
+
+class HistoryTurnOut(BaseModel):
+    role: str
+    content: str
+    stories: list[ChatStoryOut] = []
+    latency_ms: int = 0
+
+
+@router.get("/history")
+async def history(
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[HistoryTurnOut]:
+    """Server-side chat history (follows the user across devices)."""
+    if not chat.is_enabled():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Chat is disabled")
+    import json
+
+    out: list[HistoryTurnOut] = []
+    for m in await chat.get_history(session, user.id):
+        try:
+            stories = json.loads(m.stories_json or "[]")
+        except (ValueError, TypeError):
+            stories = []
+        out.append(
+            HistoryTurnOut(
+                role=m.role, content=m.content, stories=stories, latency_ms=m.latency_ms
+            )
+        )
+    return out
+
+
+@router.delete("/history", status_code=status.HTTP_204_NO_CONTENT)
+async def clear(
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    if not chat.is_enabled():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Chat is disabled")
+    await chat.clear_history(session, user.id)

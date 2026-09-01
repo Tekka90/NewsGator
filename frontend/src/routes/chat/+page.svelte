@@ -2,13 +2,10 @@
   /** Chatbot: ask questions across the whole story archive (RAG).
    *  Each turn retrieves grounding stories fresh from the server and grounds
    *  the answer on their summaries; cited stories render as clickable cards.
-   *  The server is stateless — conversation history is kept client-side and
-   *  persisted in localStorage (per user) so it survives navigation, reloads
-   *  and PWA restarts on the same device. */
-  import { tick } from 'svelte';
-  import { browser } from '$app/environment';
+   *  History is stored server-side (per user) so it follows the user across
+   *  devices; this page loads it on mount and appends each new turn. */
+  import { onMount, tick } from 'svelte';
   import { api, faviconUrl } from '$lib/api';
-  import { currentUser } from '$lib/stores';
   import type { ChatStory } from '$lib/types';
 
   type Turn =
@@ -16,41 +13,25 @@
     | { role: 'assistant'; text: string; stories: ChatStory[]; latency_ms: number }
     | { role: 'error'; text: string };
 
-  const MAX_STORED_TURNS = 100;
-
   let question = $state('');
   let turns = $state<Turn[]>([]);
   let busy = $state(false);
   let listEl = $state<HTMLElement>();
   let taEl = $state<HTMLTextAreaElement>();
 
-  // History is keyed per user. `ready` gates the persist effect so we never
-  // write the empty initial state over a saved conversation before the user
-  // (and thus the correct key) is known — see the race guarded below.
-  let ready = $state(false);
-  let key = $state('');
-
-  $effect(() => {
-    const username = $currentUser?.username;
-    if (!username || !browser) return;
-    key = `newsgator_chat:${username}`;
+  onMount(async () => {
     try {
-      const raw = localStorage.getItem(key);
-      const parsed = raw ? JSON.parse(raw) : [];
-      turns = Array.isArray(parsed) ? parsed : [];
+      const hist = await api.chat.history();
+      turns = hist.map((m) =>
+        m.role === 'assistant'
+          ? { role: 'assistant', text: m.content, stories: m.stories, latency_ms: m.latency_ms }
+          : m.role === 'error'
+            ? { role: 'error', text: m.content }
+            : { role: 'user', text: m.content }
+      );
+      scrollToBottom();
     } catch {
-      turns = []; // corrupted entry — start fresh
-    }
-    ready = true; // only enable persistence after the load above
-  });
-
-  // Persist on every change, but only once the user's history has been loaded.
-  $effect(() => {
-    if (!ready || !key || !browser) return;
-    try {
-      localStorage.setItem(key, JSON.stringify(turns.slice(-MAX_STORED_TURNS)));
-    } catch {
-      /* quota exceeded — keep chatting in memory */
+      /* no history / chat disabled — start fresh */
     }
   });
 
@@ -97,8 +78,9 @@
     }
   }
 
-  function clear() {
+  async function clear() {
     turns = [];
+    await api.chat.clearHistory().catch(() => {});
   }
 </script>
 

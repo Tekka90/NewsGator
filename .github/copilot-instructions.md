@@ -248,24 +248,22 @@ for monkeypatching; prompt `prompts.chat_answer` returns
 `{"answer", "story_ids"}` (JSON mode, citations by id). Returns
 `{answer, stories[], latency_ms}`; each story carries
 `id/title/category/image_url/last_updated_at/source_hosts/similarity/cited` so
-the GUI renders clickable citation cards. Stateless server — the client keeps
-conversation history and persists it in localStorage (key
-`newsgator_chat:<username>`, capped at 100 turns) so it survives navigation
-and PWA restarts on the same device; no cross-device sync (no chat table).
+the GUI renders clickable citation cards. Chat history is **server-side**
+(Alembic 0011 `chat_message`: per-user rows, role `user|assistant|error`,
+assistant rows carry citation cards denormalized into `stories_json` — no story
+FKs, so history survives story retention/deletion like `llm_usage`). Each
+`ask()` appends the question + answer; the GUI loads `GET /api/chat/history`
+on mount and Clear → `DELETE /api/chat/history`. History follows the user
+across devices (the earlier per-device localStorage copy was replaced).
 Records usage kinds `chat_embed`/`chat_answer` and emits
 `chat_query` activity events (start/done/failed). Config `CHAT_ENABLED`
 (404 when off), `CHAT_TOP_K`, `CHAT_CANDIDATES` — all whitelisted in settings.
 GUI: `/chat` page (`routes/chat/+page.svelte`, message list + citation cards +
-`api.chat.ask`), a "Chat" nav link, and a "Chatbot" group on the Settings page.
-Chat history is persisted per user in localStorage (`newsgator_chat:<username>`,
-100-turn cap) — a `ready` flag gates the persist `$effect` so the empty initial
-state never overwrites a saved conversation before the username (and key) is
-known; it is device-local, not synced across a user's devices. The chat wrap
-height is computed as `100dvh - var(--nav-h) - margins` (NOT a flex-fill on a
-`min-height:100dvh` main, which breaks desktop by forcing an empty full-height
-page); `100dvh` tracks iOS toolbar show/hide, the composer gets
-`safe-area-inset-bottom` padding, and the textarea is `font-size: 1rem` (iOS
-auto-zooms smaller inputs) with auto-grow (1 row → ~9rem).
+`api.chat.ask`/`history`/`clearHistory`), a "Chat" nav link, and a "Chatbot"
+group on the Settings page. The chat wrap height is `100dvh - var(--nav-h) -
+margins` (NOT a flex-fill on a `min-height:100dvh` main, which breaks desktop);
+the composer gets `safe-area-inset-bottom` padding, and the textarea is
+`font-size: 1rem` with auto-grow (1 row → ~9rem).
 
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,
