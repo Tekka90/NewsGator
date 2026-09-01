@@ -246,6 +246,7 @@ class LLMUsage(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     ts: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
     # summarize|embed|cluster_embed|pairwise|novelty|headline|merge|share_translate|backfill_embed
+    # |chat_embed|chat_answer
     kind: Mapped[str] = mapped_column(String(32), index=True)
     endpoint: Mapped[str] = mapped_column(String(8), default="chat")  # chat|embed
     model: Mapped[str] = mapped_column(String(128), default="")

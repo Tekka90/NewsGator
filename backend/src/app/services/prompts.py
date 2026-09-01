@@ -133,3 +133,35 @@ Do both items report on the SAME specific news event (not just the same topic)?
 
 Reply with JSON: {{"same_event": true|false}}"""
     return system, user
+
+
+def chat_answer(
+    question: str,
+    stories: list[tuple[int, str, str, str, str]],
+) -> tuple[str, str]:
+    """RAG answer over retrieved stories. Each story is
+    (id, title, summary, category, last_updated_iso)."""
+    lang = summary_language_name()
+    system = (
+        "You are the assistant of a personal news reader. Answer questions using "
+        "ONLY the provided news stories — never outside knowledge. If the stories "
+        "don't cover the question, say so honestly. "
+        f"Always write in {lang}. Reply with ONLY a valid JSON object."
+    )
+    blocks = []
+    for sid, title, summary, category, updated in stories:
+        blocks.append(
+            f"[Story {sid}] ({category}, updated {updated})\n{title}\n{summary}"
+        )
+    context = "\n\n".join(blocks)
+    user = f"""Answer the user's question in {lang}, using only these stories retrieved
+from the user's news archive (2-6 sentences, factual, no opinion). Cite every story
+you actually used by its id.
+
+Reply with JSON: {{"answer": "...", "story_ids": [<ids of cited stories>]}}
+
+Stories:
+{context}
+
+Question: {question}"""
+    return system, user

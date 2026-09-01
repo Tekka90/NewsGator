@@ -238,6 +238,22 @@ unscored recency fallback (`similarity: null`) when no vector exists, cap
 `_retrieve_vector` helper). Picker candidates load lazily on first open so a
 many-source story costs no requests until a picker is used; the score renders
 as a rounded % chip. No schema change, no activity events (read-only probes).
+Story chatbot (2026-09-01): `POST /api/chat` answers questions over the story
+archive via RAG — the question is embedded with `EMBED_MODEL` (invariant 2),
+matched against story centroids (ANN + exact cosine re-rank, never the raw
+sqlite-vec proxy), and the top-`CHAT_TOP_K` story summaries (already in
+`SUMMARY_LANGUAGE` — invariant 1) ground the answer. Service
+`services/chat.py::ask` with module-level LLM seams `_embed_query`/`_answer`
+for monkeypatching; prompt `prompts.chat_answer` returns
+`{"answer", "story_ids"}` (JSON mode, citations by id). Returns
+`{answer, stories[], latency_ms}`; each story carries
+`id/title/category/image_url/last_updated_at/source_hosts/similarity/cited` so
+the GUI renders clickable citation cards. Stateless — the client keeps
+conversation history. Records usage kinds `chat_embed`/`chat_answer` and emits
+`chat_query` activity events (start/done/failed). Config `CHAT_ENABLED`
+(404 when off), `CHAT_TOP_K`, `CHAT_CANDIDATES` — all whitelisted in settings.
+GUI: `/chat` page (`routes/chat/+page.svelte`, message list + citation cards +
+`api.chat.ask`), a "Chat" nav link, and a "Chatbot" group on the Settings page.
 
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,

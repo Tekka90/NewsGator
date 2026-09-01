@@ -76,6 +76,7 @@
     <nav bind:this={navEl}>
       <strong class="brand">NewsGator</strong>
       <a href="/" class:active={page.url.pathname === '/'}>Stories</a>
+      <a href="/chat" class:active={page.url.pathname.startsWith('/chat')}>Chat</a>
       <a href="/feeds" class:active={page.url.pathname.startsWith('/feeds')}>Feeds</a>
       <a href="/activity" class:active={page.url.pathname.startsWith('/activity')}>Activity</a>
       {#if $currentUser?.is_admin}

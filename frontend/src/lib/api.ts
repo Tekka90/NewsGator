@@ -3,6 +3,7 @@
 import type {
   AuthUser,
   Category,
+  ChatResponse,
   Feed,
   ManagedUser,
   SimilarStory,
@@ -260,5 +261,10 @@ export const api = {
       req<UsageSummary>(`/usage/summary?period=${period}`),
     daily: (days: number = 90) => req<{ days: number; rows: UsageDailyRow[] }>(`/usage/daily?days=${days}`),
     byFeed: () => req<UsageByFeed>('/usage/by-feed')
+  },
+
+  chat: {
+    ask: (question: string) =>
+      req<ChatResponse>('/chat', { method: 'POST', body: { question } })
   }
 };
