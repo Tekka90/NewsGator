@@ -4,9 +4,10 @@ from datetime import UTC, datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.db import get_session
+from app.core.db import commit_with_retry, get_session
 from app.models import Feed
 from app.services import activity
 from app.services.cluster import freeze_old_stories
@@ -31,7 +32,7 @@ async def freeze_sweep() -> None:
     async for session in get_session():
         await freeze_old_stories(session)
         await activity.prune(session)
-        await session.commit()
+        await commit_with_retry(session)
         break
 
 
@@ -46,9 +47,13 @@ async def llm_backlog_sweep() -> None:
 
     async for session in get_session():
         requeued = await enqueue_backlog(session)
+
+        async def emit_sweep(s: AsyncSession = session, n: int = requeued) -> None:
+            await activity.emit(s, "llm", "backlog_sweep", {"requeued": n})
+
         if requeued:
-            await activity.emit(session, "llm", "backlog_sweep", {"requeued": requeued})
-            await session.commit()
+            await emit_sweep()
+            await commit_with_retry(session, prepare=emit_sweep)
         break
 
 

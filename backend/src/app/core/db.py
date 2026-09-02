@@ -1,8 +1,10 @@
 """Async SQLAlchemy engine/session setup."""
 
-from collections.abc import AsyncIterator
+import asyncio
+from collections.abc import AsyncIterator, Awaitable, Callable
 
 from sqlalchemy import event
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -78,3 +80,34 @@ async def get_session() -> AsyncIterator[AsyncSession]:
     assert _session_factory is not None, "Engine not initialized — call init_engine() first"
     async with _session_factory() as session:
         yield session
+
+
+async def commit_with_retry(
+    session: AsyncSession,
+    prepare: Callable[[], Awaitable[None]] | None = None,
+    attempts: int = 4,
+    base_delay: float = 0.25,
+) -> None:
+    """Commit, retrying transient SQLite 'database is locked' errors.
+
+    WAL + busy_timeout cover most contention, but a long writer (LLM pipeline
+    flush, freeze sweep, retention) can still outlast the timeout under load —
+    the pipeline worker, scheduler jobs, and API handlers all share one writer
+    slot. Roll back and retry with backoff instead of killing the job.
+
+    A rollback discards the session's pending objects, so pass ``prepare`` — a
+    callback that re-queues the work (e.g. re-emitting an activity event) —
+    which is re-invoked before each retry. On exhaustion the error propagates
+    (the sweep is idempotent and self-heals on its next run).
+    """
+    for attempt in range(attempts):
+        if attempt and prepare is not None:
+            await prepare()
+        try:
+            await session.commit()
+            return
+        except OperationalError as exc:
+            if "locked" not in str(exc.orig or exc).lower() or attempt == attempts - 1:
+                raise
+            await session.rollback()
+            await asyncio.sleep(base_delay * (2**attempt))
