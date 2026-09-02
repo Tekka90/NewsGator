@@ -35,8 +35,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     init_engine(settings.database_url)
     await _ensure_schema_and_seed()
     if settings.environment != "test":
+        # Diagnostics: `kill -USR1 <pid>` dumps all thread/async stacks to stderr
+        # (docker logs). Invaluable for "database is locked" wedges to see which
+        # coroutine holds the writer.
+        import faulthandler
+        import signal
+
         from app.services.process import enqueue_backlog, start_worker, stop_worker
         from app.workers.scheduler import start_scheduler, stop_scheduler
+
+        faulthandler.register(signal.SIGUSR1, all_threads=True)
 
         start_worker()
         # Crash recovery (invariant 7): requeue articles stuck mid-pipeline
