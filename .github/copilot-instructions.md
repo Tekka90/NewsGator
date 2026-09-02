@@ -124,10 +124,16 @@ side-scrolls the whole PWA, nav included) — wide tables sit in an
 report), global inputs are `max-width: 100%; box-sizing: border-box`, flex
 rows that hold inputs use `flex-wrap: wrap` + `min-width: 0`, and the mobile
 nav links use `flex: 1 1 0; min-width: 0` so they shrink instead of pushing
-the Log out button off-screen. On the Stories page the title + filter bar are
+the log-out icon off-screen. The nav log-out control is an icon-only SVG
+button (the full "Log out" text crowded the iOS nav); a proper "Log out"
+button also lives in a "Session" card on the Settings page. On the Stories
+page the title + filter bar are
 sticky (`position: sticky; top: var(--nav-h)` — the layout measures the nav
 height into the `--nav-h` CSS var via a ResizeObserver, z-index 20: above
-cards, below the ShareButton menu/sheet and the nav), and marking a story read
+cards, below the ShareButton menu/sheet and the nav). A story-count chip sits
+next to the "Stories" title inside the sticky header so it never scrolls away
+(on touch devices it doubles as the deck position `n / N`, replacing the old
+deckmeta counter), and marking a story read
 in the desktop list smooth-scrolls down (`scrollPastStory`, desktop only) so
 the dimmed card slides out behind the header and the next story lands right
 under it. Source logos in card meta rows: `GET /api/stories` returns `source_hosts` (distinct article
@@ -301,7 +307,9 @@ Notes on the current code:
   (default 5) requeuing articles stuck in `fulltext`. Articles are handed to the LLM
   queue only **after** the ingest commit — the worker reads through a fresh session,
   so enqueuing pre-commit silently drops them. Lifespan starts the LLM worker +
-  backlog requeue + scheduler (skipped when `ENVIRONMENT=test`).
+  backlog requeue + scheduler (skipped when `ENVIRONMENT=test`). `queue_depth()`
+  in `process.py` counts queued articles **plus the in-flight one** (`_in_flight`)
+  — otherwise the indicator drops to 0 while the LLM is actually busy.
 - Lifespan migrates the schema to Alembic head at startup (`alembic upgrade head`
   via subprocess; legacy create_all DBs without `alembic_version` are stamped at
   the matching revision first), then `create_all` stays as a no-op safety net +

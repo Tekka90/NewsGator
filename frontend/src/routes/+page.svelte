@@ -298,7 +298,16 @@
 </script>
 
 <div class="pagehead" bind:this={pagehead}>
-  <h1>Stories</h1>
+  <h1>
+    Stories
+    {#if !loading && stories.length > 0}
+      <!-- stays visible while scrolling (pagehead is sticky) — on mobile this
+           doubles as the deck position, which used to scroll away with deckmeta -->
+      <span class="count" title="Stories matching the current filter">
+        {isMobile ? `${Math.min(index + 1, stories.length)} / ${stories.length}` : stories.length}
+      </span>
+    {/if}
+  </h1>
 
   {#if isMobile && (pullDist > 0 || refreshing)}
     <div class="pullhint" style:height="{refreshing ? 36 : pullDist}px">
@@ -357,7 +366,6 @@
       <span>✓ done</span>
       <span class="hint">swipe → back to stories</span>
     {:else}
-      <span>{index + 1} / {stories.length}</span>
       <span class="hint">swipe ← read &amp; next</span>
     {/if}
     <button class="navbtn" onclick={() => commit('left')} disabled={atEnd}>Next ›</button>
@@ -519,7 +527,15 @@
     margin: -1.5rem -1rem 0;
     padding: 1.5rem 1rem 0;
   }
-  .pagehead h1 { margin-top: 0; }
+  .pagehead h1 { margin-top: 0; display: flex; align-items: center; gap: 0.5rem; }
+  .count {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--muted);
+    background: var(--chip-bg);
+    border-radius: 999px;
+    padding: 0.1rem 0.55rem;
+  }
   @media (max-width: 700px) {
     .pagehead { margin: -0.8rem -0.6rem 0; padding: 0.8rem 0.6rem 0; }
   }

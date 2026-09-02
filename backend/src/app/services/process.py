@@ -24,16 +24,21 @@ from app.services.vectorstore import get_vector_store
 
 _queue: asyncio.Queue[int] = asyncio.Queue()
 _worker_task: asyncio.Task[None] | None = None
+_in_flight = 0  # articles dequeued and currently being processed by the worker
 
 
 def queue_depth() -> int:
-    """For the GUI 'N articles waiting for LLM' indicator (SPEC §7)."""
-    return _queue.qsize()
+    """For the GUI 'N articles waiting for LLM' indicator (SPEC §7).
+
+    Counts queued articles *plus* the one being processed — once the worker
+    dequeues an article, qsize() alone reads 0 even though the LLM is busy.
+    """
+    return _queue.qsize() + _in_flight
 
 
 def enqueue_article(article_id: int) -> None:
     _queue.put_nowait(article_id)
-    activity.broadcast_queue(_queue.qsize())
+    activity.broadcast_queue(queue_depth())
 
 
 def start_worker() -> None:
@@ -54,8 +59,11 @@ async def stop_worker() -> None:
 
 
 async def _run_worker() -> None:
+    global _in_flight
     while True:
         article_id = await _queue.get()
+        _in_flight += 1
+        activity.broadcast_queue(queue_depth())
         try:
             async for session in get_session():
                 await process_article(session, article_id)
@@ -72,8 +80,9 @@ async def _run_worker() -> None:
                 await session.commit()
                 break
         finally:
+            _in_flight -= 1
             _queue.task_done()
-            activity.broadcast_queue(_queue.qsize())
+            activity.broadcast_queue(queue_depth())
 
 
 async def process_article(session: AsyncSession, article_id: int) -> None:

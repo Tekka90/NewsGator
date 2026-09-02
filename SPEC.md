@@ -389,7 +389,9 @@ LLM", …) in near real time.
 
 - **LLM queue visibility**: the summarization/embedding work goes through a small
   in-process queue; the activity stream includes queue depth so the GUI can show
-  "3 articles waiting for LLM".
+  "3 articles waiting for LLM". The depth counts queued articles **plus the one
+  currently being processed** (once the worker dequeues an article, the raw queue
+  size would read 0 even though the LLM is busy).
 - Also exposed: `GET /activity/recent` for the page's initial load.
 
 ---

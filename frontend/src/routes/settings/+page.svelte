@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
   import { api, getToken } from '$lib/api';
   import { currentUser } from '$lib/stores';
   import type { Category, ManagedUser } from '$lib/types';
@@ -198,6 +199,12 @@
     setTimeout(() => (saved = false), 2000);
   }
 
+  async function logout() {
+    await api.logout();
+    $currentUser = null;
+    await goto('/login');
+  }
+
   async function addCategory(e: SubmitEvent) {
     e.preventDefault();
     await api.categories.create(newCategory);
@@ -276,6 +283,12 @@
   </label>
   <button onclick={saveLanguage}>Save</button>
   {#if saved}<span class="ok">Saved ✓</span>{/if}
+</div>
+
+<div class="card">
+  <h2>Session</h2>
+  <p class="hint">Signed in as <strong>{$currentUser?.username}</strong>.</p>
+  <button onclick={logout}>Log out</button>
 </div>
 
 <div class="card">

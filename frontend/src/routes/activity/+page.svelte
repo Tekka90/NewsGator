@@ -118,7 +118,7 @@
 </h1>
 
 <div class="card status">
-  <span>LLM queue: <strong>{queueDepth}</strong> article{queueDepth === 1 ? '' : 's'} waiting</span>
+  <span>LLM queue: <strong>{queueDepth}</strong> article{queueDepth === 1 ? '' : 's'} waiting or processing</span>
   <span class="spacer"></span>
   <select bind:value={componentFilter}>
     <option value="">all components</option>

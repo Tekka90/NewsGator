@@ -88,7 +88,11 @@
         <span class="processing">⚙ {queueDepth}</span>
       {/if}
       <span class="user">{$currentUser?.username}</span>
-      <button class="logoutbtn" onclick={logout}>Log out</button>
+      <button class="logoutbtn" onclick={logout} title="Log out" aria-label="Log out">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
+        </svg>
+      </button>
     </nav>
     <main>{@render children()}</main>
   </div>
@@ -185,7 +189,19 @@
     z-index: 50;
   }
   .shell nav a.active { color: #fff; font-weight: 600; }
-  .logoutbtn { white-space: nowrap; }
+  .logoutbtn {
+    /* icon-only — the full-width "Log out" text wasted precious nav space on iOS */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: #cfd3da;
+    padding: 0.25rem;
+    white-space: nowrap;
+  }
+  .logoutbtn:hover { color: #fff; border-color: #4a505a; }
   @media (max-width: 700px) {
     /* single compact line — no wrapping to a second row, no empty bands.
        Links must be allowed to shrink (flex-basis 0 + min-width 0) or the
@@ -209,7 +225,7 @@
       white-space: nowrap;
     }
     .shell nav .processing { flex: 0 0 auto; }
-    .shell nav .logoutbtn { flex: 0 0 auto; padding: 0.2rem 0.5rem; font-size: 0.85rem; }
+    .shell nav .logoutbtn { flex: 0 0 auto; padding: 0.15rem; }
   }
   .shell nav a {
     color: #cfd3da;
