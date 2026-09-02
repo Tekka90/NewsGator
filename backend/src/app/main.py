@@ -35,16 +35,33 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     init_engine(settings.database_url)
     await _ensure_schema_and_seed()
     if settings.environment != "test":
-        # Diagnostics: `kill -USR1 <pid>` dumps all thread/async stacks to stderr
-        # (docker logs). Invaluable for "database is locked" wedges to see which
-        # coroutine holds the writer.
+        # Diagnostics: `kill -USR1 <pid>` dumps thread stacks AND all asyncio
+        # tasks to stderr (docker logs). Invaluable for "database is locked"
+        # wedges to see which coroutine holds the writer open.
+        import asyncio
         import faulthandler
         import signal
+        import traceback
 
         from app.services.process import enqueue_backlog, start_worker, stop_worker
         from app.workers.scheduler import start_scheduler, stop_scheduler
 
         faulthandler.register(signal.SIGUSR1, all_threads=True)
+
+        def _dump_tasks() -> None:
+            try:
+                loop = asyncio.get_event_loop()
+                tasks = asyncio.all_tasks(loop)
+            except Exception:
+                tasks = asyncio.all_tasks()
+            logger.warning("=== SIGUSR1: %d asyncio tasks ===", len(tasks))
+            for t in tasks:
+                logger.warning("--- task %r (%s) ---", t.get_name(), t._state)
+                for frame in t.get_stack():
+                    traceback.print_stack(frame)
+
+        loop = asyncio.get_running_loop()
+        loop.add_signal_handler(signal.SIGUSR2, _dump_tasks)
 
         start_worker()
         # Crash recovery (invariant 7): requeue articles stuck mid-pipeline
