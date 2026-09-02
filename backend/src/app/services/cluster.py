@@ -52,6 +52,13 @@ async def cluster_article(session: AsyncSession, article_id: int) -> None:
         article=article,
         prompt_chars=len(embed_text),
     )
+    # Release any pending writes (the usage row, the loaded Article) BEFORE the
+    # centroid search + LLM calls below. The sqlite-vec search does session.execute
+    # which autoflushes; if a write were pending it would take SQLite's single
+    # writer lock and hold it across the slow gray-zone/novelty/merge LLM calls,
+    # starving every other writer. Committing here keeps the lock hold to the
+    # quick flush, never across the network. The article row is re-read on demand.
+    await session.commit()
     store = get_vector_store(session)
 
     # Candidates from the store, then exclude frozen stories + exact cosine re-rank
