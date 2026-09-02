@@ -237,6 +237,12 @@ async def _poll_feed_inner(session: AsyncSession, feed: Feed) -> int:
     new_count = 0
     skipped_old = 0
     llm_handoff: list[int] = []
+    # Articles needing a full-text fetch. We do NOT fetch inline here: the INSERT
+    # below would otherwise hold SQLite's single writer lock across the whole
+    # robots → direct → archive.is network chain (tens of seconds per article),
+    # starving every other writer (scheduler / LLM worker / API). Fetch full text
+    # AFTER the batch commit, in a short per-article transaction instead.
+    fulltext_pending: list[int] = []
     for entry in entries:
         guid = _entry_guid(entry)
         link = str(entry.get("link", ""))
@@ -271,10 +277,9 @@ async def _poll_feed_inner(session: AsyncSession, feed: Feed) -> int:
         await session.flush()  # assign id before fulltext stage
 
         if feed.fetch_fulltext:
-            await fetch_full_text(session, article, feed)
+            fulltext_pending.append(article.id)
         else:
             article.processing_state = "fulltext"
-        if article.processing_state == "fulltext":
             llm_handoff.append(article.id)
         new_count += 1
 
@@ -290,6 +295,16 @@ async def _poll_feed_inner(session: AsyncSession, feed: Feed) -> int:
             },
         )
     await session.commit()
+    # Full-text fetch AFTER the commit above released the writer lock. Each
+    # article commits on its own (fetch_full_text leaves the state at 'fulltext'),
+    # so the lock is only held for the quick UPDATE, never across the network.
+    for article_id in fulltext_pending:
+        art = await session.get(Article, article_id)
+        if art is None:
+            continue
+        await fetch_full_text(session, art, feed)
+        await session.commit()
+        llm_handoff.append(article_id)
     # Hand off to the LLM queue (summarize → embed → cluster) only AFTER the
     # commit: the worker reads through a fresh session, so enqueuing earlier
     # races the commit and silently drops the article (stuck in 'fulltext').
