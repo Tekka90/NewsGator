@@ -149,10 +149,12 @@ async def _create_story(
 ) -> Story:
     """New story from a single article: LLM headline, version 1, centroid stored."""
     assert article.summary is not None
-    story = Story(category=article.category or "Uncategorized")
-    session.add(story)
-    await session.flush()
-
+    # Generate the headline BEFORE any DB write: the flush below acquires SQLite's
+    # single writer lock, and an LLM call (up to llm_timeout_s) must never run
+    # while that lock is held — it would starve every other writer (scheduler,
+    # API) for the duration of the request. Headline is cosmetic; fall back to
+    # the article title on LLM failure.
+    headline: str | None = None
     try:
         system, user = prompts.story_headline([article.summary])
         result, latency_ms = await llm_client.chat_json(system, user)
@@ -164,14 +166,16 @@ async def _create_story(
             model=settings.llm_model,
             latency_ms=latency_ms,
             article=article,
-            story_id=story.id,
             prompt_chars=len(system) + len(user),
             completion_chars=len(headline),
         )
-        story.title = headline or article.title
     except llm_client.LLMError:
-        story.title = article.title  # headline is cosmetic; fall back to article title
+        headline = None
 
+    story = Story(category=article.category or "Uncategorized")
+    session.add(story)
+    await session.flush()
+    story.title = headline or article.title
     story.summary = article.summary
     story.image_url = article.image_url
     session.add(StoryRevision(story_id=story.id, version=1, summary=story.summary))
