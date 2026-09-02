@@ -125,8 +125,9 @@ report), global inputs are `max-width: 100%; box-sizing: border-box`, flex
 rows that hold inputs use `flex-wrap: wrap` + `min-width: 0`, and the mobile
 nav links use `flex: 1 1 0; min-width: 0` so they shrink instead of pushing
 the log-out icon off-screen. The nav log-out control is an icon-only SVG
-button (the full "Log out" text crowded the iOS nav); a proper "Log out"
-button also lives in a "Session" card on the Settings page. On the Stories
+button (the full "Log out" text crowded the iOS nav), **hidden on mobile** —
+it was too easy to fat-finger next to the nav links, so on touch layouts
+logout only lives in the "Session" card on the Settings page. On the Stories
 page the title + filter bar are
 sticky (`position: sticky; top: var(--nav-h)` — the layout measures the nav
 height into the `--nav-h` CSS var via a ResizeObserver, z-index 20: above

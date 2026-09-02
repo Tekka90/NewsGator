@@ -225,7 +225,8 @@
       white-space: nowrap;
     }
     .shell nav .processing { flex: 0 0 auto; }
-    .shell nav .logoutbtn { flex: 0 0 auto; padding: 0.15rem; }
+    /* too easy to fat-finger on touch — logout lives on the Settings page */
+    .shell nav .logoutbtn { display: none; }
   }
   .shell nav a {
     color: #cfd3da;
