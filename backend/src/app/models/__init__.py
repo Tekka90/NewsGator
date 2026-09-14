@@ -106,6 +106,36 @@ class Category(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
+class CategorySuggestion(Base):
+    """One LLM-proposed new category, logged per-article (never auto-applied).
+
+    Written from services/process.py::summarize_article when the model feels
+    none of the current taxonomy categories fit well (services/prompts.py).
+    No FK to article — append-only audit log, same pattern as LLMUsage/
+    ChatMessage, so a suggestion survives article retention. Aggregated by
+    services/category_suggestions.py into admin-facing proposals.
+    """
+
+    __tablename__ = "category_suggestion"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    article_id: Mapped[int] = mapped_column(Integer)
+    raw_text: Mapped[str] = mapped_column(String(128))
+    # Lowercased/punctuation-stripped raw_text — groups exact-ish duplicates
+    # ("Apple", "apple.", " Apple ") without semantic (embedding) clustering.
+    normalized_text: Mapped[str] = mapped_column(String(128), index=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+
+class CategoryProposalDismissal(Base):
+    """An admin-dismissed suggestion cluster — suppressed from future proposals."""
+
+    __tablename__ = "category_proposal_dismissal"
+
+    normalized_text: Mapped[str] = mapped_column(String(128), primary_key=True)
+    dismissed_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+
 # Seeded at first migration; fully editable afterwards.
 SEED_CATEGORIES = [
     "Tech",

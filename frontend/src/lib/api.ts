@@ -3,6 +3,7 @@
 import type {
   AuthUser,
   Category,
+  CategorySuggestion,
   ChatResponse,
   ChatStory,
   Feed,
@@ -183,7 +184,18 @@ export const api = {
     create: (name: string) => req<Category>('/categories', { method: 'POST', body: { name } }),
     rename: (id: number, name: string) =>
       req<Category>(`/categories/${id}`, { method: 'PATCH', body: { name } }),
-    remove: (id: number) => req<void>(`/categories/${id}`, { method: 'DELETE' })
+    remove: (id: number) => req<void>(`/categories/${id}`, { method: 'DELETE' }),
+    suggestions: () => req<CategorySuggestion[]>('/categories/suggestions'),
+    acceptSuggestion: (s: CategorySuggestion) =>
+      req<Category>('/categories/suggestions/accept', {
+        method: 'POST',
+        body: { normalized_text: s.normalized_text, label: s.label }
+      }),
+    dismissSuggestion: (s: CategorySuggestion) =>
+      req<void>('/categories/suggestions/dismiss', {
+        method: 'POST',
+        body: { normalized_text: s.normalized_text }
+      })
   },
 
   // Per-user IMAP accounts for newsletter ingestion (password is write-only)

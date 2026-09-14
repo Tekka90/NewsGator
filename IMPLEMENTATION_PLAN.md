@@ -212,6 +212,21 @@ config validated; image build is the one step to run on the target machine)
   URL-set validation), `article.newsletter_intro` preferred for new-story summaries.
   API `/api/mail-accounts` (+ test/poll), scheduler `mail_poll_sweep`, GUI Settings
   card + Feeds-page ✉ badge.
+- OPML export ✅ (2026-09-14): `GET /api/feeds/export-opml` (admin), mirrors the
+  existing importer (`services/ingest.py::render_opml()`); Feeds page "Export OPML"
+  button.
+- Feed email counter ✅ (2026-09-14): `feed.email_count` (Alembic 0013) — mail feeds
+  only, incremented once per newsletter message processed; surfaced on `GET
+  /api/feeds` + the Feeds page, to help spot a stalled newsletter feed.
+- Category suggestions ✅ (2026-09-14): the summarize LLM call may propose a new
+  category when none of the taxonomy fits well (`prompts.summarize_article`);
+  logged per-article, never auto-applied (Alembic 0014, `category_suggestion` +
+  `category_proposal_dismissal`, `services/category_suggestions.py`). Admin sees
+  recurring proposals (exact-ish grouping, not semantic) on the Settings page next
+  to the taxonomy editor: `GET /api/categories/suggestions`, `POST
+  /api/categories/suggestions/{accept,dismiss}`. Config
+  `CATEGORY_SUGGESTIONS_ENABLED`/`CATEGORY_SUGGESTION_MIN_ARTICLES`/
+  `CATEGORY_SUGGESTION_WINDOW_DAYS` (whitelisted).
 
 ---
 

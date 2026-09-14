@@ -354,6 +354,9 @@ v1 is **data-first, no online learning**:
 | `GET /usage/summary?period=day\|month\|all`, `GET /usage/daily?days=`, `GET /usage/by-feed` | LLM token-usage metrics (admin): totals + per-kind/per-model breakdowns with throughput (tok/s), per-day series, per-source-feed history. Token counts flagged `estimated` when the server omitted `usage` |
 | `GET /favicon?host=` | cached favicon proxy for source logos and feed icons (auth required; never a third-party favicon service — cache TTL via `FAVICON_CACHE_HOURS`). Fetch chain: `/favicon.ico`, then the homepage's `<link rel=icon>`, then parent domains (newsletter senders are often subdomains like `mail.example.com` with no icon of their own; never strips below two labels) |
 | `GET /feed.xml?category=&unread=1&limit=` | the story archive as an RSS 2.0 feed — each item is one story (headline, merged summary, lead image as `media:content`, primary source article as link). guid is the stable `story:{id}`; `pubDate` is the original article publication date and `atom:updated` tracks the latest revision date, so a version bump marks the item updated without re-notifying it. Auth via `?token=` (RSS readers can't set headers) |
+| `CRUD /categories` | taxonomy management (admin): list/create/rename/delete; deleting `Uncategorized` is rejected |
+| `GET /categories/suggestions` | recurring LLM-proposed categories not yet in the taxonomy (admin) — `[{normalized_text, label, article_count, first_seen, last_seen, example_titles}]`, most-suggested first |
+| `POST /categories/suggestions/accept`, `POST /categories/suggestions/dismiss` | add a proposal's label as a real category (clears its suggestion log) or suppress it from future listings (admin) |
 
 Manual merge/split is a deliberate feature: clustering *will* be wrong sometimes, and the
 user must be able to fix it. Corrections can later feed threshold tuning.
@@ -456,6 +459,17 @@ LLM", …) in near real time.
   add/rename/remove categories in the GUI; the constrained-choice LLM prompt is built
   from the *current* taxonomy at call time. Renaming a category relabels existing items
   (cheap); deleting moves items to `Uncategorized`.
+- **Category suggestions** (`services/category_suggestions.py`): the same summarize
+  call may return an optional `suggested_category` when none of the taxonomy fits
+  well (prompted to only do so for a genuinely uncovered recurring topic, not a loose
+  fit). Suggestions are logged per-article (`CATEGORY_SUGGESTION` table, no FK — same
+  append-only pattern as `LLM_USAGE`/`CHAT_MESSAGE`), **never auto-applied**. An admin
+  sees recurring proposals (grouped by lowercased/punctuation-stripped text — exact-ish
+  dedupe, not semantic — across `>= CATEGORY_SUGGESTION_MIN_ARTICLES` distinct articles
+  within `CATEGORY_SUGGESTION_WINDOW_DAYS`) on the Settings page next to the taxonomy
+  editor, and can accept (adds the category, clears the log for that cluster) or
+  dismiss (suppresses it going forward via `CATEGORY_PROPOSAL_DISMISSAL`). Toggle via
+  `CATEGORY_SUGGESTIONS_ENABLED`.
 - **Changing `SUMMARY_LANGUAGE` after data exists** requires re-summarizing and
   re-embedding everything (embeddings are in the summary language's vector space).
   Warn the user and run it as a background reprocessing job.

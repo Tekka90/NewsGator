@@ -175,6 +175,20 @@ class CategoryOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class CategorySuggestionOut(BaseModel):
+    normalized_text: str
+    label: str
+    article_count: int
+    first_seen: datetime
+    last_seen: datetime
+    example_titles: list[str]
+
+
+class CategorySuggestionAction(BaseModel):
+    normalized_text: str
+    label: str = ""  # only needed for /accept (creates a Category named `label`)
+
+
 # --- misc ---
 
 

@@ -54,6 +54,9 @@ OVERRIDABLE = {
     "chat_enabled": bool,
     "chat_top_k": int,
     "chat_candidates": int,
+    "category_suggestions_enabled": bool,
+    "category_suggestion_min_articles": int,
+    "category_suggestion_window_days": int,
 }
 
 

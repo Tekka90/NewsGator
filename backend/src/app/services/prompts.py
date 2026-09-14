@@ -33,7 +33,13 @@ def summarize_article(title: str, text: str, taxonomy: list[str]) -> tuple[str, 
 
 Also assign exactly one category from this list: {categories}
 
-Reply with JSON: {{"summary": "...", "category": "..."}}
+If — and only if — none of the listed categories fit this article well, also
+propose a short new category name (2-3 words, in {lang}) in "suggested_category".
+Otherwise set "suggested_category" to null. Do not propose a new category just
+because a listed one is a loose fit; only when the article is clearly about a
+recurring topic none of them cover.
+
+Reply with JSON: {{"summary": "...", "category": "...", "suggested_category": "... or null"}}
 
 Article title: {title}
 

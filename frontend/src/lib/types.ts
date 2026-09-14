@@ -163,6 +163,15 @@ export interface Category {
   name: string;
 }
 
+export interface CategorySuggestion {
+  normalized_text: string;
+  label: string;
+  article_count: number;
+  first_seen: string;
+  last_seen: string;
+  example_titles: string[];
+}
+
 export interface StoryListItem {
   id: number;
   title: string;

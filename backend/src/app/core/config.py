@@ -100,5 +100,12 @@ class Settings(BaseSettings):
     readeck_base_url: str | None = None
     readeck_token: str | None = None
 
+    # Category-suggestion detection (services/category_suggestions.py): the
+    # summarize LLM call may propose a new category when none of the taxonomy
+    # fits; recurring proposals surface to admins on the Settings page.
+    category_suggestions_enabled: bool = True
+    category_suggestion_min_articles: int = 5  # distinct articles before proposing
+    category_suggestion_window_days: int = 30  # rolling window for the count
+
 
 settings = Settings()

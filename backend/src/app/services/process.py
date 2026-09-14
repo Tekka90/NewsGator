@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.db import get_session
 from app.models import Article, Category
-from app.services import activity, llm_client, llmtrace, prompts, usage
+from app.services import activity, category_suggestions, llm_client, llmtrace, prompts, usage
 from app.services.vectorstore import get_vector_store
 
 _queue: asyncio.Queue[int] = asyncio.Queue()
@@ -139,6 +139,11 @@ async def summarize_article(session: AsyncSession, article: Article) -> bool:
     article.summary = str(result.get("summary", ""))
     category = str(result.get("category", ""))
     article.category = category if category in taxonomy else "Uncategorized"
+    suggested = result.get("suggested_category")
+    if suggested and settings.category_suggestions_enabled:
+        await category_suggestions.record_suggestion(
+            session, article.id, str(suggested), list(taxonomy)
+        )
     article.processing_state = "summarized"
     usage.record(
         session,

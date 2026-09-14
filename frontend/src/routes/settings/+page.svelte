@@ -3,12 +3,13 @@
   import { goto } from '$app/navigation';
   import { api, getToken } from '$lib/api';
   import { currentUser } from '$lib/stores';
-  import type { Category, MailAccount, ManagedUser } from '$lib/types';
+  import type { Category, CategorySuggestion, MailAccount, ManagedUser } from '$lib/types';
 
   let language = $state('');
   let saved = $state(false);
   let categories = $state<Category[]>([]);
   let newCategory = $state('');
+  let suggestions = $state<CategorySuggestion[]>([]);
   let users = $state<ManagedUser[]>([]);
   let newUsername = $state('');
   let newUserPassword = $state('');
@@ -245,6 +246,15 @@
       ]
     },
     {
+      title: 'Category suggestions',
+      hint: 'When the summarizer feels no taxonomy category fits, it may propose a new one — recurring proposals show up below the Categories card.',
+      fields: [
+        { key: 'category_suggestions_enabled', label: 'Suggestions enabled (1 = on, 0 = off)' },
+        { key: 'category_suggestion_min_articles', label: 'Distinct articles before proposing' },
+        { key: 'category_suggestion_window_days', label: 'Rolling window (days)' }
+      ]
+    },
+    {
       title: 'Clustering',
       hint: 'Tune via the feedback report below before changing thresholds.',
       fields: [
@@ -280,6 +290,7 @@
     feedCategories = [...new Set(stories.map((s) => s.category))].sort();
     if ($currentUser?.is_admin) {
       categories = await api.categories.list();
+      suggestions = await api.categories.suggestions();
       users = await api.users.list();
       const s = await api.settings.get();
       sys = s.values;
@@ -350,6 +361,17 @@
     if (!confirm(`Delete category "${c.name}"?`)) return;
     await api.categories.remove(c.id);
     categories = await api.categories.list();
+  }
+
+  async function acceptSuggestion(s: CategorySuggestion) {
+    await api.categories.acceptSuggestion(s);
+    categories = await api.categories.list();
+    suggestions = await api.categories.suggestions();
+  }
+
+  async function dismissSuggestion(s: CategorySuggestion) {
+    await api.categories.dismissSuggestion(s);
+    suggestions = await api.categories.suggestions();
   }
 
   async function addUser(e: SubmitEvent) {
@@ -567,6 +589,26 @@
         </li>
       {/each}
     </ul>
+    {#if suggestions.length}
+      <h3>Proposed categories</h3>
+      <p class="hint">
+        The summarizer felt these recurring topics didn't fit any existing category.
+      </p>
+      <ul class="suggestions">
+        {#each suggestions as s (s.normalized_text)}
+          <li>
+            <strong>{s.label}</strong> — {s.article_count} articles
+            {#if s.example_titles.length}
+              <span class="hint">e.g. {s.example_titles.join('; ')}</span>
+            {/if}
+            <div class="actions">
+              <button onclick={() => acceptSuggestion(s)}>Add as category</button>
+              <button class="link" onclick={() => dismissSuggestion(s)}>Dismiss</button>
+            </div>
+          </li>
+        {/each}
+      </ul>
+    {/if}
   </div>
 
   <div class="card">
@@ -756,6 +798,8 @@
   .ovr.env { color: var(--accent); background: var(--chip-bg); }
   .inline { display: inline-flex; align-items: center; gap: 0.3rem; }
   .actions { margin-left: 0.6rem; display: inline-flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+  .suggestions li { margin-bottom: 0.6rem; }
+  .suggestions .actions { margin-left: 0; display: flex; }
   .mailacct strong { overflow-wrap: anywhere; }
   input:disabled { background: var(--disabled-bg); color: var(--disabled-text); cursor: not-allowed; }
   .ok { color: var(--ok); }

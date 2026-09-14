@@ -9,7 +9,7 @@ from sqlalchemy import select
 from tests.test_ingest import _make_feed
 
 from app.core.config import settings
-from app.models import SEED_CATEGORIES, ActivityEvent, Article, Category
+from app.models import SEED_CATEGORIES, ActivityEvent, Article, Category, CategorySuggestion
 from app.services import cluster, llm_client, process, prompts
 from app.services.vectorstore import InMemoryVectorStore, cosine_similarity
 
@@ -116,6 +116,11 @@ def test_prompt_language_never_hardcoded(monkeypatch: pytest.MonkeyPatch) -> Non
     assert "English" not in system + user
 
 
+def test_prompt_requests_suggested_category(monkeypatch: pytest.MonkeyPatch) -> None:
+    _system, user = prompts.summarize_article("T", "x", ["Tech", "World"])
+    assert "suggested_category" in user
+
+
 # --- processing pipeline ---
 
 
@@ -189,6 +194,65 @@ async def test_process_article_summarize_and_embed(
         assert "summarize_done" in actions
         assert "embed_done" in actions
         assert "cluster_new" in actions
+
+
+async def test_process_article_records_category_suggestion(
+    db_session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """suggested_category outside the taxonomy is logged, not auto-applied."""
+    _mock_llm(monkeypatch)
+
+    async def fake_chat_json(system: str, user: str, model: str | None = None):
+        if "headline" in user.lower():
+            return {"headline": "Story headline"}, 5
+        return {"summary": "A summary.", "category": "Tech", "suggested_category": "Apple"}, 42
+
+    monkeypatch.setattr(process.llm_client, "chat_json", fake_chat_json)
+
+    async with db_session() as s:
+        if await s.scalar(select(Category.id).limit(1)) is None:
+            s.add_all([Category(name=n) for n in SEED_CATEGORIES])
+            await s.commit()
+
+    article = await _article_in_state(db_session, "fulltext")
+
+    async with db_session() as s:
+        await process.process_article(s, article.id)
+
+    async with db_session() as s:
+        rows = (await s.scalars(select(CategorySuggestion))).all()
+        assert len(rows) == 1
+        assert rows[0].article_id == article.id
+        assert rows[0].raw_text == "Apple"
+        assert rows[0].normalized_text == "apple"
+
+
+async def test_process_article_skips_suggestion_matching_taxonomy(
+    db_session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A suggestion that (loosely) matches an existing category isn't logged."""
+    _mock_llm(monkeypatch)
+
+    async def fake_chat_json(system: str, user: str, model: str | None = None):
+        if "headline" in user.lower():
+            return {"headline": "Story headline"}, 5
+        return {"summary": "A summary.", "category": "Tech", "suggested_category": "tech."}, 42
+
+    monkeypatch.setattr(process.llm_client, "chat_json", fake_chat_json)
+
+    async with db_session() as s:
+        if await s.scalar(select(Category.id).limit(1)) is None:
+            s.add_all([Category(name=n) for n in SEED_CATEGORIES])
+            await s.commit()
+
+    article = await _article_in_state(db_session, "fulltext")
+
+    async with db_session() as s:
+        await process.process_article(s, article.id)
+
+    async with db_session() as s:
+        rows = (await s.scalars(select(CategorySuggestion))).all()
+        assert rows == []
 
 
 async def test_process_article_skips_wrong_state(db_session) -> None:

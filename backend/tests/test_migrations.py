@@ -51,6 +51,15 @@ def _columns(path: Path, table: str) -> set[str]:
         conn.close()
 
 
+def _tables(path: Path) -> set[str]:
+    conn = sqlite3.connect(path)
+    try:
+        rows = conn.execute("select name from sqlite_master where type='table'")
+        return {str(r[0]) for r in rows}
+    finally:
+        conn.close()
+
+
 async def test_empty_db_migrated_from_scratch(engine_url: str, tmp_path) -> None:
     db.init_engine(engine_url)
     await _ensure_schema_and_seed()
@@ -89,6 +98,9 @@ async def test_legacy_create_all_db_stamped_and_upgraded(
     sync_conn.execute("DROP TABLE mail_account")
     # 0013 (feed.email_count) added later still
     sync_conn.execute("ALTER TABLE feed DROP COLUMN email_count")
+    # 0014 (category suggestions) added later still
+    sync_conn.execute("DROP TABLE category_suggestion")
+    sync_conn.execute("DROP TABLE category_proposal_dismissal")
     sync_conn.commit()
     sync_conn.close()
     db.init_engine(engine_url)  # reconnect after the sync-side ALTER
@@ -108,6 +120,8 @@ async def test_legacy_create_all_db_stamped_and_upgraded(
     assert "newsletter_intro" in _columns(path, "article")
     assert "last_uid" in _columns(path, "mail_account")
     assert "email_count" in _columns(path, "feed")
+    assert "category_suggestion" in _tables(path)
+    assert "category_proposal_dismissal" in _tables(path)
 
 
 async def test_already_at_head_is_noop(engine_url: str, tmp_path) -> None:

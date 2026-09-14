@@ -432,6 +432,37 @@ desc, hard cap `_IN_FLIGHT_CAP = 500` with a `truncated` flag) followed by the
 20 most recent finished ones (`_FINISHED_ROWS`) — no more "60 newest articles"
 window that hid old re-queued items. The response adds `in_flight` and
 `truncated`; the Activity page header shows the in-flight count.
+OPML export (2026-09-14): `GET /feeds/export-opml` (admin) mirrors the
+existing OPML import — `services/ingest.py::render_opml()` emits OPML 2.0
+from all RSS-kind feeds (mail feeds excluded, their pseudo-URL isn't a real
+feed URL); Feeds page has an "Export OPML" button next to the importer.
+`feed.email_count` (2026-09-14, Alembic 0013): mail feeds only, incremented
+once per newsletter message processed in `mailnews._process_message()`
+(regardless of how many links it yielded) so admins can spot a
+stalled/broken newsletter feed; surfaced in `GET /feeds` and the Feeds page
+next to the newsletter badge.
+Category suggestions (2026-09-14, Alembic 0014): the summarize LLM call
+(`prompts.summarize_article`) may return an optional `suggested_category`
+when none of the current taxonomy fits well (explicitly prompted to only do
+so for a genuinely uncovered recurring topic, not a loose fit) — logged
+per-article by `services/process.py::summarize_article` via
+`services/category_suggestions.py::record_suggestion` into the
+`category_suggestion` table (no FK, append-only audit log like
+`llm_usage`/`chat_message` — survives article retention), **never
+auto-applied**. Grouping is exact-ish, not semantic: `normalize()` lowercases
++ strips punctuation/whitespace so "Apple"/"apple."/" Apple " collapse but NOT
+"Apple" vs "Apple Inc." (a follow-up could cluster via `EMBED_MODEL` cosine
+similarity — not implemented). `GET /categories/suggestions` (admin)
+aggregates recurring proposals (`>= CATEGORY_SUGGESTION_MIN_ARTICLES` distinct
+articles within `CATEGORY_SUGGESTION_WINDOW_DAYS`, dismissed clusters
+excluded via `category_proposal_dismissal`) into
+`[{normalized_text, label, article_count, first_seen, last_seen,
+example_titles}]`, most-suggested first. Settings page shows them under the
+Categories card: **Add as category** (`POST /suggestions/accept` — creates
+the `Category`, then purges that cluster's suggestion log; no
+reclassification of past articles) or **Dismiss**
+(`POST /suggestions/dismiss` — suppresses the cluster going forward). Toggle
+`CATEGORY_SUGGESTIONS_ENABLED`; all three settings whitelisted like the rest.
 
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,
