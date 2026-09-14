@@ -1,6 +1,7 @@
 """Test fixtures: per-test SQLite DB + httpx AsyncClient."""
 
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -16,7 +17,7 @@ settings.environment = "test"
 
 
 @pytest.fixture()
-async def db_session(tmp_path) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
+async def db_session(tmp_path: Path) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
     """Initialize a fresh DB and yield a session factory."""
     db_url = f"sqlite+aiosqlite:///{tmp_path}/test.db"
     db.init_engine(db_url)
@@ -28,7 +29,9 @@ async def db_session(tmp_path) -> AsyncIterator[async_sessionmaker[AsyncSession]
 
 
 @pytest.fixture()
-async def client(db_session) -> AsyncIterator[AsyncClient]:
+async def client(
+    db_session: async_sessionmaker[AsyncSession],
+) -> AsyncIterator[AsyncClient]:
     app = create_app()
     # Bypass lifespan (would re-init engine with default URL / start scheduler)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:

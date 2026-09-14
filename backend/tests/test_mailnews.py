@@ -1,7 +1,11 @@
 """Newsletter ingestion tests: extraction, IMAP poll, mail accounts API, story intro."""
 
 import imaplib
+from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
+from email.utils import format_datetime
+from typing import Any
 
 import numpy as np
 import pytest
@@ -12,8 +16,14 @@ from tests.conftest import setup_admin
 
 from app.core.config import settings
 from app.models import Article, Feed, MailAccount, Story
-from app.services import cluster, mailnews
+from app.services import cluster, llm_client, mailnews
 from app.services.vectorstore import InMemoryVectorStore
+
+# Always computed relative to "now" — a fixed calendar date eventually falls
+# outside the default backfill window (feed_backfill_days) and messages get
+# silently skipped as "old" once enough real time has passed since this was
+# written.
+RECENT_DATE = format_datetime(datetime.now(UTC) - timedelta(hours=1))
 
 # --- sample messages + fake IMAP ----------------------------------------------
 
@@ -35,7 +45,7 @@ qui parle de puces.</li>
 def make_message(
     sender: str = "Tech Café <news@techcafe.example>",
     subject: str = "Hebdo",
-    date: str = "Sun, 06 Sep 2026 13:00:00 +0000",
+    date: str = RECENT_DATE,
     html: str = NEWSLETTER_HTML,
 ) -> bytes:
     m = EmailMessage()
@@ -60,10 +70,10 @@ class FakeIMAP:
             raise imaplib.IMAP4.error("authentication failed")
         self.logged_in = True
 
-    def select(self, folder: str, readonly: bool = False):
+    def select(self, folder: str, readonly: bool = False) -> tuple[str, list[bytes]]:
         return ("OK", [b"1"])
 
-    def uid(self, command: str, *args):
+    def uid(self, command: str, *args: Any) -> tuple[str, list[Any]]:
         if command == "SEARCH":
             uids = b" ".join(str(u).encode() for u in sorted(self.messages))
             return ("OK", [uids])
@@ -83,7 +93,7 @@ def _patch_imap(monkeypatch: pytest.MonkeyPatch, fake: FakeIMAP) -> None:
     monkeypatch.setattr(mailnews, "_imap_connect", lambda host, port, use_ssl: fake)
 
 
-async def _stub_fulltext(session, article, feed) -> None:
+async def _stub_fulltext(session: AsyncSession, article: Article, feed: Feed) -> None:
     """Skip the network: mark full-text as done (state 'fulltext')."""
     article.processing_state = "fulltext"
 
@@ -117,14 +127,14 @@ def _no_clean(monkeypatch: pytest.MonkeyPatch) -> None:
 def _stub_clean_pass(monkeypatch: pytest.MonkeyPatch) -> None:
     """The clean pass is ON by default in settings; stub the free-text LLM call
     to return the body unchanged (nothing filtered) unless a test overrides it."""
-    async def passthrough(system: str, user: str, model: str | None = None):
+    async def passthrough(system: str, user: str, model: str | None = None) -> tuple[str, int]:
         return user, 12
 
-    monkeypatch.setattr(mailnews.llm_client, "chat_text", passthrough)
+    monkeypatch.setattr(llm_client, "chat_text", passthrough)
 
 
 @pytest.fixture(autouse=True)
-def _clear_poll_locks():
+def _clear_poll_locks() -> Iterator[None]:
     """The per-account poll lock is module state — never leak it across tests."""
     yield
     mailnews._polling_accounts.clear()
@@ -206,10 +216,10 @@ async def test_poll_creates_mail_feed_and_articles(
         assert all(a.newsletter_intro for a in articles)
         assert all(a.processing_state == "fulltext" for a in articles)
         # account from the previous session block is detached — re-query
-        account = await s.scalar(select(MailAccount))
-        assert account is not None
-        assert account.last_uid == 10
-        assert account.last_error is None
+        refetched = await s.scalar(select(MailAccount))
+        assert refetched is not None
+        assert refetched.last_uid == 10
+        assert refetched.last_error is None
 
         # Activity events emitted (invariant 6)
         from app.models import ActivityEvent
@@ -258,7 +268,9 @@ async def test_poll_llm_refinement_and_dedupe(
     _patch_imap(monkeypatch, FakeIMAP({10: make_message(), 11: make_message()}))
     monkeypatch.setattr(mailnews, "_fulltext_batch", _stub_fulltext_batch)
 
-    async def fake_chat_json(system: str, user: str, model: str | None = None):
+    async def fake_chat_json(
+        system: str, user: str, model: str | None = None
+    ) -> tuple[dict[str, Any], int]:
         return {
             "items": [
                 {
@@ -271,7 +283,7 @@ async def test_poll_llm_refinement_and_dedupe(
             ]
         }, 42
 
-    monkeypatch.setattr(mailnews.llm_client, "chat_json", fake_chat_json)
+    monkeypatch.setattr(llm_client, "chat_json", fake_chat_json)
 
     async with db_session() as s:
         account = MailAccount(
@@ -311,7 +323,9 @@ async def test_extract_pass_maps_without_triage(
     _patch_imap(monkeypatch, FakeIMAP({10: make_message()}))
     monkeypatch.setattr(mailnews, "_fulltext_batch", _stub_fulltext_batch)
 
-    async def fake_chat_json(system: str, user: str, model: str | None = None):
+    async def fake_chat_json(
+        system: str, user: str, model: str | None = None
+    ) -> tuple[dict[str, Any], int]:
         return {
             "items": [
                 {
@@ -323,7 +337,7 @@ async def test_extract_pass_maps_without_triage(
             ]
         }, 42
 
-    monkeypatch.setattr(mailnews.llm_client, "chat_json", fake_chat_json)
+    monkeypatch.setattr(llm_client, "chat_json", fake_chat_json)
 
     async with db_session() as s:
         account = MailAccount(
@@ -353,7 +367,7 @@ def test_self_referential_prefilter() -> None:
     """
     msg = mailnews.parse_message(1, make_message(html=html))
     assert msg is not None
-    _drop = mailnews._drop_self_referential(msg)
+    mailnews._drop_self_referential(msg)
     urls = [c.url for c in msg.candidates]
     assert not any("patreon.com" in u for u in urls)
     assert "https://news.example.com/story" in urls
@@ -399,11 +413,11 @@ async def test_clean_pass_filters_chrome_links(
     _patch_imap(monkeypatch, FakeIMAP({10: make_message(html=html)}))
     monkeypatch.setattr(mailnews, "_fulltext_batch", _stub_fulltext_batch)
 
-    async def fake_chat_text(system: str, user: str, model: str | None = None):
+    async def fake_chat_text(system: str, user: str, model: str | None = None) -> tuple[str, int]:
         # the model deletes the social paragraph and garbles one token
         return "Real news [here](«L1»).\n\nMore news [there](«L2»). [«L99»]", 55
 
-    monkeypatch.setattr(mailnews.llm_client, "chat_text", fake_chat_text)
+    monkeypatch.setattr(llm_client, "chat_text", fake_chat_text)
 
     async with db_session() as s:
         account = MailAccount(
@@ -448,10 +462,12 @@ async def test_clean_pass_failure_keeps_all_candidates(
     _patch_imap(monkeypatch, FakeIMAP({10: make_message()}))
     monkeypatch.setattr(mailnews, "_fulltext_batch", _stub_fulltext_batch)
 
-    async def failing_chat_text(system: str, user: str, model: str | None = None):
-        raise mailnews.llm_client.LLMError("boom")
+    async def failing_chat_text(
+        system: str, user: str, model: str | None = None
+    ) -> tuple[str, int]:
+        raise llm_client.LLMError("boom")
 
-    monkeypatch.setattr(mailnews.llm_client, "chat_text", failing_chat_text)
+    monkeypatch.setattr(llm_client, "chat_text", failing_chat_text)
 
     async with db_session() as s:
         account = MailAccount(
@@ -497,7 +513,7 @@ async def test_first_sync_backfill_window(
     _no_refine(monkeypatch)
     monkeypatch.setattr(settings, "feed_backfill_days", 7)
     old = make_message(date="Sun, 01 Jan 2023 13:00:00 +0000")
-    new = make_message(date="Sun, 06 Sep 2026 13:00:00 +0000")
+    new = make_message(date=RECENT_DATE)
     _patch_imap(monkeypatch, FakeIMAP({1: old, 2: new}))
     monkeypatch.setattr(mailnews, "_fulltext_batch", _stub_fulltext_batch)
 
@@ -523,16 +539,18 @@ async def test_new_story_prefers_newsletter_intro(
     store = InMemoryVectorStore()
     monkeypatch.setattr(cluster, "get_vector_store", lambda session=None: store)
 
-    async def fake_chat_json(system: str, user: str, model: str | None = None):
+    async def fake_chat_json(
+        system: str, user: str, model: str | None = None
+    ) -> tuple[dict[str, Any], int]:
         return {"headline": "Un titre"}, 10
 
-    async def fake_embed(texts: list[str], model: str | None = None):
+    async def fake_embed(texts: list[str], model: str | None = None) -> list[list[float]]:
         v = np.zeros(1024, dtype=np.float32)
         v[0] = 1.0
         return [v.tolist() for _ in texts]
 
-    monkeypatch.setattr(cluster.llm_client, "chat_json", fake_chat_json)
-    monkeypatch.setattr(cluster.llm_client, "embed", fake_embed)
+    monkeypatch.setattr(llm_client, "chat_json", fake_chat_json)
+    monkeypatch.setattr(llm_client, "embed", fake_embed)
 
     async with db_session() as s:
         feed = Feed(url="newsletter:n@x.example", kind="mail", sender_email="n@x.example")

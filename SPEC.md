@@ -336,6 +336,7 @@ v1 is **data-first, no online learning**:
 | `GET /stories/{id}/diff?from={version}` | what changed |
 | `CRUD /feeds` | feed management (admin); `GET /feeds` also reports `story_count` / `unread_story_count` per feed (stories with a source from it; unread is per the requesting user). **Creating a feed kicks an immediate background poll** (no waiting for the next scheduler tick) |
 | `POST /feeds/import-opml` | bulk-import feeds from an OPML subscription export (admin); added feeds are polled immediately in the background |
+| `GET /feeds/export-opml` | export all RSS-kind feeds as an OPML 2.0 subscription list (admin); mail feeds are excluded — their pseudo-URL isn't a real feed URL |
 | `POST /feeds/{id}/refresh`, `POST /feeds/refresh` | force-poll one/all RSS feeds now, bypassing the adaptive schedule (admin); mail feeds are rejected — they are refreshed by polling the mail account |
 | `GET/POST /mail-accounts`, `PATCH/DELETE /mail-accounts/{id}` | per-user IMAP accounts for newsletter ingestion (any user, own accounts only — 404 across users). Folder is mandatory; the password is write-only (never returned, replace via PATCH). Deleting an account keeps the mail feeds/articles it produced |
 | `POST /mail-accounts/{id}/test`, `POST /mail-accounts/{id}/poll` | probe IMAP login + folder existence (returns ok/errors, never the password), or poll the account immediately (202 + message count; **409 when a poll is already running** for that account) |

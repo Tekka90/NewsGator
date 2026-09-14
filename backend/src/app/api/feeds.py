@@ -1,7 +1,7 @@
 """Feeds CRUD (admin) + OPML import. Ingestion itself is in services.ingest."""
 
 import anyio
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,7 +20,7 @@ from app.models import (
     User,
 )
 from app.services import activity
-from app.services.ingest import parse_opml, poll_feed, poll_feeds_background
+from app.services.ingest import parse_opml, poll_feed, poll_feeds_background, render_opml
 from app.services.vectorstore import get_vector_store
 
 router = APIRouter(prefix="/feeds", tags=["feeds"], dependencies=[Depends(admin_user)])
@@ -213,6 +213,18 @@ async def delete_feed(feed_id: int, session: AsyncSession = Depends(get_session)
          "stories_deleted": len(empty_story_ids)},
     )
     await session.commit()
+
+
+@router.get("/export-opml")
+async def export_opml(session: AsyncSession = Depends(get_session)) -> Response:
+    """Export RSS-kind feeds as an OPML 2.0 subscription list."""
+    feeds = (await session.scalars(select(Feed).order_by(Feed.id))).all()
+    xml = render_opml(list(feeds))
+    return Response(
+        content=xml,
+        media_type="text/x-opml",
+        headers={"Content-Disposition": 'attachment; filename="newsgator-subscriptions.opml"'},
+    )
 
 
 class OpmlResult(BaseModel):

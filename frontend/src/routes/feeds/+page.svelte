@@ -9,6 +9,8 @@
   let adding = $state(false);
   let importResult = $state('');
   let importing = $state(false);
+  let exporting = $state(false);
+  let exportError = $state('');
   let refreshing = $state(false);
   let refreshingId = $state<number | null>(null);
   // '' = server default, '0' = import everything, else days
@@ -37,6 +39,23 @@
     } finally {
       importing = false;
       input.value = '';
+    }
+  }
+
+  async function exportOpml() {
+    exporting = true;
+    exportError = '';
+    try {
+      const blob = await api.feeds.exportOpml();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'newsgator-subscriptions.opml';
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch (err) {
+      exportError = err instanceof Error ? err.message : 'Export failed';
+    } finally {
+      exporting = false;
     }
   }
 
@@ -136,7 +155,11 @@
     <button onclick={refreshAll} disabled={refreshing}>
       {refreshing ? 'Refreshing…' : '↻ Refresh all feeds now'}
     </button>
+    <button onclick={exportOpml} disabled={exporting}>
+      {exporting ? 'Exporting…' : '📤 Export OPML'}
+    </button>
   </div>
+  {#if exportError}<p class="small error">{exportError}</p>{/if}
 </div>
 
 {#each feeds as feed (feed.id)}

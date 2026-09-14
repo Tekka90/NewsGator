@@ -164,6 +164,17 @@ export const api = {
         invalid: number;
         feeds: Feed[];
       }>;
+    },
+    exportOpml: async () => {
+      const res = await fetch('/api/feeds/export-opml', {
+        credentials: 'include',
+        headers: authHeaders()
+      });
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        throw new Error(detail.detail ?? `HTTP ${res.status}`);
+      }
+      return res.blob();
     }
   },
 

@@ -46,6 +46,33 @@ def parse_opml(content: bytes) -> list[tuple[str, str]]:
     return feeds
 
 
+def render_opml(feeds: list[Feed]) -> str:
+    """Render RSS-kind feeds as an OPML 2.0 subscription list (mirrors parse_opml).
+
+    Mail feeds are excluded — their pseudo-URL (`newsletter:{sender_email}`) is
+    not a fetchable feed URL, so re-importing it elsewhere would be meaningless.
+    """
+    import xml.etree.ElementTree as ET
+
+    root = ET.Element("opml", version="2.0")
+    head = ET.SubElement(root, "head")
+    ET.SubElement(head, "title").text = "NewsGator subscriptions"
+    body = ET.SubElement(root, "body")
+    for feed in feeds:
+        if feed.kind != "rss":
+            continue
+        title = feed.title or feed.url
+        ET.SubElement(
+            body,
+            "outline",
+            text=title,
+            title=title,
+            type="rss",
+            xmlUrl=feed.url,
+        )
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(root, encoding="unicode")
+
+
 def canonicalize_url(url: str) -> str:
     """Strip tracking params and normalize — used for cross-feed dedupe (SPEC §9)."""
     parts = urlparse(url)
