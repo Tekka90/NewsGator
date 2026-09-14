@@ -1,5 +1,6 @@
 """Settings API tests (Milestone 3)."""
 
+import pytest
 from httpx import AsyncClient
 from tests.conftest import setup_admin
 
@@ -100,3 +101,56 @@ async def test_db_override_still_works_without_env(client: AsyncClient) -> None:
     assert "tau_gray" in body["overridden"]
     assert "tau_gray" not in body["env_locked"]
     assert settings.tau_gray == 0.55
+
+
+@pytest.mark.parametrize("value", [False, "false", "False", "0", 0])
+async def test_boolean_false_survives_storage(
+    client: AsyncClient, monkeypatch, value: object
+) -> None:
+    await setup_admin(client)
+    monkeypatch.delenv("CHAT_ENABLED", raising=False)
+    monkeypatch.setattr(settings, "chat_enabled", True)
+    response = await client.patch("/api/settings", json={"values": {"chat_enabled": value}})
+    assert response.status_code == 200
+    assert response.json()["values"]["chat_enabled"] is False
+    assert settings.chat_enabled is False
+    assert (await client.get("/api/settings")).json()["values"]["chat_enabled"] is False
+
+
+async def test_invalid_boolean_is_rejected(client: AsyncClient, monkeypatch) -> None:
+    await setup_admin(client)
+    monkeypatch.delenv("CHAT_ENABLED", raising=False)
+    response = await client.patch(
+        "/api/settings", json={"values": {"chat_enabled": "not-a-boolean"}}
+    )
+    assert response.status_code == 400
+
+
+async def test_false_environment_boolean_is_reported(
+    client: AsyncClient, monkeypatch
+) -> None:
+    await setup_admin(client)
+    monkeypatch.setenv("CHAT_ENABLED", "false")
+    body = (await client.get("/api/settings")).json()
+    assert body["values"]["chat_enabled"] is False
+    assert "chat_enabled" in body["env_locked"]
+
+
+async def test_removing_override_restores_runtime_startup_value(
+    client: AsyncClient, monkeypatch
+) -> None:
+    from app.api.settings import _STARTUP_VALUES
+
+    await setup_admin(client)
+    monkeypatch.delenv("RETENTION_DAYS", raising=False)
+    monkeypatch.setattr(settings, "retention_days", settings.retention_days)
+    response = await client.patch("/api/settings", json={"values": {"retention_days": 99}})
+    assert response.status_code == 200
+    assert settings.retention_days == 99
+    response = await client.patch(
+        "/api/settings", json={"values": {"retention_days": None}}
+    )
+    assert response.status_code == 200
+    assert "retention_days" not in response.json()["overridden"]
+    assert response.json()["values"]["retention_days"] == _STARTUP_VALUES["retention_days"]
+    assert settings.retention_days == _STARTUP_VALUES["retention_days"]
