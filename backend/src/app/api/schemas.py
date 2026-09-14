@@ -115,6 +115,8 @@ class FeedOut(BaseModel):
     # populated by GET /feeds only (per requesting user for unread) — 0 elsewhere
     story_count: int = 0
     unread_story_count: int = 0
+    # Mail feeds only: newsletter emails processed for this sender (0 for RSS)
+    email_count: int = 0
 
     model_config = {"from_attributes": True}
 

@@ -128,6 +128,8 @@ export interface Feed {
   // populated by GET /feeds (unread is per requesting user) — 0 elsewhere
   story_count: number;
   unread_story_count: number;
+  // mail feeds only: newsletter emails processed for this sender (0 for RSS)
+  email_count: number;
 }
 
 /** Story-list feed filter option (GET /api/stories/feed-options) — a feed

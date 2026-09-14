@@ -204,6 +204,7 @@
     <div class="meta">
       {#if feed.kind === 'mail'}
         <span>from: {feed.sender_email}</span>
+        <span>{feed.email_count} email{feed.email_count === 1 ? '' : 's'} ingested</span>
         <span>populated by the mailbox poll (Settings → Newsletter inboxes)</span>
       {:else}
         <span>{feed.url}</span>

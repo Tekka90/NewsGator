@@ -587,6 +587,7 @@ async def _process_message(session: AsyncSession, msg: NewsletterMessage) -> int
     feed, _created = await get_or_create_mail_feed(
         session, msg.sender_email, msg.sender_name
     )
+    feed.email_count += 1
     await session.commit()  # clean session before the LLM call (writer-lock rule)
 
     # Pass 1 (optional): the LLM deletes the non-news chrome from the full

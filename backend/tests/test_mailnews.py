@@ -211,6 +211,7 @@ async def test_poll_creates_mail_feed_and_articles(
         assert feed.sender_email == "news@techcafe.example"
         assert feed.title == "Tech Café"
         assert feed.url == "newsletter:news@techcafe.example"
+        assert feed.email_count == 1  # one message processed
         articles = (await s.scalars(select(Article).where(Article.feed_id == feed.id))).all()
         assert len(articles) == 2
         assert all(a.newsletter_intro for a in articles)
@@ -305,6 +306,8 @@ async def test_poll_llm_refinement_and_dedupe(
     async with db_session() as s:
         feed = await s.scalar(select(Feed).where(Feed.kind == "mail"))
         assert feed is not None
+        assert feed.email_count == 2  # both messages processed, even though
+        # their links deduped to the same 2 articles
         articles = (await s.scalars(select(Article).where(Article.feed_id == feed.id))).all()
         # 2 links per message, but the SAME message twice → URL dedupe on 2nd poll
         assert len(articles) == 2

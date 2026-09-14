@@ -87,6 +87,10 @@ class Feed(Base):
     # First-poll backfill window in days; NULL = follow settings.feed_backfill_days,
     # 0 = import everything (SPEC §9)
     backfill_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Mail feeds only: count of newsletter emails processed for this sender
+    # (incremented once per message in _process_message, regardless of how many
+    # links it yielded) — lets admins spot a stalled/broken newsletter feed.
+    email_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
     articles: Mapped[list["Article"]] = relationship(back_populates="feed")

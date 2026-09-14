@@ -98,6 +98,7 @@ erDiagram
         string title
         int poll_interval_min
         int backfill_days   "first-poll window; NULL = server default, 0 = all"
+        int email_count     "mail feeds only: newsletter emails processed"
         datetime last_fetched_at
         string etag
         string last_modified
@@ -334,7 +335,7 @@ v1 is **data-first, no online learning**:
 | `POST /stories/{id}/read` | sets `read_at_version = story.version` (per user) |
 | `POST /stories/{id}/unread` | |
 | `GET /stories/{id}/diff?from={version}` | what changed |
-| `CRUD /feeds` | feed management (admin); `GET /feeds` also reports `story_count` / `unread_story_count` per feed (stories with a source from it; unread is per the requesting user). **Creating a feed kicks an immediate background poll** (no waiting for the next scheduler tick) |
+| `CRUD /feeds` | feed management (admin); `GET /feeds` also reports `story_count` / `unread_story_count` per feed (stories with a source from it; unread is per the requesting user) and `email_count` (mail feeds only: newsletter emails processed for that sender). **Creating a feed kicks an immediate background poll** (no waiting for the next scheduler tick) |
 | `POST /feeds/import-opml` | bulk-import feeds from an OPML subscription export (admin); added feeds are polled immediately in the background |
 | `GET /feeds/export-opml` | export all RSS-kind feeds as an OPML 2.0 subscription list (admin); mail feeds are excluded — their pseudo-URL isn't a real feed URL |
 | `POST /feeds/{id}/refresh`, `POST /feeds/refresh` | force-poll one/all RSS feeds now, bypassing the adaptive schedule (admin); mail feeds are rejected — they are refreshed by polling the mail account |
