@@ -1,5 +1,41 @@
 # Apple client (`Newsgator-Apple`) server compatibility
 
+## Current integration contract
+
+The native app adapts to this server's existing application API. The server
+remains authoritative; no compatibility aliases or raw LLM bridge are required.
+All API routers below are mounted under **`/api`**, including feeds, usage,
+activity, authentication, settings, and chat.
+
+| Native capability | Server contract |
+| --- | --- |
+| Login and first-run setup | `/api/auth/login`, `/api/auth/setup-needed`, `/api/auth/setup`; issued tokens belong in Keychain. |
+| Story browsing | `/api/stories` returns an array with integer IDs, one category, versions and per-user read state; there is no pagination envelope. |
+| Reading and editorial actions | Story detail, read/unread, diff, similar/merge, article move/reprocess, share/translation and Readeck endpoints. |
+| Non-admin browsing | `/api/stories/feed-options`; do not require admin-only `/api/feeds` or usage endpoints to synchronize a reader's library. |
+| Chat | `/api/chat` and `/api/chat/history`; archive retrieval and history stay on the server. Responses are JSON, not a token stream. |
+| Feed management | `/api/feeds` CRUD, global/per-feed refresh and multipart OPML import/export; administrative permissions apply. |
+| Taxonomy | `/api/categories` and category suggestions; do not replace this with native-generated free-form tags. |
+| Newsletters | Per-user `/api/mail-accounts`; `kind=mail` feeds are not RSS endpoints. |
+| Activity | `/api/activity/recent`, `/pipeline`, `/llm`, `/stream`; SSE data uses `action`, `component`, arbitrary JSON `detail`, and `ts`. |
+| Administration | `/api/settings`, service probes, threshold report, `/api/users`, `/api/usage/*`. Costs are client-side estimates, not server measurements. |
+
+Native URLSession attaches bearer headers to REST and SSE requests. Query-string
+tokens are needed only when explicitly generating a portable RSS subscription
+URL for a reader that cannot attach headers. Native server mode never calls
+`/api/llm` or invokes Apple/device-side models. An unavailable chatbot is an
+explicit server configuration error, not permission to fall back to another LLM.
+
+The native implementation plan and delivery report live in
+`../Newsgator-Apple/docs/SERVER-PARITY-PLAN.md` and
+`../Newsgator-Apple/docs/SERVER-PARITY-REPORT.md`.
+
+## Historical design notes (superseded)
+
+The analysis below records the original mismatch. Its suggestions to add
+`/api/llm`, its unprefixed route examples, and its statements about missing
+native screens are historical, not the current implementation plan.
+
 > Analysis + TODO for making this server (the real, running implementation)
 > compatible with the `NewsGatorServerClient` Swift package in the sibling
 > `../Newsgator-Apple` repo. That package was written against an **assumed**
