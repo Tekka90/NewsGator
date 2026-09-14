@@ -748,14 +748,15 @@
   @media (max-width: 700px) {
     .grid { grid-template-columns: 1fr; }
   }
-  .row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.6rem; }
+  .row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.6rem; flex-wrap: wrap; }
   .ovr {
     font-size: 0.72em; color: var(--warn); background: var(--warn-bg);
     border-radius: 999px; padding: 0 0.4rem; margin-left: 0.3rem;
   }
   .ovr.env { color: var(--accent); background: var(--chip-bg); }
   .inline { display: inline-flex; align-items: center; gap: 0.3rem; }
-  .actions { margin-left: 0.6rem; display: inline-flex; gap: 0.5rem; align-items: center; }
+  .actions { margin-left: 0.6rem; display: inline-flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+  .mailacct strong { overflow-wrap: anywhere; }
   input:disabled { background: var(--disabled-bg); color: var(--disabled-text); cursor: not-allowed; }
   .ok { color: var(--ok); }
   .bad { color: var(--error); }
