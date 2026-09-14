@@ -14,6 +14,7 @@ import asyncio
 import ipaddress
 import os
 import re
+import signal
 import socket
 import sys
 from contextlib import asynccontextmanager
@@ -229,7 +230,10 @@ def main() -> None:
     if args.port != 0 and not 1024 <= args.port <= 65535:
         parser.error("port must be 0 or between 1024 and 65535")
     sys.addaudithook(local_network_only)
+    # Uvicorn re-raises SIGTERM after graceful shutdown; unwind the temp-directory context.
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     with TemporaryDirectory(prefix=".apple-smoke-", dir=TESTS) as directory:
+        print(f"fixture-directory:{directory}", flush=True)
         os.environ.update({
             "DATABASE_URL": f"sqlite+aiosqlite:///{Path(directory) / 'fixture.db'}",
             "ENVIRONMENT": "test", "VECTOR_BACKEND": "memory",

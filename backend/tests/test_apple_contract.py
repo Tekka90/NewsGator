@@ -43,12 +43,15 @@ def live() -> Iterator[httpx.Client]:
                 stdout=log,
                 stderr=subprocess.STDOUT,
             )
+            fixture_directory = None
             try:
                 deadline = time.monotonic() + 30
                 url = None
                 while time.monotonic() < deadline and proc.poll() is None:
                     # A separate reader must not move the child's shared stdout offset.
                     for line in log_path.read_text(encoding="utf-8").splitlines():
+                        if line.startswith("fixture-directory:"):
+                            fixture_directory = Path(line.removeprefix("fixture-directory:"))
                         if line.startswith("http://127.0.0.1:"):
                             url = line
                             break
@@ -68,6 +71,7 @@ def live() -> Iterator[httpx.Client]:
                         + log_path.read_text(encoding="utf-8")
                     )
                 assert url
+                assert fixture_directory is not None and fixture_directory.parent == TESTS
                 assert not ignored_database.exists()
                 with httpx.Client(base_url=url + "/", timeout=10, trust_env=False) as client:
                     yield client
@@ -80,6 +84,8 @@ def live() -> Iterator[httpx.Client]:
                         proc.kill()
                         proc.wait(timeout=5)
                 assert not ignored_database.exists()
+                if fixture_directory is not None:
+                    assert not fixture_directory.exists(), "Fixture database must be removed after shutdown"
 
 
 def login(client: httpx.Client, credentials: dict = READER) -> dict:
