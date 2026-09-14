@@ -28,7 +28,7 @@ def live() -> Iterator[httpx.Client]:
     with TemporaryDirectory(prefix=".apple-contract-", dir=TESTS) as directory:
         log_path = Path(directory) / "server.log"
         ignored_database = Path(directory) / "must-not-be-used.db"
-        with log_path.open("w+") as log:
+        with log_path.open("w", encoding="utf-8") as log:
             proc = subprocess.Popen(
                 [sys.executable, str(TESTS / "apple_smoke_server.py"), "--port", "0"],
                 cwd=TESTS.parent,
@@ -47,8 +47,8 @@ def live() -> Iterator[httpx.Client]:
                 deadline = time.monotonic() + 30
                 url = None
                 while time.monotonic() < deadline and proc.poll() is None:
-                    log.seek(0)
-                    for line in log.read().splitlines():
+                    # A separate reader must not move the child's shared stdout offset.
+                    for line in log_path.read_text(encoding="utf-8").splitlines():
                         if line.startswith("http://127.0.0.1:"):
                             url = line
                             break
@@ -63,8 +63,10 @@ def live() -> Iterator[httpx.Client]:
                             pass
                     time.sleep(0.05)
                 else:
-                    log.seek(0)
-                    pytest.fail(f"Isolated HTTP server did not start:\n{log.read()}")
+                    pytest.fail(
+                        "Isolated HTTP server did not start:\n"
+                        + log_path.read_text(encoding="utf-8")
+                    )
                 assert url
                 assert not ignored_database.exists()
                 with httpx.Client(base_url=url + "/", timeout=10, trust_env=False) as client:

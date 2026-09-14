@@ -186,6 +186,10 @@ def make_app(url: str):
     app = create_app()
     app.router.lifespan_context = fixture_lifespan
 
+    @app.get("/fixture/identity", include_in_schema=False)
+    async def fixture_identity():
+        return {"fixture": "newsgator-apple-smoke", "isolated": True}
+
     @app.get("/fixture/rss", include_in_schema=False)
     async def local_rss():
         return Response(
