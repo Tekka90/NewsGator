@@ -18,9 +18,11 @@ import socket
 import sys
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from html import escape
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
+from urllib.parse import urlencode
 
 ADMIN = {"username": "apple-admin", "password": "apple-admin-pass"}
 READER = {"username": "apple-reader", "password": "apple-reader-pass"}
@@ -191,13 +193,16 @@ def make_app(url: str):
         return {"fixture": "newsgator-apple-smoke", "isolated": True}
 
     @app.get("/fixture/rss", include_in_schema=False)
-    async def local_rss():
+    async def local_rss(client: str = ""):
+        suffix = "?" + urlencode({"client": client}) if client else ""
+        source = escape(url + "/fixture/source/3" + suffix)
+        guid = escape("local-ingest-" + (client or "1"))
         return Response(
             '<?xml version="1.0"?><rss version="2.0"><channel>'
             '<title>Apple RSS</title><link>' + url
             + '</link><description>Local fixture</description>'
-            '<item><guid>local-ingest-1</guid><title>Locally ingested RSS item</title>'
-            '<link>' + url + '/fixture/source/3</link>'
+            '<item><guid>' + guid + '</guid><title>Locally ingested RSS item</title>'
+            '<link>' + source + '</link>'
             '<description>Facts fetched through actual local HTTP RSS ingestion.</description>'
             '</item></channel></rss>',
             media_type="application/rss+xml",

@@ -296,9 +296,22 @@ def test_added_local_feed_reaches_a_real_story_with_fake_inference(live: httpx.C
     assert story["version"] == 1
     detail = live.get(f"/api/stories/{story['id']}").json()
     assert detail["articles"][0]["feed_id"] == feed_id
-    assert detail["articles"][0]["url"] == f"{live.base_url}fixture/source/3"
+    assert detail["articles"][0]["url"] == f"{live.base_url}fixture/source/3?client=swift"
     assert live.get("/fixture/source/2").status_code == 200
     assert live.post(f"/api/feeds/{feed_id}/refresh").json() == {"new_articles": 0}
+
+
+def test_rss_clients_do_not_cross_deduplicate(live: httpx.Client) -> None:
+    login(live, ADMIN)
+    for client in ("first-run", "second-run"):
+        created = live.post("/api/feeds", json={
+            "url": f"{live.base_url}fixture/rss?client={client}",
+            "title": client, "fetch_fulltext": False, "backfill_days": 0,
+        })
+        assert created.status_code == 201, created.text
+        feed_id = created.json()["id"]
+        assert live.post(f"/api/feeds/{feed_id}/refresh").json() == {"new_articles": 1}
+        assert live.post(f"/api/feeds/{feed_id}/refresh").json() == {"new_articles": 0}
 
 
 def test_stream_query_auth_and_actual_chat_activity(live: httpx.Client) -> None:
@@ -339,3 +352,23 @@ def test_share_and_fake_readeck_preserve_real_response_contract(live: httpx.Clie
         "latency_ms": 3,
     }
     assert live.get("/api/stories/1").json()["readeck_bookmark_id"] == "fixture-bookmark-1"
+
+
+def test_boolean_settings_roundtrip_updates_actual_runtime(live: httpx.Client) -> None:
+    login(live, ADMIN)
+    before = live.get("/api/settings").json()
+    assert "llm_trace_enabled" not in before["env_locked"]
+    for enabled in [False, True]:
+        updated = live.patch(
+            "/api/settings", json={"values": {"llm_trace_enabled": enabled}}
+        )
+        assert updated.status_code == 200, updated.text
+        assert updated.json()["values"]["llm_trace_enabled"] is enabled
+        assert live.get("/api/settings").json()["values"]["llm_trace_enabled"] is enabled
+        assert live.get("/api/activity/llm").json()["enabled"] is enabled
+    cleared = live.patch("/api/settings", json={"values": {"llm_trace_enabled": None}})
+    assert cleared.status_code == 200
+    assert "llm_trace_enabled" not in cleared.json()["overridden"]
+    original = before["values"]["llm_trace_enabled"]
+    assert cleared.json()["values"]["llm_trace_enabled"] is original
+    assert live.get("/api/activity/llm").json()["enabled"] is original
