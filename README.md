@@ -52,6 +52,13 @@ philosophy behind it, and how it feels to use.
 See [SPEC.md](SPEC.md) for the normative spec and
 [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for the milestone checklist.
 
+## Native Apple Client vs Web App (In-App Source Browsing)
+
+There is a deliberate UX difference in how source articles are viewed between the native Apple clients (`NewsGator-Apple` for iOS/macOS) and the Web app:
+
+- **iOS / macOS Native Apps (`NewsGator-Apple`)**: Feature a tabbed story detail view where each source article has its own dedicated tab rendering the live web page directly inside the app using native `WKWebView`. Because `WKWebView` runs in an independent, top-level window context, it behaves like a standalone browser visit and is not subject to cross-origin iframe security restrictions.
+- **Web App (`Newsgator`)**: In a web browser, embedding third-party publisher websites in an `<iframe>` is blocked by modern news outlets (e.g. France 24, BBC, The New York Times, Le Monde) via `X-Frame-Options: SAMEORIGIN` or CSP `frame-ancestors` HTTP headers designed to prevent clickjacking. Web browsers enforce these policies by showing security errors (Firefox/Zen) or blank screens (Mobile Safari/Chrome). Therefore, the Web app provides the full story details and sources list with direct external links that open publisher pages in standard browser tabs instead.
+
 ## Docker (production)
 
 Using the official image:
