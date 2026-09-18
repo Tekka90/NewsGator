@@ -151,7 +151,12 @@
     {#if story.image_url}
       <img class="lead" src={story.image_url} alt="" loading="lazy" />
     {/if}
-    <p class="summary">{story.summary}</p>
+    {#if story.summary}
+      <details class="summary-details">
+        <summary>Summary</summary>
+        <p class="summary">{story.summary}</p>
+      </details>
+    {/if}
     <div class="meta">
       <span>first seen {fmt(story.first_seen_at)}</span>
       <span>updated {fmt(story.last_updated_at)}</span>
@@ -234,6 +239,17 @@
     width: 100%; max-height: 320px; object-fit: cover;
     border-radius: 8px; margin-bottom: 0.5rem;
   }
+  .summary-details { margin: 0.5rem 0; }
+  .summary-details summary {
+    cursor: pointer;
+    font-weight: 500;
+    color: var(--text-secondary);
+    user-select: none;
+  }
+  .summary-details summary:hover {
+    color: var(--accent);
+  }
+  .summary-details p.summary { margin-top: 0.5rem; }
   .summary { font-size: 1.05rem; overflow-wrap: anywhere; }
   .meta { display: flex; gap: 0.4rem 1rem; color: var(--muted); font-size: 0.85em; flex-wrap: wrap; }
   .chip {
