@@ -29,6 +29,7 @@
   let isMobile = $state(false);
   let readeckEnabled = $state(false);
   let readeckSaving = $state<Record<number, boolean>>({});
+  let filterCounts = $state<{ all?: number; unread?: number; updated?: number }>({});
   // Sticky title + filter bar — its height is measured at click time so a
   // just-read story can be scrolled out exactly behind it.
   let pagehead = $state<HTMLElement>();
@@ -176,7 +177,18 @@
 
   async function load() {
     loading = true;
-    stories = await api.stories.list(filter, category || undefined, sort, order, feedId || undefined);
+    const [fetchedStories, allStories] = await Promise.all([
+      api.stories.list(filter, category || undefined, sort, order, feedId || undefined),
+      api.stories.list('all', category || undefined, sort, order, feedId || undefined).catch(() => [] as StoryListItem[])
+    ]);
+    stories = fetchedStories;
+    if (allStories.length > 0 || fetchedStories.length === 0) {
+      filterCounts = {
+        all: allStories.length,
+        unread: allStories.filter((s) => !s.is_read).length,
+        updated: allStories.filter((s) => s.updated_since_read).length,
+      };
+    }
     index = 0;
     dx = 0;
     loading = false;
@@ -341,11 +353,12 @@
   <div class="toolbar card">
     <div class="filters">
       {#each ['all', 'unread', 'updated'] as f}
+        {@const count = filterCounts[f as 'all' | 'unread' | 'updated']}
         <button
           class:active={filter === f}
           onclick={() => { filter = f as typeof filter; savePrefs(); load(); }}
         >
-          {f === 'all' ? 'All' : f === 'unread' ? 'Unread' : 'Updated'}
+          {f === 'all' ? 'All' : f === 'unread' ? 'Unread' : 'Updated'}{#if count !== undefined}<span class="pill-count">{count}</span>{/if}
         </button>
       {/each}
     </div>
@@ -630,8 +643,21 @@
   .filters button {
     border: 1px solid var(--border-strong); background: var(--surface); color: inherit; border-radius: 999px;
     padding: 0.25rem 0.9rem;
+    display: inline-flex; align-items: center; gap: 0.35rem;
   }
   .filters button.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .pill-count {
+    font-size: 0.75em;
+    font-weight: 600;
+    opacity: 0.75;
+    background: var(--chip-bg);
+    padding: 0.05rem 0.35rem;
+    border-radius: 999px;
+  }
+  .filters button.active .pill-count {
+    background: var(--bg);
+    color: var(--text);
+  }
   .tools { display: flex; gap: 0.4rem; align-items: center; }
   .tools select { max-width: 10rem; }
   @media (max-width: 700px) {
