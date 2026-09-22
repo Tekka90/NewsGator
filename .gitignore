@@ -15,3 +15,4 @@ build/
 backend/newsgator.db-journal
 backend/demo_assets/
 backend/uv.lock
+deploy*.sh
