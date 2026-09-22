@@ -9,6 +9,7 @@ Clustering (the `clustered` stage) lands in Milestone 4; articles park in
 """
 
 import asyncio
+import logging
 import time
 
 import anyio
@@ -18,11 +19,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.db import get_session
-from app.models import Article, Category
+from app.models import Article, Category, Feed
 from app.services import activity, category_suggestions, llm_client, llmtrace, prompts, usage
 from app.services.vectorstore import get_vector_store
 
+logger = logging.getLogger(__name__)
+
 _queue: asyncio.Queue[int] = asyncio.Queue()
+_queued_ids: set[int] = set()
 _worker_task: asyncio.Task[None] | None = None
 _in_flight = 0  # articles dequeued and currently being processed by the worker
 
@@ -37,6 +41,9 @@ def queue_depth() -> int:
 
 
 def enqueue_article(article_id: int) -> None:
+    if article_id in _queued_ids:
+        return
+    _queued_ids.add(article_id)
     _queue.put_nowait(article_id)
     activity.broadcast_queue(queue_depth())
 
@@ -62,11 +69,29 @@ async def _run_worker() -> None:
     global _in_flight
     while True:
         article_id = await _queue.get()
+        _queued_ids.discard(article_id)
         _in_flight += 1
         activity.broadcast_queue(queue_depth())
         try:
             async for session in get_session():
                 await process_article(session, article_id)
+                break
+        except TimeoutError:
+            async for session in get_session():
+                await activity.emit(
+                    session,
+                    "llm",
+                    "process_error",
+                    {
+                        "article_id": article_id,
+                        "error": (
+                            f"Article processing timed out after "
+                            f"{settings.article_process_timeout_minutes} minutes"
+                        ),
+                    },
+                    level="error",
+                )
+                await session.commit()
                 break
         except Exception as exc:
             async for session in get_session():
@@ -86,19 +111,64 @@ async def _run_worker() -> None:
 
 
 async def process_article(session: AsyncSession, article_id: int) -> None:
-    """Full per-article processing: detect language, summarize, categorize, embed."""
+    """Full per-article processing: resume from current state through to clustered.
+
+    Stages:
+      fetched -> fulltext -> summarized -> embedded -> clustered
+    """
     article = await session.get(Article, article_id)
-    if article is None or article.processing_state != "fulltext":
+    if article is None or article.processing_state == "clustered":
         return
 
-    summarized = await summarize_article(session, article)
-    if not summarized:
-        return  # LLM failed — article stays in 'fulltext', retried on next sweep
-    await embed_article(session, article)
-    from app.services.cluster import cluster_article  # avoid import cycle at module load
+    timeout_s = max(1.0, settings.article_process_timeout_minutes * 60.0)
+    try:
+        async with asyncio.timeout(timeout_s):
+            # 1. fetched -> fulltext
+            if article.processing_state == "fetched":
+                feed = await session.get(Feed, article.feed_id)
+                if feed is not None and feed.fetch_fulltext:
+                    from app.services.fulltext import fetch_full_text
 
-    await cluster_article(session, article_id)
-    await session.commit()
+                    await fetch_full_text(session, article, feed)
+                else:
+                    article.full_text = article.raw_content
+                    article.processing_state = "fulltext"
+                    await session.commit()
+
+            # 2. fulltext -> summarized
+            if article.processing_state == "fulltext":
+                summarized = await summarize_article(session, article)
+                if not summarized:
+                    return  # LLM failed — article stays in 'fulltext', retried on next sweep
+
+            # 3. summarized -> embedded
+            if article.processing_state == "summarized":
+                await embed_article(session, article)
+
+            # 4. embedded -> clustered
+            if article.processing_state == "embedded":
+                from app.services.cluster import cluster_article
+
+                await cluster_article(session, article_id)
+                await session.commit()
+    except TimeoutError:
+        logger.error(
+            "Article %d processing timed out after %d minutes",
+            article_id,
+            settings.article_process_timeout_minutes,
+        )
+        await session.rollback()
+        await activity.emit(
+            session,
+            "llm",
+            "process_timeout",
+            {
+                "article_id": article_id,
+                "timeout_minutes": settings.article_process_timeout_minutes,
+            },
+            level="error",
+        )
+        await session.commit()
 
 
 async def summarize_article(session: AsyncSession, article: Article) -> bool:
@@ -191,10 +261,18 @@ async def embed_article(session: AsyncSession, article: Article) -> None:
     await session.commit()
 
 
+UNCLUSTERED_STATES = ["fetched", "fulltext", "summarized", "embedded"]
+
+
 async def enqueue_backlog(session: AsyncSession) -> int:
-    """Requeue articles stuck mid-pipeline (crash recovery, invariant 7)."""
+    """Requeue articles stuck mid-pipeline (crash recovery, invariant 7).
+
+    Picks up any unclustered article ('fetched', 'fulltext', 'summarized', 'embedded').
+    """
     rows = await session.scalars(
-        select(Article.id).where(Article.processing_state == "fulltext")
+        select(Article.id)
+        .where(Article.processing_state.in_(UNCLUSTERED_STATES))
+        .order_by(Article.id)
     )
     count = 0
     for article_id in rows:
@@ -206,7 +284,9 @@ async def enqueue_backlog(session: AsyncSession) -> int:
 async def count_pending(session: AsyncSession) -> int:
     return int(
         await session.scalar(
-            select(func.count(Article.id)).where(Article.processing_state == "fulltext")
+            select(func.count(Article.id)).where(
+                Article.processing_state.in_(UNCLUSTERED_STATES)
+            )
         )
         or 0
     )

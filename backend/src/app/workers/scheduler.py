@@ -48,11 +48,11 @@ async def freeze_sweep() -> None:
 
 
 async def llm_backlog_sweep() -> None:
-    """Requeue articles stuck in 'fulltext' (LLM failure, lost queue item).
+    """Requeue unclustered articles stuck mid-pipeline (LLM failure, crash recovery).
 
-    Self-healing counterpart to the startup requeue (invariant 7): summarize
-    failures leave the state at 'fulltext' precisely so this sweep retries them.
-    Idempotent — `process_article` no-ops unless the state is still 'fulltext'.
+    Self-healing counterpart to the startup requeue (invariant 7): sweeps articles
+    in 'fetched', 'fulltext', 'summarized', or 'embedded' so they resume gracefully.
+    Idempotent — `process_article` no-ops if an article is already 'clustered'.
     """
     from app.services.process import enqueue_backlog
 

@@ -44,6 +44,8 @@ OVERRIDABLE = {
     "poll_interval_max_minutes": int,
     "fulltext_min_chars": int,
     "feed_backfill_days": int,
+    "backlog_sweep_minutes": int,
+    "article_process_timeout_minutes": int,
     "mail_poll_minutes": int,
     "mail_max_messages_per_poll": int,
     "newsletter_llm_extract": bool,

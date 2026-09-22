@@ -85,7 +85,9 @@ def live() -> Iterator[httpx.Client]:
                         proc.wait(timeout=5)
                 assert not ignored_database.exists()
                 if fixture_directory is not None:
-                    assert not fixture_directory.exists(), "Fixture database must be removed after shutdown"
+                    assert (
+                        not fixture_directory.exists()
+                    ), "Fixture database must be removed after shutdown"
 
 
 def login(client: httpx.Client, credentials: dict = READER) -> dict:
