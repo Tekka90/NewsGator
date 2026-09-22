@@ -26,9 +26,11 @@ All blocking IMAP work runs via anyio.to_thread; no DB writes are held across
 network I/O (same writer-lock discipline as ingest.py).
 """
 
+import asyncio
 import imaplib
 import re
 import socket
+import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from email.header import decode_header, make_header
@@ -507,17 +509,24 @@ async def get_or_create_mail_feed(
     return feed, True
 
 
+EXTRACT_BATCH_SIZE = 12
+
+
 async def _refine_with_llm(
     session: AsyncSession,
     msg: NewsletterMessage,
     candidates: list[LinkCandidate],
 ) -> dict[str, tuple[str, str]]:
-    """One LLM call: (title, verbatim intro) per link. Pure text mapping —
+    """Batch LLM calls: (title, verbatim intro) per link. Pure text mapping —
     filtering is pass 1's job (_llm_clean_filter).
 
+    Candidates are sliced into chunks of EXTRACT_BATCH_SIZE so prompt and
+    completion sizes stay well within context windows and network timeouts, and
+    a failure in one chunk doesn't forfeit the others.
+
     URLs are validated against the code-extracted candidate set — hallucinated
-    URLs are dropped. On LLM failure returns {} so the caller falls back to
-    heuristic intros (better to over-include than lose news).
+    URLs are dropped. On LLM failure for a batch, falls back to heuristic intros
+    for that batch's items (better to over-include than lose news).
     """
     if not settings.newsletter_llm_extract or not candidates:
         return {}
@@ -529,49 +538,72 @@ async def _refine_with_llm(
         {"sender": sender, "subject": msg.subject, "links": len(candidates)},
     )
     await session.commit()
-    try:
-        system, user = prompts.newsletter_extract(
-            sender, msg.subject, [(c.url, c.anchor, c.context) for c in candidates]
+
+    valid = {c.url for c in candidates}
+    out: dict[str, tuple[str, str]] = {}
+    total_latency_ms = 0
+    num_batches = (len(candidates) + EXTRACT_BATCH_SIZE - 1) // EXTRACT_BATCH_SIZE
+
+    for batch_idx in range(num_batches):
+        chunk = candidates[batch_idx * EXTRACT_BATCH_SIZE : (batch_idx + 1) * EXTRACT_BATCH_SIZE]
+        batch_label = (
+            f"extract: {sender}: {msg.subject}"
+            if num_batches == 1
+            else f"extract ({batch_idx + 1}/{num_batches}): {sender}: {msg.subject}"
         )
-        with llmtrace.context("newsletter_extract", label=f"extract: {sender}: {msg.subject}"):
-            result, latency_ms = await llm_client.chat_json(system, user)
-    except llm_client.LLMError as exc:
-        await activity.emit(
-            session,
-            "mail",
-            "newsletter_extract_error",
-            {"sender": sender, "error": str(exc)[:300]},
-            level="error",
-        )
-        await session.commit()
-        return {}
+        try:
+            system, user = prompts.newsletter_extract(
+                sender, msg.subject, [(c.url, c.anchor, c.context) for c in chunk]
+            )
+            with llmtrace.context("newsletter_extract", label=batch_label):
+                result, latency_ms = await llm_client.chat_json(system, user)
+            total_latency_ms += latency_ms
+            usage.record(
+                session,
+                "newsletter_extract",
+                endpoint="chat",
+                model=settings.llm_model,
+                latency_ms=latency_ms,
+                prompt_chars=len(system) + len(user),
+            )
+            items = result.get("items")
+            if isinstance(items, list):
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
+                    url = canonicalize_url(str(item.get("url", "")))
+                    if url not in valid:
+                        continue
+                    out[url] = (
+                        str(item.get("title", ""))[:300],
+                        str(item.get("intro", ""))[:2000],
+                    )
+        except llm_client.LLMError as exc:
+            await activity.emit(
+                session,
+                "mail",
+                "newsletter_extract_error",
+                {
+                    "sender": sender,
+                    "batch": f"{batch_idx + 1}/{num_batches}",
+                    "error": str(exc)[:300],
+                },
+                level="error",
+            )
+            await session.commit()
+
     await activity.emit(
         session,
         "mail",
         "newsletter_extract_done",
-        {"sender": sender, "links": len(candidates), "llm_ms": latency_ms},
+        {
+            "sender": sender,
+            "links": len(candidates),
+            "extracted": len(out),
+            "llm_ms": total_latency_ms,
+        },
     )
     await session.commit()
-    usage.record(
-        session,
-        "newsletter_extract",
-        endpoint="chat",
-        model=settings.llm_model,
-        latency_ms=latency_ms,
-        prompt_chars=len(system) + len(user),
-    )
-    valid = {c.url for c in candidates}
-    out: dict[str, tuple[str, str]] = {}
-    items = result.get("items")
-    if not isinstance(items, list):
-        return out
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        url = canonicalize_url(str(item.get("url", "")))
-        if url not in valid:
-            continue
-        out[url] = (str(item.get("title", ""))[:300], str(item.get("intro", ""))[:2000])
     return out
 
 
@@ -760,20 +792,25 @@ async def process_messages(
 # run in the background for minutes — a second click, or the scheduler sweep
 # firing mid-poll, would reprocess the SAME messages (the UID watermark only
 # advances as messages complete), doubling every LLM call and racing the
-# dedupe check. Single event loop → a plain set is race-free.
-_polling_accounts: set[int] = set()
+# dedupe check. Single event loop → dict lookup is race-free.
+# Locks auto-expire after POLL_LOCK_TIMEOUT_S to guarantee self-healing if a
+# task crashes or wedges.
+POLL_LOCK_TIMEOUT_S = 1800.0  # 30 minutes
+_polling_accounts: dict[int, float] = {}
 
 
 def try_begin_poll(account_id: int) -> bool:
     """Mark an account as being polled; False when a poll is already running."""
-    if account_id in _polling_accounts:
+    now = time.monotonic()
+    started = _polling_accounts.get(account_id)
+    if started is not None and (now - started) < POLL_LOCK_TIMEOUT_S:
         return False
-    _polling_accounts.add(account_id)
+    _polling_accounts[account_id] = now
     return True
 
 
 def end_poll(account_id: int) -> None:
-    _polling_accounts.discard(account_id)
+    _polling_accounts.pop(account_id, None)
 
 
 async def poll_account(session: AsyncSession, account: MailAccount) -> dict[str, int]:
@@ -783,28 +820,41 @@ async def poll_account(session: AsyncSession, account: MailAccount) -> dict[str,
         # watermark is unchanged, so polling now would redo the same work.
         return {"messages": 0, "new_articles": 0, "skipped_old": 0}
     try:
-        await activity.emit(
-            session,
-            "mail",
-            "mail_poll_start",
-            {"account": f"{account.username}@{account.host}", "folder": account.folder},
-        )
-        await session.commit()
-        try:
-            messages = await fetch_new_messages(account)
-        except Exception as exc:
-            account.last_checked_at = datetime.now(UTC)
-            account.last_error = f"{type(exc).__name__}: {exc}"[:1000]
+        async with asyncio.timeout(POLL_LOCK_TIMEOUT_S):
             await activity.emit(
                 session,
                 "mail",
-                "mail_poll_failed",
-                {"account": f"{account.username}@{account.host}", "error": account.last_error},
-                level="error",
+                "mail_poll_start",
+                {"account": f"{account.username}@{account.host}", "folder": account.folder},
             )
             await session.commit()
-            return {"messages": 0, "new_articles": 0, "skipped_old": 0}
-        return await process_messages(session, account, messages)
+            try:
+                messages = await fetch_new_messages(account)
+            except Exception as exc:
+                account.last_checked_at = datetime.now(UTC)
+                account.last_error = f"{type(exc).__name__}: {exc}"[:1000]
+                await activity.emit(
+                    session,
+                    "mail",
+                    "mail_poll_failed",
+                    {"account": f"{account.username}@{account.host}", "error": account.last_error},
+                    level="error",
+                )
+                await session.commit()
+                return {"messages": 0, "new_articles": 0, "skipped_old": 0}
+            return await process_messages(session, account, messages)
+    except TimeoutError:
+        account.last_checked_at = datetime.now(UTC)
+        account.last_error = f"Poll timed out after {int(POLL_LOCK_TIMEOUT_S // 60)} minutes"
+        await activity.emit(
+            session,
+            "mail",
+            "mail_poll_failed",
+            {"account": f"{account.username}@{account.host}", "error": account.last_error},
+            level="error",
+        )
+        await session.commit()
+        return {"messages": 0, "new_articles": 0, "skipped_old": 0}
     finally:
         end_poll(account.id)
 

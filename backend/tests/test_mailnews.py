@@ -697,3 +697,76 @@ async def test_refresh_rejects_mail_feed(
     listed = {f["id"]: f for f in r.json()}
     assert listed[feed_id]["kind"] == "mail"
     assert listed[feed_id]["sender_email"] == "n@x.example"
+
+
+async def test_extract_batches_large_candidate_lists(
+    db_session: async_sessionmaker[AsyncSession], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When candidates exceed EXTRACT_BATCH_SIZE (12), refine runs in chunks,
+    and a failure in one chunk still preserves the other chunks."""
+    call_counts = 0
+
+    async def fake_chat_json(
+        system: str, user: str, model: str | None = None
+    ) -> tuple[dict[str, Any], int]:
+        nonlocal call_counts
+        call_counts += 1
+        if call_counts == 2:
+            # Batch 2 fails with LLMError
+            raise llm_client.LLMError("Simulated LLM failure for batch 2")
+        # Extract URLs from the prompt user text lines
+        items = []
+        for line in user.splitlines():
+            if line.startswith("- URL: "):
+                url = line.split("- URL: ")[1].strip()
+                items.append({"url": url, "title": f"Title for {url}", "intro": f"Intro for {url}"})
+        return {"items": items}, 25
+
+    monkeypatch.setattr(llm_client, "chat_json", fake_chat_json)
+
+    candidates = [
+        mailnews.LinkCandidate(
+            url=f"https://example.com/link-{i}",
+            anchor=f"Link {i}",
+            context=f"Context {i}",
+        )
+        for i in range(25)  # 25 candidates -> 3 batches of (12, 12, 1)
+    ]
+    msg = mailnews.NewsletterMessage(
+        uid=1,
+        sender_email="news@example.com",
+        sender_name="News",
+        subject="Big issue",
+        date=None,
+        html="<p></p>",
+        candidates=candidates,
+    )
+
+    async with db_session() as s:
+        out = await mailnews._refine_with_llm(s, msg, candidates)
+
+    assert call_counts == 3
+    # 25 items: batch 1 (12) ok, batch 2 (12) failed, batch 3 (1) ok -> 13 extracted
+    assert len(out) == 13
+    assert "https://example.com/link-0" in out
+    assert "https://example.com/link-12" not in out  # batch 2 item failed
+    assert "https://example.com/link-24" in out  # batch 3 item succeeded
+
+
+def test_poll_lock_expires_after_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The poll lock auto-expires after POLL_LOCK_TIMEOUT_S so a crashed or hung
+    worker doesn't block the account forever."""
+    mailnews.end_poll(999)
+    current_time = 1000.0
+    monkeypatch.setattr(mailnews.time, "monotonic", lambda: current_time)
+
+    assert mailnews.try_begin_poll(999) is True
+    # Still within 30 min window -> busy
+    current_time += 100.0
+    assert mailnews.try_begin_poll(999) is False
+
+    # After 30 minutes (1800s) -> lock expires and allows acquiring
+    current_time += 1801.0
+    assert mailnews.try_begin_poll(999) is True
+    mailnews.end_poll(999)
+

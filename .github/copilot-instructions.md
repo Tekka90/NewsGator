@@ -334,8 +334,9 @@ GUI "Poll now" request forever), and polling is split search/fetch:
 `mail_fetch_error` events + `account.last_error`. The scheduler's
 `poll_account` still uses the combined `fetch_new_messages` (search+fetch).
 IMAP seam `_imap_connect` is module-level for monkeypatching.
-One poll at a time per account (`_polling_accounts` set in mailnews.py,
-`try_begin_poll`/`end_poll`): the poll-now endpoint holds it from the search
+One poll at a time per account (`_polling_accounts` dict in mailnews.py,
+`try_begin_poll`/`end_poll` with a 30-min auto-expiry `POLL_LOCK_TIMEOUT_S = 1800`
+and `asyncio.timeout` guard): the poll-now endpoint holds it from the search
 phase until the background task finishes (released in a `finally`, 409 while
 busy) and the scheduler's `poll_account` silently skips a busy account — the
 UID watermark only advances per processed message, so a concurrent poll would
@@ -361,9 +362,10 @@ Deletion-only filtering is far more reliable for small
 models than one-pass triage — measured on Tech Café: 0 junk / 0 lost vs. 17
 junk kept one-pass. Pass 2 (`prompts.newsletter_extract`, config
 `NEWSLETTER_LLM_EXTRACT`, usage kind `newsletter_extract`) is pure text
-mapping — NO triage (a stale `keep:false` field is ignored): each SURVIVING
-link gets a composed title (never just the anchor's domain name) + the
-human-written intro —
+mapping — NO triage (a stale `keep:false` field is ignored): candidates are
+sliced in chunks of `EXTRACT_BATCH_SIZE = 12` so prompts stay small and failures
+in one chunk don't forfeit the others; each SURVIVING link gets a composed title
+(never just the anchor's domain name) + the human-written intro —
 validated against the code-extracted URL set (hallucinated URLs dropped),
 heuristic block-text fallback (`_fallback_intro`). Pass 1 uses
 `llm_client.chat_text` (free-form, no JSON mode/retry — same trace/usage

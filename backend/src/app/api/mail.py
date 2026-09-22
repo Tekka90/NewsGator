@@ -144,37 +144,54 @@ async def _process_in_background(account_id: int, uids: list[int]) -> None:
     Releases the per-account poll lock on the way out (started in the poll
     endpoint)."""
     try:
+        async with asyncio.timeout(mailnews.POLL_LOCK_TIMEOUT_S):
+            async for session in get_session():
+                account = await session.get(MailAccount, account_id)
+                if account is None:
+                    return
+                try:
+                    messages = await mailnews.fetch_messages_by_uid(account, uids)
+                except Exception as exc:
+                    account.last_checked_at = datetime.now(UTC)
+                    account.last_error = f"{type(exc).__name__}: {exc}"[:1000]
+                    await activity.emit(
+                        session,
+                        "mail",
+                        "mail_fetch_error",
+                        {
+                            "account": f"{account.username}@{account.host}",
+                            "uids": len(uids),
+                            "error": account.last_error,
+                        },
+                        level="error",
+                    )
+                    await session.commit()
+                    return
+                try:
+                    await mailnews.process_messages(session, account, messages)
+                except Exception as exc:
+                    await session.rollback()
+                    await activity.emit(
+                        session,
+                        "mail",
+                        "mail_process_error",
+                        {"account_id": account_id, "error": f"{type(exc).__name__}: {exc}"[:500]},
+                        level="error",
+                    )
+                    await session.commit()
+                break
+    except TimeoutError:
         async for session in get_session():
             account = await session.get(MailAccount, account_id)
-            if account is None:
-                return
-            try:
-                messages = await mailnews.fetch_messages_by_uid(account, uids)
-            except Exception as exc:
+            if account is not None:
                 account.last_checked_at = datetime.now(UTC)
-                account.last_error = f"{type(exc).__name__}: {exc}"[:1000]
-                await activity.emit(
-                    session,
-                    "mail",
-                    "mail_fetch_error",
-                    {
-                        "account": f"{account.username}@{account.host}",
-                        "uids": len(uids),
-                        "error": account.last_error,
-                    },
-                    level="error",
-                )
-                await session.commit()
-                return
-            try:
-                await mailnews.process_messages(session, account, messages)
-            except Exception as exc:
-                await session.rollback()
+                mins = int(mailnews.POLL_LOCK_TIMEOUT_S // 60)
+                account.last_error = f"Poll background task timed out after {mins} minutes"
                 await activity.emit(
                     session,
                     "mail",
                     "mail_process_error",
-                    {"account_id": account_id, "error": f"{type(exc).__name__}: {exc}"[:500]},
+                    {"account_id": account_id, "error": account.last_error},
                     level="error",
                 )
                 await session.commit()
