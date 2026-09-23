@@ -4,6 +4,7 @@
   import { page } from '$app/state';
   import { api, streamUrl } from '$lib/api';
   import { currentUser } from '$lib/stores';
+  import '$lib/theme.css';
 
   let { children } = $props();
   let ready = $state(false);
@@ -99,63 +100,6 @@
 {/if}
 
 <style>
-  /* Design tokens — every page references these so dark mode is one override block. */
-  :global(:root) {
-    --bg: #f6f7f9;
-    --surface: #ffffff;
-    --text: #1c1e21;
-    --text-secondary: #444444;
-    --muted: #888888;
-    --faint: #999999;
-    --border: #e3e5e8;
-    --border-strong: #d0d3d9;
-    --border-hover: #b9bec6;
-    --border-input: #c9ccd1;
-    --accent: #294a7a;
-    --chip-bg: #e8edf5;
-    --ok: #1d6b2a;
-    --ok-bg: #e3f2e5;
-    --warn: #8a5a00;
-    --warn-bg: #fff3d6;
-    --error: #a12727;
-    --error-bg: #fde7e7;
-    --frozen-bg: #eeeeee;
-    --frozen-text: #777777;
-    --code-bg: #eeeeee;
-    --disabled-bg: #f0f1f3;
-    --disabled-text: #555555;
-    --table-border: #e0e0e0;
-    --row-border: #f0f0f0;
-  }
-  @media (prefers-color-scheme: dark) {
-    :global(:root) {
-      --bg: #131417;
-      --surface: #1d1f24;
-      --text: #e5e7eb;
-      --text-secondary: #b9bec6;
-      --muted: #8b919b;
-      --faint: #767c86;
-      --border: #2e3138;
-      --border-strong: #3a3e46;
-      --border-hover: #4a505a;
-      --border-input: #3f444d;
-      --accent: #9db8e2;
-      --chip-bg: #27334b;
-      --ok: #7bd389;
-      --ok-bg: #16301d;
-      --warn: #e3b45e;
-      --warn-bg: #362a10;
-      --error: #e08a8a;
-      --error-bg: #371b1b;
-      --frozen-bg: #26292f;
-      --frozen-text: #9aa0a8;
-      --code-bg: #2a2d33;
-      --disabled-bg: #23262b;
-      --disabled-text: #7d838d;
-      --table-border: #34383f;
-      --row-border: #26292e;
-    }
-  }
   :global(html) {
     /* match theme-color: the iOS status-bar glass sits on the page background
        so it reads as a subtle frosted band, not a smear on the nav */
@@ -168,10 +112,11 @@
     overflow-x: clip;
   }
   :global(body) {
-    font-family: system-ui, sans-serif;
+    font-family: var(--font-sans);
     margin: 0;
     background: var(--bg);
     color: var(--text);
+    -webkit-font-smoothing: antialiased;
   }
   .center {
     display: flex;
@@ -181,20 +126,45 @@
   .shell nav {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    padding: 0.6rem 1.2rem;
+    gap: 0.8rem;
+    padding: 0.65rem 1.2rem;
     /* iOS standalone: keep clear of the status bar / rounded corners */
-    padding-top: calc(0.6rem + env(safe-area-inset-top, 0px));
+    padding-top: calc(0.65rem + env(safe-area-inset-top, 0px));
     padding-left: calc(1.2rem + env(safe-area-inset-left, 0px));
     padding-right: calc(1.2rem + env(safe-area-inset-right, 0px));
-    background: #1c1e21;
+    background: var(--gator-forest-dark);
     color: #fff;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     /* keep the menu visible while scrolling */
     position: sticky;
     top: 0;
     z-index: 50;
   }
-  .shell nav a.active { color: #fff; font-weight: 600; }
+  .shell nav .brand {
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    font-size: 1.05rem;
+    color: #fff;
+    margin-right: 0.2rem;
+  }
+  .shell nav a {
+    color: #d1ded6;
+    text-decoration: none;
+    font-size: 0.92rem;
+    font-weight: 500;
+    padding: 0.28rem 0.75rem;
+    border-radius: var(--radius-pill);
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .shell nav a:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .shell nav a.active {
+    color: #fff;
+    background: var(--gator-forest);
+    font-weight: 700;
+  }
   .logoutbtn {
     /* icon-only — the full-width "Log out" text wasted precious nav space on iOS */
     display: inline-flex;
@@ -202,19 +172,23 @@
     justify-content: center;
     background: none;
     border: 1px solid transparent;
-    border-radius: 6px;
-    color: #cfd3da;
-    padding: 0.25rem;
+    border-radius: var(--radius-pill);
+    color: #d1ded6;
+    padding: 0.3rem;
     white-space: nowrap;
+    transition: color 0.15s ease, background 0.15s ease;
   }
-  .logoutbtn:hover { color: #fff; border-color: #4a505a; }
+  .logoutbtn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+  }
   @media (max-width: 700px) {
     /* single compact line — no wrapping to a second row, no empty bands.
        Links must be allowed to shrink (flex-basis 0 + min-width 0) or the
        row overflows on narrow phones and pushes the whole page sideways. */
     .shell nav {
       flex-wrap: nowrap;
-      gap: 0.4rem;
+      gap: 0.25rem;
       padding: 0.45rem 0.5rem;
       padding-top: calc(0.45rem + env(safe-area-inset-top, 0px));
       font-size: 0.84rem;
@@ -229,28 +203,23 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      padding: 0.28rem 0.35rem;
     }
     .shell nav .processing { flex: 0 0 auto; }
     /* too easy to fat-finger on touch — logout lives on the Settings page */
     .shell nav .logoutbtn { display: none; }
   }
-  .shell nav a {
-    color: #cfd3da;
-    text-decoration: none;
-  }
-  .shell nav a:hover {
-    color: #fff;
-  }
   .spacer {
     flex: 1;
   }
   .user {
-    color: #9aa0a8;
-    font-size: 0.9em;
+    color: #a4bea9;
+    font-size: 0.88em;
   }
   .processing {
-    color: #ffd97a;
+    color: var(--gator-gold);
     font-size: 0.85em;
+    font-weight: 600;
   }
   main {
     max-width: 960px;
@@ -264,19 +233,22 @@
     }
   }
   :global(button) {
+    font-family: inherit;
     cursor: pointer;
   }
   :global(.card) {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 1rem;
-    margin-bottom: 0.8rem;
+    border-radius: var(--radius-card);
+    box-shadow: var(--gator-shadow-card);
+    padding: 1.15rem;
+    margin-bottom: 0.85rem;
   }
   :global(input, select) {
-    padding: 0.4rem 0.5rem;
+    font-family: inherit;
+    padding: 0.45rem 0.6rem;
     border: 1px solid var(--border-input);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: var(--surface);
     color: var(--text);
     /* default size=20 (~11rem) must never push a container past the viewport */

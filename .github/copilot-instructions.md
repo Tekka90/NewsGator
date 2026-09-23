@@ -135,10 +135,13 @@ over them; horizontal page overflow is clipped once at the html level
 (`overflow-x: clip` in `+layout.svelte` — on html, never body, so
 position:sticky keeps working).
 Dark mode follows the OS via
-`prefers-color-scheme`: all colors are CSS custom properties defined in
-`routes/+layout.svelte` (`--bg`/`--surface`/`--text`/`--accent`/…) with a
-dark override block — never hardcode hex colors in component styles;
-`app.html` carries `color-scheme` + media-scoped `theme-color` metas.
+`prefers-color-scheme`: all design tokens and colors are centralized in
+`src/lib/theme.css` ("Editorial Gator" concept: Forest green `--gator-forest` `#146B3A`,
+deep contrast `--gator-forest-dark` `#0B3D2A`, Gator Gold `--gator-gold` `#F2B827`
+for freshness/unread signal dots, warm Paper `--gator-paper` `#F8F7F1` with dark forest
+night palette in dark mode, `--radius-card` 19px, segmented pill filters). Imported in
+`+layout.svelte`; never hardcode hex colors in component styles;
+`app.html` carries `color-scheme` + media-scoped `theme-color` metas (`#F8F7F1` light / `#121815` dark).
 Mobile layout rule: nothing may overflow the viewport horizontally (it
 side-scrolls the whole PWA, nav included) — the single enforcement point is
 `overflow-x: hidden; overflow-x: clip` on `:global(html)` in

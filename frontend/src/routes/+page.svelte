@@ -487,7 +487,7 @@
       >
       <div class="row">
         <span class="chip">{current.category}</span>
-        {#if !current.is_read}<span class="badge new">NEW</span>{/if}
+        {#if !current.is_read}<span class="dot" title="Unread story"></span>{/if}
         {#if current.updated_since_read}<span class="badge updated">UPDATED</span>{/if}
         {#if current.is_frozen}<span class="badge frozen">archived</span>{/if}
         <span class="spacer"></span>
@@ -556,7 +556,7 @@
     <div class="card story" class:read={story.is_read} data-story={story.id}>
       <div class="row">
         <span class="chip">{story.category}</span>
-        {#if !story.is_read}<span class="badge new">NEW</span>{/if}
+        {#if !story.is_read}<span class="dot" title="Unread story"></span>{/if}
         {#if story.updated_since_read}<span class="badge updated">UPDATED</span>{/if}
         {#if story.is_frozen}<span class="badge frozen">archived</span>{/if}
         <span class="spacer"></span>
@@ -604,6 +604,7 @@
               {/each}
               <span>{story.source_count} source{story.source_count === 1 ? '' : 's'}</span>
               <span>v{story.version}</span>
+              <span class="source-action">Read story &amp; sources →</span>
             </div>
           </div>
         </div>
@@ -639,24 +640,47 @@
     .pagehead { margin: -0.8rem -0.6rem 0; padding: 0.8rem 0.6rem 0; }
   }
   .toolbar { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
-  .filters { display: flex; gap: 0.25rem; flex: 1; min-width: 0; }
-  .filters button {
-    border: 1px solid var(--border-strong); background: var(--surface); color: inherit; border-radius: 999px;
-    padding: 0.25rem 0.9rem;
-    display: inline-flex; align-items: center; gap: 0.35rem;
+  .filters {
+    display: inline-flex;
+    gap: 0.2rem;
+    background: var(--surface-soft);
+    padding: 0.22rem;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--border);
   }
-  .filters button.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .filters button {
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    border-radius: var(--radius-pill);
+    padding: 0.25rem 0.85rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .filters button:hover {
+    color: var(--text);
+  }
+  .filters button.active {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(20, 107, 58, 0.22);
+  }
   .pill-count {
     font-size: 0.75em;
-    font-weight: 600;
-    opacity: 0.75;
-    background: var(--chip-bg);
+    font-weight: 700;
+    opacity: 0.9;
+    background: var(--border);
+    color: var(--text);
     padding: 0.05rem 0.35rem;
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
   }
   .filters button.active .pill-count {
-    background: var(--bg);
-    color: var(--text);
+    background: rgba(255, 255, 255, 0.25);
+    color: #fff;
   }
   .tools { display: flex; gap: 0.4rem; align-items: center; }
   .tools select { max-width: 10rem; }
@@ -720,20 +744,41 @@
     background: none; border: none; color: var(--accent); cursor: pointer;
     font-size: 0.85rem; text-decoration: underline; padding: 0;
   }
-  .story h2 { margin: 0.35rem 0; font-size: 1.15rem; }
+  .story h2 {
+    margin: 0.35rem 0;
+    font-size: 1.25rem;
+    letter-spacing: -0.035em;
+    line-height: 1.2;
+    font-weight: 750;
+  }
+  .source-action {
+    margin-left: auto;
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 0.88rem;
+  }
   .body { display: flex; gap: 0.9rem; align-items: flex-start; }
   .thumb {
     width: 120px; height: 80px; object-fit: cover;
-    border-radius: 6px; flex-shrink: 0;
+    border-radius: var(--radius-sm); flex-shrink: 0;
   }
-  .summary { margin: 0; color: var(--text-secondary); }
-  .row { display: flex; align-items: center; gap: 0.4rem; }
+  .summary { margin: 0; color: var(--text-secondary); line-height: 1.45; }
+  .row { display: flex; align-items: center; gap: 0.45rem; }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-signal);
+    display: inline-block;
+    flex-shrink: 0;
+    box-shadow: 0 0 6px rgba(242, 184, 39, 0.5);
+  }
   .chip {
     font-size: 0.75em; background: var(--chip-bg); color: var(--accent);
-    padding: 0.1rem 0.5rem; border-radius: 999px;
+    font-weight: 600;
+    padding: 0.12rem 0.55rem; border-radius: var(--radius-pill);
   }
-  .badge { font-size: 0.72em; padding: 0.1rem 0.5rem; border-radius: 999px; font-weight: 600; }
-  .badge.new { background: var(--ok-bg); color: var(--ok); }
+  .badge { font-size: 0.72em; padding: 0.1rem 0.5rem; border-radius: var(--radius-pill); font-weight: 600; }
   .badge.updated { background: var(--warn-bg); color: var(--warn); }
   .badge.frozen { background: var(--frozen-bg); color: var(--frozen-text); }
   .spacer { flex: 1; }
@@ -777,19 +822,27 @@
     flex-direction: column;
     gap: 0.6rem;
     will-change: transform;
+    border-radius: var(--radius-card);
+    box-shadow: var(--gator-shadow);
   }
   .deckcard.readcard { opacity: 0.75; }
-  .deckcard h2 { margin: 0; font-size: 1.3rem; line-height: 1.25; }
+  .deckcard h2 {
+    margin: 0;
+    font-size: 1.35rem;
+    letter-spacing: -0.035em;
+    line-height: 1.22;
+    font-weight: 750;
+  }
   .deckcard h2 a { color: inherit; text-decoration: none; }
   .deckcard .hero {
-    width: 100%; max-height: 30vh; object-fit: cover; border-radius: 6px;
+    width: 100%; max-height: 30vh; object-fit: cover; border-radius: var(--radius-sm);
   }
   .deckcard .hero.heroloading { visibility: hidden; height: 0; }
   .decksummary {
     margin: 0; color: var(--text-secondary); line-height: 1.5; font-size: 1rem;
     overflow-y: auto; flex: 1;
   }
-  .deckcard .meta a { margin-left: auto; color: var(--accent); }
+  .deckcard .meta a { margin-left: auto; color: var(--accent); font-weight: 700; }
 
   /* end-of-deck "all caught up" card */
   .donecard {

@@ -423,6 +423,13 @@ user must be able to fix it. Corrections can later feed threshold tuning.
   the same usage would cost on a cloud provider. A warning banner shows the share of
   calls whose token counts were estimated (server returned no `usage` object).
 - Filters: category, unread / updated-since-read, language of sources.
+- **Design system & theme centralization**: styled according to the "Editorial Gator"
+  concept with all tokens centralized in `src/lib/theme.css` (primary brand Forest green
+  `#146B3A`, Forest 900 `#0B3D2A`, warm Paper `#F8F7F1` with dark forest night palette
+  for dark mode, Leaf green `#49A85A`, and Gator Gold `#F2B827` freshness/unread signal dot).
+  Cards use 19px corner radii with subtle line borders; filters render as soft segmented
+  pills. All component styling routes through semantic tokens so future redesigns require
+  only CSS token changes. Existing logo assets are permanent invariants.
 
 ---
 

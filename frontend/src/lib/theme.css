@@ -1,0 +1,100 @@
+/* NewsGator Design System Tokens — "Editorial Gator" Concept
+   All colors, surfaces, typography, and radiuses are centralized here.
+   Future redesigns only require modifying these tokens. */
+
+:root {
+  /* Primitive Brand Tokens */
+  --gator-forest: #146B3A;
+  --gator-forest-dark: #0B3D2A;
+  --gator-leaf: #49A85A;
+  --gator-gold: #F2B827;
+  --gator-gold-hover: #DDA41B;
+  --gator-ink: #18211D;
+  --gator-muted: #66716C;
+  --gator-paper: #F8F7F1;
+  --gator-surface: #FFFFFF;
+  --gator-line: #E3E7E1;
+  --gator-soft: #EFF5EE;
+  --gator-shadow: 0 14px 40px rgba(11, 61, 42, 0.08);
+  --gator-shadow-card: 0 3px 14px rgba(24, 33, 29, 0.04);
+
+  /* Semantic Design Tokens — Light Mode (Editorial Paper & Forest) */
+  --bg: var(--gator-paper);
+  --surface: var(--gator-surface);
+  --surface-soft: var(--gator-soft);
+  --text: var(--gator-ink);
+  --text-secondary: #2C3631;
+  --muted: var(--gator-muted);
+  --faint: #8E9994;
+  --border: var(--gator-line);
+  --border-strong: #CCD4CC;
+  --border-hover: #B4BFB3;
+  --border-input: #D2D8D1;
+  --accent: var(--gator-forest);
+  --accent-dark: var(--gator-forest-dark);
+  --accent-signal: var(--gator-gold);
+  --chip-bg: var(--gator-soft);
+  --ok: var(--gator-leaf);
+  --ok-bg: #EAF5EC;
+  --warn: #B87A00;
+  --warn-bg: #FFF6DD;
+  --error: #BA2D2D;
+  --error-bg: #FDECEC;
+  --frozen-bg: #EAECE9;
+  --frozen-text: #707873;
+  --code-bg: #EEF1ED;
+  --disabled-bg: #EFF1EE;
+  --disabled-text: #7C8580;
+  --table-border: var(--gator-line);
+  --row-border: #EDF1EC;
+
+  /* Radiuses & Typography */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-card: 19px;
+  --radius-pill: 999px;
+  --font-sans: ui-rounded, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Dark Mode (Deep Forest Night) */
+    --gator-paper-dark: #121815;
+    --gator-surface-dark: #1A221E;
+    --gator-soft-dark: #212C26;
+    --gator-ink-dark: #E6EFEA;
+    --gator-muted-dark: #93A099;
+    --gator-line-dark: #2A3630;
+
+    --bg: var(--gator-paper-dark);
+    --surface: var(--gator-surface-dark);
+    --surface-soft: var(--gator-soft-dark);
+    --text: var(--gator-ink-dark);
+    --text-secondary: #C3CEC7;
+    --muted: var(--gator-muted-dark);
+    --faint: #74837B;
+    --border: var(--gator-line-dark);
+    --border-strong: #3B4B43;
+    --border-hover: #4D6056;
+    --border-input: #38463F;
+    --accent: #3EB367;
+    --accent-dark: #278248;
+    --accent-signal: #F2B827;
+    --chip-bg: var(--gator-soft-dark);
+    --ok: #5EC474;
+    --ok-bg: #1B3322;
+    --warn: #E4B451;
+    --warn-bg: #382D13;
+    --error: #E57373;
+    --error-bg: #3D1C1C;
+    --frozen-bg: #222C27;
+    --frozen-text: #8E9C95;
+    --code-bg: #222C27;
+    --disabled-bg: #1F2823;
+    --disabled-text: #6F7D76;
+    --table-border: var(--gator-line-dark);
+    --row-border: #222C27;
+    --gator-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+    --gator-shadow-card: 0 3px 14px rgba(0, 0, 0, 0.25);
+  }
+}
