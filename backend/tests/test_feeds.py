@@ -54,7 +54,7 @@ async def test_feed_not_found(client: AsyncClient) -> None:
 async def test_feed_story_counts(client: AsyncClient, db_session) -> None:
     """GET /feeds reports per-feed story + unread counts (unread = per the
     requesting user)."""
-    from app.models import Article, Feed, Story
+    from app.models import Article, Feed, Story, UserFeed
 
     await setup_admin(client)
     async with db_session() as s:
@@ -62,6 +62,7 @@ async def test_feed_story_counts(client: AsyncClient, db_session) -> None:
         f2 = Feed(url="https://two.example.com/rss", title="Two")
         s.add_all([f1, f2])
         await s.flush()
+        s.add_all([UserFeed(user_id=1, feed_id=f1.id), UserFeed(user_id=1, feed_id=f2.id)])
         s1 = Story(title="S1", summary="")
         s2 = Story(title="S2", summary="")
         s.add_all([s1, s2])

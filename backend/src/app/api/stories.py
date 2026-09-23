@@ -22,6 +22,7 @@ from app.models import (
     StoryRevision,
     StoryState,
     User,
+    UserFeed,
 )
 from app.services import activity, process
 from app.services.fulltext import fetch_full_text
@@ -145,6 +146,31 @@ async def list_stories(
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[StoryListItem]:
+    user_feed_ids = set(
+        (
+            await session.scalars(
+                select(UserFeed.feed_id).where(UserFeed.user_id == user.id)
+            )
+        ).all()
+    )
+    if not user_feed_ids:
+        return []
+    if feed is not None and feed not in user_feed_ids:
+        return []
+
+    user_story_ids = set(
+        (
+            await session.scalars(
+                select(Article.story_id).where(
+                    Article.feed_id.in_(user_feed_ids),
+                    Article.story_id.is_not(None),
+                )
+            )
+        ).all()
+    )
+    if not user_story_ids:
+        return []
+
     reverse = order == "desc"
     stories = (
         await session.scalars(
@@ -200,6 +226,8 @@ async def list_stories(
 
     out: list[StoryListItem] = []
     for story in stories:
+        if story.id not in user_story_ids:
+            continue
         state = states.get(story.id)
         is_read, updated = _flags(state, story)
         if filter == "unread" and is_read:
@@ -256,13 +284,13 @@ async def feed_options(
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[FeedOption]:
-    """Feeds usable in the story-list feed filter. Any authenticated user —
-    the feeds CRUD router itself is admin-only, but every user can filter."""
+    """Feeds subscribed by the user usable in the story-list feed filter."""
     rows = (
         await session.execute(
             select(Feed.id, Feed.title, Feed.kind, Feed.url, Feed.sender_email)
             .join(Article, Article.feed_id == Feed.id)
-            .where(Article.story_id.is_not(None))
+            .join(UserFeed, UserFeed.feed_id == Feed.id)
+            .where(UserFeed.user_id == user.id, Article.story_id.is_not(None))
             .group_by(Feed.id)
             .order_by(Feed.title)
         )
@@ -304,8 +332,6 @@ async def story_detail(
     story = await session.get(Story, story_id)
     if story is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Story not found")
-    state = await session.get(StoryState, (user.id, story_id))
-    is_read, updated = _flags(state, story)
     articles = (
         await session.scalars(
             select(Article)
@@ -314,6 +340,17 @@ async def story_detail(
             .order_by(Article.id)
         )
     ).all()
+    user_feed_ids = set(
+        (
+            await session.scalars(
+                select(UserFeed.feed_id).where(UserFeed.user_id == user.id)
+            )
+        ).all()
+    )
+    if not any(a.feed_id in user_feed_ids for a in articles):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Story not found")
+    state = await session.get(StoryState, (user.id, story_id))
+    is_read, updated = _flags(state, story)
     revisions = (
         await session.scalars(
             select(StoryRevision)

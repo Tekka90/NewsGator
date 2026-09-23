@@ -214,6 +214,16 @@ class Article(Base):
     story: Mapped[Story | None] = relationship(back_populates="articles")
 
 
+class UserFeed(Base):
+    """Per-user feed subscription (SPEC §3, invariant 4)."""
+
+    __tablename__ = "user_feed"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), primary_key=True)
+    feed_id: Mapped[int] = mapped_column(ForeignKey("feed.id"), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+
 class StoryState(Base):
     """Per-user read state (SPEC §3, invariant 4)."""
 

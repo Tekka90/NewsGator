@@ -136,6 +136,12 @@ ALEMBIC_DIR = BACKEND_DIR / "alembic"
 _LEGACY_STAMPS: list[tuple[list[tuple[str, str]], str]] = [
     (
         [
+            ("user_feed", "user_id"),
+        ],
+        "0016_user_feed",
+    ),
+    (
+        [
             ("reader_account", "api_base_url"),
             ("article", "origin_feed_title"),
         ],

@@ -13,9 +13,9 @@ activity, authentication, settings, and chat.
 | Story browsing | `/api/stories` returns an array with integer IDs, one category, versions and per-user read state; there is no pagination envelope. |
 | Reading and editorial actions | Story detail, read/unread, diff, similar/merge, article move/reprocess, share/translation and Readeck endpoints. |
 | In-app source browsing | Native apps embed publisher pages directly via `WKWebView` tabs; the Web app opens source links externally in new browser tabs due to publisher `X-Frame-Options` / CSP iframe restrictions. |
-| Non-admin browsing | `/api/stories/feed-options`; do not require admin-only `/api/feeds` or usage endpoints to synchronize a reader's library. |
+| Non-admin browsing | `/api/stories/feed-options` and `/api/feeds`; stories are scoped to the user's subscribed feeds. |
 | Chat | `/api/chat` and `/api/chat/history`; archive retrieval and history stay on the server. Responses are JSON, not a token stream. |
-| Feed management | `/api/feeds` CRUD, global/per-feed refresh and multipart OPML import/export; administrative permissions apply. |
+| Feed management | `/api/feeds` CRUD, global/per-feed refresh and multipart OPML import/export; user-level subscriptions (all authenticated users manage their own subscriptions). |
 | Taxonomy | `/api/categories` and category suggestions; do not replace this with native-generated free-form tags. |
 | Newsletters | Per-user `/api/mail-accounts`; `kind=mail` feeds are not RSS endpoints. |
 | Reader accounts | Per-user `/api/reader-accounts`; `kind=reader_api` virtual feeds aggregate all remote subscriptions with bidirectional read-state sync. |

@@ -36,9 +36,11 @@ the full normative spec — **read it before non-trivial changes**.
    Changing language or embedding model requires the full reprocessing job.
 3. **Story versioning**: `story.version` bumps **only** on real content change
    (new facts). A source-only attachment updates `last_updated_at` but not `version`.
-4. **Read state is per-user**: `STORY_STATE(user_id, story_id, read_at_version)`.
-   `updated_since_read = is_read AND story.version > read_at_version`. Never surface a
-   read story as unread again — badge it "updated".
+4. **Read state and feed subscriptions are per-user**: `STORY_STATE(user_id, story_id, read_at_version)`
+   and `USER_FEED(user_id, feed_id)`. Feeds and articles are deduplicated and clustered
+   into Stories globally once; each user's story list is scoped to stories that contain
+   at least one source article from their subscribed feeds. `updated_since_read = is_read AND story.version > read_at_version`.
+   Never surface a read story as unread again — badge it "updated".
 5. **Configurability**: thresholds, freeze window, retention days, poll intervals,
    failure policy, categories — all live in settings/env, never hardcoded. Categories
    are a customizable taxonomy stored in the DB; the LLM prompt is built from the
@@ -481,6 +483,16 @@ sync marks single-source stories read or multi-source stories "Updated"
 (`read_at_version = story.version - 1`). Scheduler `reader_poll_sweep` (every
 `READER_POLL_MINUTES`, default 15). Legacy stamps: 0015 top entry keyed on
 `("reader_account", "sync_cursor")`.
+User-scoped feed subscriptions (2026-09-23, Alembic 0016): `user_feed` join table
+(user_id PK FK, feed_id PK FK, created_at). Feeds, articles, summaries, embeddings,
+and clustering remain global (computed once). Feeds CRUD (`/api/feeds`) and OPML
+import/export now open to all authenticated users (`current_user`). `GET /feeds` returns
+feeds subscribed by the current user; adding an existing feed URL subscribes the user;
+deleting unsubscribes the user, pruning the feed only when zero subscribers remain across
+all users. `GET /api/stories` and `GET /api/stories/feed-options` are scoped to stories
+having >= 1 source article from the user's subscribed feeds (`GET /api/stories/{id}`
+404s if the user is not subscribed to any member feeds). Legacy stamps: 0016 top entry
+keyed on `("user_feed", "user_id")`.
 
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,

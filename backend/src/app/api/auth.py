@@ -14,7 +14,7 @@ from app.core.security import (
     parse_session_token,
     verify_password,
 )
-from app.models import User
+from app.models import Feed, User, UserFeed
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -38,6 +38,11 @@ async def setup(
         is_admin=True,
     )
     session.add(user)
+    await session.flush()
+    # Subscribe the initial admin to all pre-existing feeds
+    feed_ids = (await session.scalars(select(Feed.id))).all()
+    for fid in feed_ids:
+        session.add(UserFeed(user_id=user.id, feed_id=fid))
     await session.commit()
     await session.refresh(user)
     return _auth_response(response, user)

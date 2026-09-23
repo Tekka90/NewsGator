@@ -18,7 +18,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.models import Article, ChatMessage, Story
+from app.models import Article, ChatMessage, Story, UserFeed
 from app.services import activity, llm_client, llmtrace, prompts, usage
 from app.services.vectorstore import cosine_similarity, get_vector_store
 
@@ -44,17 +44,30 @@ def is_enabled() -> bool:
 
 
 async def _retrieve(
-    session: AsyncSession, question_vec: list[float]
+    session: AsyncSession, question_vec: list[float], user_id: int | None = None
 ) -> tuple[list[Story], list[float], dict[int, float]]:
     """Top-`chat_top_k` stories: ANN then exact cosine re-rank (same pattern as
     api/stories._rank_candidates and cluster.py). Returns (stories, dropped
     candidate order, sim_by_id)."""
     store = get_vector_store(session)
     qv = np.asarray(question_vec, dtype=np.float32)
+    user_story_ids: set[int] | None = None
+    if user_id is not None:
+        user_story_ids = set(
+            (
+                await session.scalars(
+                    select(Article.story_id)
+                    .join(UserFeed, UserFeed.feed_id == Article.feed_id)
+                    .where(UserFeed.user_id == user_id, Article.story_id.is_not(None))
+                )
+            ).all()
+        )
     scored: list[tuple[int, float]] = []
     for sid, _approx in await store.search_story_centroids(
         question_vec, limit=settings.chat_candidates
     ):
+        if user_story_ids is not None and sid not in user_story_ids:
+            continue
         centroid = await store.get_story_centroid(sid)
         if centroid is None:
             continue
@@ -138,7 +151,7 @@ async def ask(
         raise ChatError("Embedding failed")
 
     # 2. Retrieve
-    stories, _order, sims = await _retrieve(session, vectors[0])
+    stories, _order, sims = await _retrieve(session, vectors[0], user_id=user_id)
 
     # 3. Answer (grounded)
     latency_ms = 0

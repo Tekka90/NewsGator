@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import current_user
 from app.core.db import get_session
-from app.models import Article, Story, StoryRevision, StoryState, User
+from app.models import Article, Story, StoryRevision, StoryState, User, UserFeed
 
 router = APIRouter(tags=["feed"])
 
@@ -112,9 +112,37 @@ async def story_feed(
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
+    user_feed_ids = set(
+        (
+            await session.scalars(
+                select(UserFeed.feed_id).where(UserFeed.user_id == user.id)
+            )
+        ).all()
+    )
+    if not user_feed_ids:
+        xml = render_rss([], channel_title="NewsGator — Stories", self_url=str(request.url))
+        return Response(content=xml, media_type="application/rss+xml; charset=utf-8")
+
+    user_story_ids = set(
+        (
+            await session.scalars(
+                select(Article.story_id).where(
+                    Article.feed_id.in_(user_feed_ids),
+                    Article.story_id.is_not(None),
+                )
+            )
+        ).all()
+    )
+    if not user_story_ids:
+        xml = render_rss([], channel_title="NewsGator — Stories", self_url=str(request.url))
+        return Response(content=xml, media_type="application/rss+xml; charset=utf-8")
+
     stories = (
         await session.scalars(
-            select(Story).order_by(Story.last_updated_at.desc()).limit(limit)
+            select(Story)
+            .where(Story.id.in_(user_story_ids))
+            .order_by(Story.last_updated_at.desc())
+            .limit(limit)
         )
     ).all()
 

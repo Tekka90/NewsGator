@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from tests.conftest import setup_admin
 
 from app.core.config import settings
-from app.models import Article, Feed, MailAccount, Story
+from app.models import Article, Feed, MailAccount, Story, UserFeed
 from app.services import cluster, llm_client, mailnews
 from app.services.vectorstore import InMemoryVectorStore
 
@@ -688,6 +688,8 @@ async def test_refresh_rejects_mail_feed(
     async with db_session() as s:
         feed = Feed(url="newsletter:n@x.example", kind="mail", sender_email="n@x.example")
         s.add(feed)
+        await s.flush()
+        s.add(UserFeed(user_id=1, feed_id=feed.id))
         await s.commit()
         feed_id = feed.id
     r = await client.post(f"/api/feeds/{feed_id}/refresh")

@@ -77,6 +77,8 @@ Non-goals (v1): non-RSS sources (kept pluggable), mobile app, localized GUI, not
 ```mermaid
 erDiagram
     USER ||--o{ STORY_STATE : "has per-story state"
+    USER ||--o{ USER_FEED : "subscribes"
+    FEED ||--o{ USER_FEED : "has subscriber"
     FEED ||--o{ ARTICLE : produces
     STORY ||--o{ ARTICLE : groups
     STORY ||--o{ STORY_REVISION : "history"
@@ -87,6 +89,12 @@ erDiagram
         string password_hash  "argon2"
         bool   is_admin
         string summary_language  "per-user override, default from global config"
+        datetime created_at
+    }
+
+    USER_FEED {
+        int user_id PK, FK
+        int feed_id PK, FK
         datetime created_at
     }
 
@@ -347,16 +355,16 @@ v1 is **data-first, no online learning**:
 | `POST /auth/session-token` | issue a fresh portable token for the authenticated user — for flows that can't use cookies/headers (RSS readers on `/feed.xml`); works even when the client lost its localStorage token mid-session (valid cookie suffices) |
 | `GET/PATCH /me` | profile + per-user preferences: summary language, story-list filter (`story_filter`, default `unread`) and ordering (`story_sort`/`story_order`) — shared across the user's devices |
 | `GET /users`, `POST /users`, `PATCH /users/{id}`, `DELETE /users/{id}` | user management (admin): list, create (username/password/admin flag), reset password or toggle admin, delete. First-run `/auth/setup` only creates the initial admin; additional users come from here. Guards: the last admin can be neither demoted nor deleted, and a user cannot delete themselves; deleting a user bulk-removes their `STORY_STATE` rows |
-| `GET /stories?filter=all\|unread\|updated&category=&feed=&sort=updated\|published\|sources&order=asc\|desc` | story list with **per-user** flags; `feed` keeps only stories with at least one source article from that feed; sort by article publication date (default), last update, or source count, ascending (default: oldest first) or descending; unknown dates always last |
-| `GET /stories/feed-options` | feeds that have at least one article in a story (`[{id, title, kind, url, sender_email}]`) — options for the story-list feed filter. Any authenticated user (feeds CRUD itself is admin-only) |
-| `GET /stories/{id}` | story detail: merged summary + source articles + revision history |
+| `GET /stories?filter=all\|unread\|updated&category=&feed=&sort=updated\|published\|sources&order=asc\|desc` | story list scoped to the requesting user's subscribed feeds with **per-user** flags; `feed` keeps only stories with at least one source article from that feed; sort by article publication date (default), last update, or source count, ascending (default: oldest first) or descending; unknown dates always last |
+| `GET /stories/feed-options` | feeds subscribed by the current user that have at least one article in a story (`[{id, title, kind, url, sender_email}]`) — options for the story-list feed filter |
+| `GET /stories/{id}` | story detail: merged summary + source articles + revision history (404 if user is not subscribed to any member feeds) |
 | `POST /stories/{id}/read` | sets `read_at_version = story.version` (per user) and pushes read state to connected third-party reader APIs for any member articles from reader feeds |
 | `POST /stories/{id}/unread` | marks story unread and pushes unread state to connected third-party reader APIs for any member articles from reader feeds |
 | `GET /stories/{id}/diff?from={version}` | what changed |
-| `CRUD /feeds` | feed management (admin); `GET /feeds` also reports `story_count` / `unread_story_count` per feed (stories with a source from it; unread is per the requesting user) and `email_count` (mail feeds only: newsletter emails processed for that sender). **Creating a feed kicks an immediate background poll** (no waiting for the next scheduler tick) |
-| `POST /feeds/import-opml` | bulk-import feeds from an OPML subscription export (admin); added feeds are polled immediately in the background |
-| `GET /feeds/export-opml` | export all RSS-kind feeds as an OPML 2.0 subscription list (admin); mail feeds are excluded — their pseudo-URL isn't a real feed URL |
-| `POST /feeds/{id}/refresh`, `POST /feeds/refresh` | force-poll one/all RSS feeds now, bypassing the adaptive schedule (admin); mail feeds are rejected — they are refreshed by polling the mail account |
+| `CRUD /feeds` | feed management (any authenticated user); `GET /feeds` reports feeds subscribed by the user with `story_count` / `unread_story_count` per feed (unread is per the requesting user) and `email_count` (mail feeds only). Adding an existing feed subscribes the user to it; adding a new feed registers it globally and **kicks an immediate background poll**. Deleting unsubscribes the user, and cascades deletion of the feed and orphaned articles only if no other subscribers remain |
+| `POST /feeds/import-opml` | bulk-import feeds into the user's subscriptions from an OPML file; new feeds are polled immediately in the background |
+| `GET /feeds/export-opml` | export the user's subscribed RSS-kind feeds as an OPML 2.0 subscription list; mail feeds are excluded |
+| `POST /feeds/{id}/refresh`, `POST /feeds/refresh` | force-poll one/all of the user's subscribed RSS feeds now, bypassing the adaptive schedule; mail feeds are rejected |
 | `GET/POST /mail-accounts`, `PATCH/DELETE /mail-accounts/{id}` | per-user IMAP accounts for newsletter ingestion (any user, own accounts only — 404 across users). Folder is mandatory; the password is write-only (never returned, replace via PATCH). Deleting an account keeps the mail feeds/articles it produced |
 | `POST /mail-accounts/{id}/test`, `POST /mail-accounts/{id}/poll` | probe IMAP login + folder existence (returns ok/errors, never the password), or poll the account immediately (202 + message count; **409 when a poll is already running** for that account) |
 | `GET/POST /reader-accounts`, `PATCH/DELETE /reader-accounts/{id}` | per-user third-party RSS reader API accounts (Google Reader API compatible: Inoreader, FreshRSS, Miniflux, The Old Reader, BazQux; own accounts only). All articles from an account are grouped into one virtual feed. Password/token is write-only (never returned) |

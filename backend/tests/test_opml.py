@@ -4,7 +4,7 @@ from httpx import AsyncClient
 from sqlalchemy import func, select
 from tests.conftest import setup_admin
 
-from app.models import Feed
+from app.models import Feed, UserFeed
 from app.services.ingest import parse_opml
 
 OPML = b"""<?xml version="1.0" encoding="UTF-8"?>
@@ -37,7 +37,10 @@ async def test_import_opml_endpoint(client: AsyncClient, db_session) -> None:
 
     # Pre-existing feed should be skipped
     async with db_session() as s:
-        s.add(Feed(url="https://www.theverge.com/rss/index.xml", title="Existing"))
+        feed = Feed(url="https://www.theverge.com/rss/index.xml", title="Existing")
+        s.add(feed)
+        await s.flush()
+        s.add(UserFeed(user_id=1, feed_id=feed.id))
         await s.commit()
 
     r = await client.post(
@@ -72,8 +75,11 @@ async def test_import_opml_rejects_garbage(client: AsyncClient) -> None:
 async def test_export_opml_roundtrip(client: AsyncClient, db_session) -> None:
     await setup_admin(client)
     async with db_session() as s:
-        s.add(Feed(url="https://www.theverge.com/rss/index.xml", title="The Verge"))
-        s.add(Feed(url="newsletter:list@example.com", title="A Newsletter", kind="mail"))
+        f1 = Feed(url="https://www.theverge.com/rss/index.xml", title="The Verge")
+        f2 = Feed(url="newsletter:list@example.com", title="A Newsletter", kind="mail")
+        s.add_all([f1, f2])
+        await s.flush()
+        s.add_all([UserFeed(user_id=1, feed_id=f1.id), UserFeed(user_id=1, feed_id=f2.id)])
         await s.commit()
 
     r = await client.get("/api/feeds/export-opml")

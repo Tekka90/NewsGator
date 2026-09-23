@@ -46,7 +46,7 @@ from typing_extensions import TypedDict
 
 from app.core.config import settings
 from app.core.db import get_session
-from app.models import Article, Feed, MailAccount
+from app.models import Article, Feed, MailAccount, UserFeed
 from app.services import activity, llm_client, llmtrace, prompts, usage
 from app.services.fulltext import fetch_full_text_batch
 from app.services.ingest import _is_duplicate, canonicalize_url
@@ -612,7 +612,9 @@ async def _fulltext_batch(feed_id: int, article_ids: list[int]) -> list[int]:
     return await fetch_full_text_batch(feed_id, article_ids)
 
 
-async def _process_message(session: AsyncSession, msg: NewsletterMessage) -> int:
+async def _process_message(
+    session: AsyncSession, msg: NewsletterMessage, user_id: int | None = None
+) -> int:
     """Create articles for one parsed newsletter. Returns new article count."""
     if not msg.candidates:
         return 0
@@ -620,6 +622,14 @@ async def _process_message(session: AsyncSession, msg: NewsletterMessage) -> int
         session, msg.sender_email, msg.sender_name
     )
     feed.email_count += 1
+    if user_id is not None:
+        uf = await session.scalar(
+            select(UserFeed).where(
+                UserFeed.user_id == user_id, UserFeed.feed_id == feed.id
+            )
+        )
+        if uf is None:
+            session.add(UserFeed(user_id=user_id, feed_id=feed.id))
     await session.commit()  # clean session before the LLM call (writer-lock rule)
 
     # Pass 1 (optional): the LLM deletes the non-news chrome from the full
@@ -748,7 +758,7 @@ async def process_messages(
                         },
                     )
                     await session.commit()
-                    new_articles += await _process_message(session, msg)
+                    new_articles += await _process_message(session, msg, user_id=account.user_id)
                     processed += 1
                 except Exception as exc:
                     await session.rollback()

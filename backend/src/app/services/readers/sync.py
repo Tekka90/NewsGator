@@ -14,7 +14,7 @@ from typing import Any
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Article, Feed, ReaderAccount, Story, StoryState
+from app.models import Article, Feed, ReaderAccount, Story, StoryState, UserFeed
 from app.services import activity
 from app.services.fulltext import fetch_full_text_batch
 from app.services.process import enqueue_article
@@ -65,6 +65,13 @@ async def ensure_virtual_feed(session: AsyncSession, account: ReaderAccount) -> 
         await session.flush()
 
     account.virtual_feed_id = feed.id
+    uf = await session.scalar(
+        select(UserFeed).where(
+            UserFeed.user_id == account.user_id, UserFeed.feed_id == feed.id
+        )
+    )
+    if uf is None:
+        session.add(UserFeed(user_id=account.user_id, feed_id=feed.id))
     return feed
 
 

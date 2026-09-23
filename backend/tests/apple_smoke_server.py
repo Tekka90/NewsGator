@@ -56,7 +56,7 @@ def make_app(url: str):
     from app.core import db
     from app.core.config import settings
     from app.main import create_app, lifespan
-    from app.models import Article, Feed, Story, StoryRevision, StoryState, User
+    from app.models import Article, Feed, Story, StoryRevision, StoryState, User, UserFeed
     from app.services import chat, llm_client, mailnews, process, readeck, vectorstore
 
     async def embed_question(question):
@@ -162,6 +162,9 @@ def make_app(url: str):
                                 index, [1.0, 0.0, 0.0] if index == 1 else [0.0, 1.0, 0.0]
                             )
                         session.add_all([
+                            UserFeed(user_id=reader.id, feed_id=rss.id),
+                            UserFeed(user_id=reader.id, feed_id=mail.id),
+                            UserFeed(user_id=1, feed_id=mail.id),
                             StoryRevision(
                                 story_id=1, version=1, summary="Original RSS facts.",
                                 created_at=STAMP,

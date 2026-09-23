@@ -186,7 +186,7 @@ def test_read_state_is_per_user_and_never_reverts_on_update(live: httpx.Client) 
 
 
 @pytest.mark.parametrize("path", [
-    "/api/feeds", "/api/categories", "/api/categories/suggestions",
+    "/api/categories", "/api/categories/suggestions",
     "/api/users", "/api/settings", "/api/usage/summary",
     "/api/usage/daily", "/api/usage/by-feed",
 ])
@@ -195,6 +195,12 @@ def test_nonadmin_administration_is_forbidden(live: httpx.Client, path: str) -> 
     response = live.get(path)
     assert response.status_code == 403
     assert response.json() == {"detail": "Admin only"}
+
+
+def test_nonadmin_feeds_is_allowed(live: httpx.Client) -> None:
+    login(live)
+    response = live.get("/api/feeds")
+    assert response.status_code == 200
 
 
 def test_chat_real_retrieval_history_and_usage_with_fake_provider(live: httpx.Client) -> None:

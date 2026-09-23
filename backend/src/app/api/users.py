@@ -13,7 +13,7 @@ from app.api.deps import admin_user
 from app.api.schemas import ManagedUserOut, UserCreateIn, UserPatchIn
 from app.core.db import get_session
 from app.core.security import hash_password
-from app.models import StoryState, User
+from app.models import StoryState, User, UserFeed
 from app.services import activity
 
 router = APIRouter(prefix="/users", tags=["users"], dependencies=[Depends(admin_user)])
@@ -80,7 +80,8 @@ async def delete_user(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cannot delete yourself")
     if user.is_admin:
         await _ensure_not_last_admin(session, user)
-    # Per-user read state has no delete cascade — bulk-delete by hand.
+    # Per-user read state and subscriptions have no delete cascade — bulk-delete by hand.
+    await session.execute(delete(UserFeed).where(UserFeed.user_id == user_id))
     await session.execute(delete(StoryState).where(StoryState.user_id == user_id))
     await session.execute(delete(User).where(User.id == user_id))
     await activity.emit(
