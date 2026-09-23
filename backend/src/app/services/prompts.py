@@ -14,16 +14,29 @@ LANGUAGE_NAMES = {
     "it": "Italian",
     "pt": "Portuguese",
     "nl": "Dutch",
+    "ru": "Russian",
+    "zh": "Chinese",
+    "ja": "Japanese",
+    "ar": "Arabic",
+    "ko": "Korean",
+    "pl": "Polish",
+    "sv": "Swedish",
+    "da": "Danish",
+    "fi": "Finnish",
+    "no": "Norwegian",
 }
 
 
-def summary_language_name() -> str:
-    return LANGUAGE_NAMES.get(settings.summary_language, settings.summary_language)
+def summary_language_name(lang_code: str | None = None) -> str:
+    code = lang_code or settings.summary_language
+    return LANGUAGE_NAMES.get(code, code)
 
 
-def summarize_article(title: str, text: str, taxonomy: list[str]) -> tuple[str, str]:
+def summarize_article(
+    title: str, text: str, taxonomy: list[str], lang_code: str | None = None
+) -> tuple[str, str]:
     """Per-article summary + category. Returns (system, user)."""
-    lang = summary_language_name()
+    lang = summary_language_name(lang_code)
     categories = ", ".join(taxonomy)
     system = (
         f"You are a news summarizer for a personal news reader. Always write in {lang}. "
@@ -48,9 +61,11 @@ Article text:
     return system, user
 
 
-def story_headline(article_summaries: list[str]) -> tuple[str, str]:
+def story_headline(
+    article_summaries: list[str], lang_code: str | None = None
+) -> tuple[str, str]:
     """Generate a short story headline from member article summaries."""
-    lang = summary_language_name()
+    lang = summary_language_name(lang_code)
     joined = "\n\n".join(f"- {s}" for s in article_summaries[:10])
     system = (
         f"You write short, factual news headlines in {lang}. "
@@ -82,9 +97,11 @@ Reply with JSON: {{"new_facts": true|false, "added": "short description or empty
     return system, user
 
 
-def merge_story_summary(old_summary: str, new_article_summary: str) -> tuple[str, str]:
+def merge_story_summary(
+    old_summary: str, new_article_summary: str, lang_code: str | None = None
+) -> tuple[str, str]:
     """Merge a new article's facts into a story; also refresh the headline."""
-    lang = summary_language_name()
+    lang = summary_language_name(lang_code)
     system = (
         f"You merge news summaries into a single coherent summary in {lang}. "
         "Reply with ONLY a valid JSON object."

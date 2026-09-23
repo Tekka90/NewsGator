@@ -70,7 +70,8 @@ async def prepare_share(
         name = allowed.get(language)
         if name is None:
             raise ShareError(f"Unsupported share language: {language}")
-        if language != settings.summary_language:
+        story_lang = getattr(story, "language", None) or settings.summary_language
+        if language != story_lang:
             data, latency_ms = await _translate(title, summary, name)
             t, s = data.get("title"), data.get("summary")
             if not (isinstance(t, str) and t.strip() and isinstance(s, str) and s.strip()):

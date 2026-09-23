@@ -164,8 +164,9 @@ async def _create_story(
     # API) for the duration of the request. Headline is cosmetic; fall back to
     # the article title on LLM failure.
     headline: str | None = None
+    story_lang = article.language if article.language else settings.summary_language
     try:
-        system, user = prompts.story_headline([article.summary])
+        system, user = prompts.story_headline([article.summary], lang_code=story_lang)
         with llmtrace.context("headline", label=article.title, article_id=article.id):
             result, latency_ms = await llm_client.chat_json(system, user)
         headline = str(result.get("headline", ""))
@@ -182,7 +183,10 @@ async def _create_story(
     except llm_client.LLMError:
         headline = None
 
-    story = Story(category=article.category or "Uncategorized")
+    story = Story(
+        category=article.category or "Uncategorized",
+        language=story_lang,
+    )
     session.add(story)
     await session.flush()
     story.title = headline or article.title
@@ -227,7 +231,10 @@ async def _attach_to_story(
 
     if has_new_facts:
         try:
-            system, user = prompts.merge_story_summary(story.summary, article.summary)
+            story_lang = story.language or settings.summary_language
+            system, user = prompts.merge_story_summary(
+                story.summary, article.summary, lang_code=story_lang
+            )
             with llmtrace.context("merge", label=story.title, article_id=article.id):
                 merged, latency_ms = await llm_client.chat_json(system, user)
             usage.record(

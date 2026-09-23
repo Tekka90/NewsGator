@@ -169,6 +169,7 @@ class Story(Base):
     title: Mapped[str] = mapped_column(String(512), default="")
     summary: Mapped[str] = mapped_column(Text, default="")
     category: Mapped[str] = mapped_column(String(128), default="Uncategorized")
+    language: Mapped[str] = mapped_column(String(8), default="")
     # Lead image: first member article that carried an RSS image (SPEC §3)
     image_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     version: Mapped[int] = mapped_column(Integer, default=1)

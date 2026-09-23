@@ -496,16 +496,17 @@ all users. `GET /api/stories` and `GET /api/stories/feed-options` are scoped to 
 having >= 1 source article from the user's subscribed feeds (`GET /api/stories/{id}`
 404s if the user is not subscribed to any member feeds). Legacy stamps: 0016 top entry
 keyed on `("user_feed", "user_id")`.
-Multi-language story summary translations (2026-09-23, Alembic 0017):
+Multi-language story summary translations (2026-09-23, Alembic 0017 & 0018):
 per-user summary language translations (`story_translation` table:
-story_id/language/version/title/summary/created_at). Clustering and vector embeddings
-remain global in `settings.summary_language`. When users configure a personal
-`summary_language` in their profile, `GET /api/stories` and `GET /api/stories/{id}`
-serve cached translations. Missing or outdated translations are pre-warmed via a
-background translation worker (`services/translation.py`, triggered on story creation,
-version bumps in clustering, manual merge, and when users update `summary_language`),
-or translated JIT on story detail fetch. Legacy stamps: 0017 top entry keyed on
-`("story_translation", "language")`.
+story_id/language/version/title/summary/created_at; `story.language` column tracks
+canonical source language). Canonical story headlines and summaries are generated
+in the source article's detected language, avoiding translation drift. When users
+view stories or RSS feeds in a different language, `GET /api/stories`, `GET /api/feed.xml`,
+and `GET /api/stories/{id}` serve cached translations. Missing or outdated translations
+are pre-warmed via a background translation worker (`services/translation.py`, triggered
+on story creation, version bumps in clustering, manual merge, and when users update
+`summary_language`), or translated JIT on story detail fetch. Legacy stamps: 0018 top
+entry keyed on `("story", "language")`.
 
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,

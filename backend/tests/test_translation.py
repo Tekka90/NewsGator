@@ -16,7 +16,9 @@ def _set_summary_lang(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(env_settings, "summary_language", "en")
 
 
-async def _setup_story(db_session, lang: str = "de") -> tuple[int, int, int]:
+async def _setup_story(
+    db_session, lang: str = "de", story_lang: str = "en"
+) -> tuple[int, int, int]:
     """Create a feed, an article, a story, and a user with the given summary_language."""
     async with db_session() as s:
         cat = Category(name="General")
@@ -29,6 +31,7 @@ async def _setup_story(db_session, lang: str = "de") -> tuple[int, int, int]:
             title="Apple announces new product",
             summary="Apple has announced a brand new product today.",
             category="General",
+            language=story_lang,
             version=1,
         )
         s.add(story)
@@ -209,4 +212,57 @@ async def test_patch_me_triggers_prewarm(
     call_args = mock_prewarm.call_args[0]
     assert call_args[1] == user_id
     assert call_args[2] == "de"
+
+
+async def test_story_matches_target_language_skips_llm(
+    db_session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When a story's canonical language matches the target language, no LLM call is made."""
+    _, story_id, _ = await _setup_story(db_session, lang="de", story_lang="de")
+
+    mock_llm = AsyncMock()
+    monkeypatch.setattr(translation, "_translate_llm", mock_llm)
+
+    async with db_session() as session:
+        story = await session.get(Story, story_id)
+        assert story is not None
+
+        title, summary = await translation.get_or_translate_story(session, story, "de")
+        assert mock_llm.call_count == 0
+        assert title == story.title
+        assert summary == story.summary
+
+
+async def test_story_in_en_user_in_default_fr_triggers_translation(
+    db_session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Foreign story translated for user reading server default language (fr)."""
+    monkeypatch.setattr(env_settings, "summary_language", "fr")
+    _, story_id, _ = await _setup_story(db_session, lang="", story_lang="en")
+
+    mock_llm = AsyncMock(
+        return_value=(
+            {
+                "title": "Apple annonce un nouveau produit",
+                "summary": "Apple a annoncé un tout nouveau produit aujourd'hui.",
+            },
+            130,
+        )
+    )
+    monkeypatch.setattr(translation, "_translate_llm", mock_llm)
+
+    async with db_session() as session:
+        story = await session.get(Story, story_id)
+        assert story is not None
+
+        title, summary = await translation.get_or_translate_story(session, story, "fr")
+        assert mock_llm.call_count == 1
+        assert title == "Apple annonce un nouveau produit"
+        assert summary == "Apple a annoncé un tout nouveau produit aujourd'hui."
+
+        # Verify cached in StoryTranslation with language="fr"
+        trans = await session.get(StoryTranslation, (story_id, "fr"))
+        assert trans is not None
+        assert trans.title == title
+
 

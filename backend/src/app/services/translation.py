@@ -50,7 +50,8 @@ async def translate_story(
 
     Returns (title, summary). Falls back to original title/summary if translation fails.
     """
-    if not target_language or target_language == settings.summary_language:
+    story_lang = story.language or settings.summary_language
+    if not target_language or target_language == story_lang:
         return story.title, story.summary
 
     target_name = language_name(target_language)
@@ -128,7 +129,8 @@ async def get_or_translate_story(
     session: AsyncSession, story: Story, target_language: str
 ) -> tuple[str, str]:
     """Retrieve cached translation matching current story version, or translate JIT."""
-    if not target_language or target_language == settings.summary_language:
+    story_lang = story.language or settings.summary_language
+    if not target_language or target_language == story_lang:
         return story.title, story.summary
 
     trans = await session.get(StoryTranslation, (story.id, target_language))
@@ -145,7 +147,7 @@ async def batch_get_translations(
 
     Returns a dict: {story_id: (title, summary, version)}.
     """
-    if not story_ids or not target_language or target_language == settings.summary_language:
+    if not story_ids or not target_language:
         return {}
 
     rows = (
@@ -170,7 +172,8 @@ async def prewarm_user_stories(
     session: AsyncSession, user_id: int, target_language: str, limit: int = 50
 ) -> None:
     """Enqueue recent stories subscribed by a user when their summary language changes."""
-    if not target_language or target_language == settings.summary_language:
+    effective_lang = target_language or settings.summary_language
+    if not effective_lang:
         return
 
     # Subscribed story IDs for this user
@@ -195,7 +198,7 @@ async def prewarm_user_stories(
 
     for sid in story_ids:
         if sid is not None:
-            enqueue_story_translation(sid, [target_language])
+            enqueue_story_translation(sid, [effective_lang])
 
 
 async def _run_translation_worker() -> None:
@@ -212,29 +215,33 @@ async def _run_translation_worker() -> None:
                 if story is None:
                     break
 
+                story_lang = story.language or settings.summary_language
+
                 target_langs: list[str]
                 if explicit_languages is not None:
                     target_langs = [
                         lang
                         for lang in explicit_languages
-                        if lang and lang != settings.summary_language
+                        if lang and lang != story_lang
                     ]
                 else:
-                    # Find distinct summary_languages of users subscribed to feeds of this story
-                    user_langs = (
+                    # Find distinct desired summary_languages of users subscribed to
+                    # feeds of this story
+                    subscribed_users = (
                         await session.scalars(
-                            select(User.summary_language)
+                            select(User)
                             .distinct()
                             .join(UserFeed, UserFeed.user_id == User.id)
                             .join(Article, Article.feed_id == UserFeed.feed_id)
-                            .where(
-                                Article.story_id == story_id,
-                                User.summary_language != "",
-                                User.summary_language != settings.summary_language,
-                            )
+                            .where(Article.story_id == story_id)
                         )
                     ).all()
-                    target_langs = list(set(user_langs))
+                    target_set: set[str] = set()
+                    for u in subscribed_users:
+                        user_pref = u.summary_language or settings.summary_language
+                        if user_pref and user_pref != story_lang:
+                            target_set.add(user_pref)
+                    target_langs = list(target_set)
 
                 for lang in target_langs:
                     # Check if already translated at current version

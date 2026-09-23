@@ -21,6 +21,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import current_user
+from app.core.config import settings
 from app.core.db import get_session
 from app.models import Article, Story, StoryRevision, StoryState, User, UserFeed
 
@@ -39,11 +40,15 @@ class FeedItem:
         link: str | None,
         published_at: datetime | None,
         updated_at: datetime,
+        title: str | None = None,
+        summary: str | None = None,
     ) -> None:
         self.story = story
         self.link = link
         self.published_at = published_at
         self.updated_at = updated_at
+        self.title = title if title is not None else story.title
+        self.summary = summary if summary is not None else story.summary
 
 
 def _rfc822(dt: datetime) -> str:
@@ -77,7 +82,7 @@ def render_rss(items: list[FeedItem], *, channel_title: str, self_url: str) -> s
     for item in items:
         story = item.story
         el = SubElement(channel, "item")
-        SubElement(el, "title").text = story.title
+        SubElement(el, "title").text = item.title
         if item.link:
             SubElement(el, "link").text = item.link
         SubElement(el, "guid", isPermaLink="false").text = f"story:{story.id}"
@@ -90,7 +95,7 @@ def render_rss(items: list[FeedItem], *, channel_title: str, self_url: str) -> s
             else item.updated_at
         ).isoformat()
         SubElement(el, "category").text = story.category
-        SubElement(el, "description").text = _summary_to_html(story.summary)
+        SubElement(el, "description").text = _summary_to_html(item.summary)
         if story.image_url:
             SubElement(
                 el,
@@ -191,18 +196,34 @@ async def story_feed(
         ).all()
     }
 
+    user_lang = user.summary_language or settings.summary_language
+    from app.services.translation import batch_get_translations
+
+    translations = await batch_get_translations(
+        session, [s.id for s in stories], user_lang
+    )
+
     items: list[FeedItem] = []
     for story in stories:
         if unread and story.id in states:
             continue
         if category and story.category != category:
             continue
+        title = story.title
+        summary = story.summary
+        story_lang = story.language or settings.summary_language
+        if user_lang != story_lang:
+            t = translations.get(story.id)
+            if t is not None and t[2] == story.version:
+                title, summary = t[0], t[1]
         items.append(
             FeedItem(
                 story=story,
                 link=primary.get(story.id),
                 published_at=first_published.get(story.id),
                 updated_at=version_dates.get(story.id, story.last_updated_at),
+                title=title,
+                summary=summary,
             )
         )
 

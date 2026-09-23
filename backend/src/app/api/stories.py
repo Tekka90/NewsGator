@@ -225,13 +225,12 @@ async def list_stories(
         ]
     )
 
-    translations: dict[int, tuple[str, str, int]] = {}
-    if user.summary_language and user.summary_language != settings.summary_language:
-        from app.services.translation import batch_get_translations
+    user_lang = user.summary_language or settings.summary_language
+    from app.services.translation import batch_get_translations
 
-        translations = await batch_get_translations(
-            session, [s.id for s in stories if s.id in user_story_ids], user.summary_language
-        )
+    translations = await batch_get_translations(
+        session, [s.id for s in stories if s.id in user_story_ids], user_lang
+    )
 
     out: list[StoryListItem] = []
     for story in stories:
@@ -250,14 +249,15 @@ async def list_stories(
         source_count, published_at = stats.get(story.id, (0, None))
         title = story.title
         summary = story.summary
-        if user.summary_language and user.summary_language != settings.summary_language:
+        story_lang = story.language or settings.summary_language
+        if user_lang != story_lang:
             t = translations.get(story.id)
             if t is not None and t[2] == story.version:
                 title, summary = t[0], t[1]
             else:
                 from app.services.translation import enqueue_story_translation
 
-                enqueue_story_translation(story.id, [user.summary_language])
+                enqueue_story_translation(story.id, [user_lang])
         out.append(
             StoryListItem(
                 id=story.id,
@@ -380,11 +380,13 @@ async def story_detail(
 
     detail_title = story.title
     detail_summary = story.summary
-    if user.summary_language and user.summary_language != settings.summary_language:
+    user_lang = user.summary_language or settings.summary_language
+    story_lang = story.language or settings.summary_language
+    if user_lang != story_lang:
         from app.services.translation import get_or_translate_story
 
         detail_title, detail_summary = await get_or_translate_story(
-            session, story, user.summary_language
+            session, story, user_lang
         )
 
     return StoryDetail(

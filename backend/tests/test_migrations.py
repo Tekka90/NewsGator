@@ -108,6 +108,8 @@ async def test_legacy_create_all_db_stamped_and_upgraded(
     sync_conn.execute("DROP TABLE user_feed")
     # 0017 (story translations) added later still
     sync_conn.execute("DROP TABLE story_translation")
+    # 0018 (story language) added later still
+    sync_conn.execute("ALTER TABLE story DROP COLUMN language")
     sync_conn.commit()
     sync_conn.close()
     db.init_engine(engine_url)  # reconnect after the sync-side ALTER
@@ -116,6 +118,7 @@ async def test_legacy_create_all_db_stamped_and_upgraded(
     path = tmp_path / "auto.db"
     assert _version(path) is not None
     assert "image_url" in _columns(path, "story")
+    assert "language" in _columns(path, "story")
     assert "story_sort" in _columns(path, "user")
     assert "story_filter" in _columns(path, "user")
     assert "backfill_days" in _columns(path, "feed")

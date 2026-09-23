@@ -144,9 +144,10 @@ erDiagram
 
     STORY {
         int id PK
-        string title          "LLM-generated headline, in SUMMARY_LANGUAGE"
-        text   summary        "merged summary, in SUMMARY_LANGUAGE"
+        string title          "LLM-generated headline, in canonical source language"
+        text   summary        "merged summary, in canonical source language"
         string category
+        string language       "canonical ISO language code of the story"
         string image_url      "lead image: first member article with an image
                                (RSS media / inline <img>, else og:image from the page)"
         blob   centroid       "recency-weighted mean of member embeddings"

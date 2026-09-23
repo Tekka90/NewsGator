@@ -172,7 +172,7 @@ async def process_article(session: AsyncSession, article_id: int) -> None:
 
 
 async def summarize_article(session: AsyncSession, article: Article) -> bool:
-    """Detect language → LLM summary + category in SUMMARY_LANGUAGE (persisted at once).
+    """Detect language → LLM summary in article's source language (fallback to SUMMARY_LANGUAGE).
 
     Returns True on success (state → 'summarized'). On LLM failure the article stays
     in 'fulltext' so the backlog sweep retries it, and False is returned.
@@ -188,10 +188,13 @@ async def summarize_article(session: AsyncSession, article: Article) -> bool:
         article.language = ""
 
     taxonomy = (await session.scalars(select(Category.name).order_by(Category.name))).all()
+    article_lang = article.language if article.language else settings.summary_language
 
     await activity.emit(session, "llm", "summarize_start", {"article_id": article.id})
     try:
-        system, user = prompts.summarize_article(article.title, text, list(taxonomy))
+        system, user = prompts.summarize_article(
+            article.title, text, list(taxonomy), lang_code=article_lang
+        )
         with llmtrace.context("summarize", label=article.title, article_id=article.id):
             result, latency_ms = await llm_client.chat_json(system, user)
     except llm_client.LLMError as exc:
