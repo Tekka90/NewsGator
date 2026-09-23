@@ -201,6 +201,8 @@ class Article(Base):
     # The LLM summary still drives embeddings/clustering (invariant 2), but a NEW
     # story created from this article shows this text instead (SPEC §4).
     newsletter_intro: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Original subscription title from third-party reader API (reader_api feeds only)
+    origin_feed_title: Mapped[str | None] = mapped_column(String(512), nullable=True)
     # fetched → fulltext → summarized → embedded → clustered (SPEC §8)
     processing_state: Mapped[str] = mapped_column(String(32), default="fetched", index=True)
     content_status: Mapped[str] = mapped_column(String(16), default="full")
@@ -297,6 +299,33 @@ class MailAccount(Base):
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     # IMAP UID watermark — only messages with UID > last_uid are processed
     last_uid: Mapped[int] = mapped_column(Integer, default=0)
+    last_checked_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+
+class ReaderAccount(Base):
+    """Per-user third-party RSS reader API account (SPEC §9 reader ingestion).
+
+    Compatible with Google Reader API (/reader/api/0) providers:
+    Inoreader, FreshRSS, Miniflux, The Old Reader, BazQux, etc.
+    All items pulled from this account are grouped under a single virtual Feed
+    (feed.kind == 'reader_api').
+    """
+
+    __tablename__ = "reader_account"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), index=True)
+    provider: Mapped[str] = mapped_column(String(32), default="greader")
+    title: Mapped[str] = mapped_column(String(256), default="")
+    api_base_url: Mapped[str] = mapped_column(String(1024))
+    username: Mapped[str] = mapped_column(String(256), default="")
+    password: Mapped[str] = mapped_column(String(512), default="")
+    auth_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    virtual_feed_id: Mapped[int | None] = mapped_column(ForeignKey("feed.id"), nullable=True)
+    sync_cursor: Mapped[str | None] = mapped_column(String(256), nullable=True)
     last_checked_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)

@@ -50,6 +50,7 @@ OVERRIDABLE = {
     "mail_max_messages_per_poll": int,
     "newsletter_llm_extract": bool,
     "newsletter_llm_clean": bool,
+    "reader_poll_minutes": int,
     "readeck_base_url": str,
     "readeck_token": str,
     "share_languages": str,

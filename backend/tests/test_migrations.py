@@ -101,6 +101,9 @@ async def test_legacy_create_all_db_stamped_and_upgraded(
     # 0014 (category suggestions) added later still
     sync_conn.execute("DROP TABLE category_suggestion")
     sync_conn.execute("DROP TABLE category_proposal_dismissal")
+    # 0015 (reader accounts) added later still
+    sync_conn.execute("ALTER TABLE article DROP COLUMN origin_feed_title")
+    sync_conn.execute("DROP TABLE reader_account")
     sync_conn.commit()
     sync_conn.close()
     db.init_engine(engine_url)  # reconnect after the sync-side ALTER
@@ -122,6 +125,8 @@ async def test_legacy_create_all_db_stamped_and_upgraded(
     assert "email_count" in _columns(path, "feed")
     assert "category_suggestion" in _tables(path)
     assert "category_proposal_dismissal" in _tables(path)
+    assert "reader_account" in _tables(path)
+    assert "origin_feed_title" in _columns(path, "article")
 
 
 async def test_already_at_head_is_noop(engine_url: str, tmp_path) -> None:

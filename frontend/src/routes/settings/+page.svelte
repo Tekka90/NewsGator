@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { api, getToken } from '$lib/api';
   import { currentUser } from '$lib/stores';
-  import type { Category, CategorySuggestion, MailAccount, ManagedUser } from '$lib/types';
+  import type { Category, CategorySuggestion, MailAccount, ManagedUser, ReaderAccount } from '$lib/types';
 
   let language = $state('');
   let saved = $state(false);
@@ -69,6 +69,32 @@
   let editFolder = $state('');
   let editSsl = $state(true);
   let mailSaving = $state(false);
+
+  // Third-party RSS Reader accounts (Google Reader API standard)
+  let readerAccounts = $state<ReaderAccount[]>([]);
+  let readerTitle = $state('');
+  let readerBaseUrl = $state('https://www.inoreader.com');
+  let readerUsername = $state('');
+  let readerPassword = $state('');
+  let readerError = $state('');
+  let readerAdding = $state(false);
+  let readerTest = $state<Record<number, { ok: boolean; items_accessible: number; error: string | null }>>({});
+  let readerPolling = $state<number | null>(null);
+  let readerPollInfo = $state<Record<number, string>>({});
+  let readerEditingId = $state<number | null>(null);
+  let editReaderTitle = $state('');
+  let editReaderBaseUrl = $state('');
+  let editReaderUsername = $state('');
+  let editReaderPassword = $state('');
+  let readerSaving = $state(false);
+
+  async function loadReaderAccounts() {
+    try {
+      readerAccounts = await api.readerAccounts.list();
+    } catch {
+      readerAccounts = [];
+    }
+  }
 
   function startEditMail(a: MailAccount) {
     mailError = '';
@@ -174,6 +200,106 @@
     return d ? new Date(d).toLocaleString() : 'never';
   }
 
+  async function addReaderAccount(e: SubmitEvent) {
+    e.preventDefault();
+    readerError = '';
+    readerAdding = true;
+    try {
+      await api.readerAccounts.create({
+        provider: 'greader',
+        title: readerTitle.trim() || undefined,
+        api_base_url: readerBaseUrl.trim(),
+        username: readerUsername.trim(),
+        password: readerPassword || undefined,
+        is_enabled: true
+      });
+      readerTitle = '';
+      readerPassword = '';
+      await loadReaderAccounts();
+    } catch (err) {
+      readerError = err instanceof Error ? err.message : 'Failed to add reader account';
+    } finally {
+      readerAdding = false;
+    }
+  }
+
+  function startEditReader(a: ReaderAccount) {
+    readerError = '';
+    readerEditingId = a.id;
+    editReaderTitle = a.title ?? '';
+    editReaderBaseUrl = a.api_base_url;
+    editReaderUsername = a.username;
+    editReaderPassword = '';
+  }
+
+  async function saveReaderAccount(e: SubmitEvent) {
+    e.preventDefault();
+    if (readerEditingId === null) return;
+    readerSaving = true;
+    try {
+      await api.readerAccounts.update(readerEditingId, {
+        title: editReaderTitle.trim() || undefined,
+        api_base_url: editReaderBaseUrl.trim(),
+        username: editReaderUsername.trim(),
+        ...(editReaderPassword ? { password: editReaderPassword } : {})
+      });
+      readerEditingId = null;
+      await loadReaderAccounts();
+    } catch (err) {
+      readerError = err instanceof Error ? err.message : 'Failed to update reader account';
+    } finally {
+      readerSaving = false;
+    }
+  }
+
+  async function toggleReaderAccount(a: ReaderAccount) {
+    await api.readerAccounts.update(a.id, { is_enabled: !a.is_enabled });
+    await loadReaderAccounts();
+  }
+
+  async function removeReaderAccount(a: ReaderAccount) {
+    if (!confirm(`Delete ${a.title || a.username}? Member articles will stay in the archive.`)) return;
+    readerError = '';
+    try {
+      await api.readerAccounts.remove(a.id);
+      await loadReaderAccounts();
+    } catch (err) {
+      readerError = err instanceof Error ? err.message : 'Failed to remove account';
+    }
+  }
+
+  async function testReaderAccount(a: ReaderAccount) {
+    try {
+      const res = await api.readerAccounts.test(a.id);
+      readerTest = { ...readerTest, [a.id]: res };
+    } catch (err) {
+      readerTest = {
+        ...readerTest,
+        [a.id]: { ok: false, items_accessible: 0, error: err instanceof Error ? err.message : 'Test failed' }
+      };
+    }
+  }
+
+  async function pollReaderAccount(a: ReaderAccount) {
+    readerPolling = a.id;
+    readerPollInfo = { ...readerPollInfo, [a.id]: '' };
+    try {
+      const res = await api.readerAccounts.poll(a.id);
+      readerPollInfo = {
+        ...readerPollInfo,
+        [a.id]: `Poll completed: ${res.new_articles} new articles, ${res.read_synced} read states synced.`
+      };
+      await loadReaderAccounts();
+    } catch (err) {
+      readerPollInfo = {
+        ...readerPollInfo,
+        [a.id]: `Poll failed: ${err instanceof Error ? err.message : String(err)}`
+      };
+    } finally {
+      readerPolling = null;
+    }
+  }
+
   const feedUrl = $derived.by(() => {
     if (typeof window === 'undefined' || !feedToken) return '';
     const params = new URLSearchParams({ token: feedToken });
@@ -269,6 +395,7 @@
         { key: 'retention_days', label: 'Retention (days)' },
         { key: 'feed_disable_after_days', label: 'Disable feed after N days of failures' },
         { key: 'feed_backfill_days', label: 'First-poll backfill window (days, 0 = all)' },
+        { key: 'reader_poll_minutes', label: 'Reader accounts poll interval (minutes)' },
         { key: 'summary_language', label: 'Summary language (global default)' }
       ]
     }
@@ -277,6 +404,7 @@
   onMount(async () => {
     language = $currentUser?.summary_language ?? '';
     mailAccounts = await api.mailAccounts.list();
+    await loadReaderAccounts();
     // Token for the RSS URL: prefer a fresh one from the backend (works when
     // localStorage lost it), fall back to whatever is already stored.
     try {
@@ -569,6 +697,80 @@
     </div>
   {:else}
     <p class="hint">No inbox configured yet.</p>
+  {/each}
+</div>
+
+<div class="card">
+  <h2>RSS Reader Accounts</h2>
+  <p class="hint">
+    Connect an external RSS reader service (Google Reader API standard: Inoreader, FreshRSS, Miniflux, The Old Reader, BazQux).
+    Articles are ingested into a single virtual feed with original publisher URLs, favicons, and origin titles, and read state syncs bidirectionally.
+  </p>
+  {#if readerError}<p class="bad">{readerError}</p>{/if}
+  <form class="add" onsubmit={addReaderAccount}>
+    <input bind:value={readerTitle} placeholder="Account title (optional, e.g. Inoreader)" />
+    <input bind:value={readerBaseUrl} placeholder="API URL (e.g. https://www.inoreader.com)" required />
+    <input bind:value={readerUsername} placeholder="Username / Email" required />
+    <input
+      bind:value={readerPassword}
+      type="password"
+      placeholder="Password / API token"
+      required
+    />
+    <button type="submit" disabled={readerAdding}>{readerAdding ? 'Adding…' : 'Add account'}</button>
+  </form>
+  {#each readerAccounts as a (a.id)}
+    <div class="mailacct">
+      {#if readerEditingId === a.id}
+        <form class="add" onsubmit={saveReaderAccount}>
+          <input bind:value={editReaderTitle} placeholder="Account title" />
+          <input bind:value={editReaderBaseUrl} placeholder="API URL" required />
+          <input bind:value={editReaderUsername} placeholder="Username / Email" required />
+          <input
+            bind:value={editReaderPassword}
+            type="password"
+            placeholder="new password / token (blank = keep current)"
+          />
+          <button type="submit" disabled={readerSaving}>{readerSaving ? 'Saving…' : 'Save'}</button>
+          <button type="button" onclick={() => (readerEditingId = null)}>Cancel</button>
+        </form>
+      {:else}
+        <div class="row">
+          <strong>{a.title || a.username}</strong>
+          <span class="ovr">{a.api_base_url}</span>
+          <span class="ovr" class:env={a.is_enabled}>{a.is_enabled ? 'enabled' : 'disabled'}</span>
+          <span class="actions">
+            <button class="linkbtn" onclick={() => startEditReader(a)}>Edit</button>
+            <button class="linkbtn" onclick={() => testReaderAccount(a)}>Test</button>
+            <button
+              class="linkbtn"
+              onclick={() => pollReaderAccount(a)}
+              disabled={!a.is_enabled || readerPolling === a.id}
+            >
+              {readerPolling === a.id ? 'Polling…' : 'Poll now'}
+            </button>
+            <button class="linkbtn" onclick={() => toggleReaderAccount(a)}>
+              {a.is_enabled ? 'Disable' : 'Enable'}
+            </button>
+            <button class="linkbtn" onclick={() => removeReaderAccount(a)}>Delete</button>
+          </span>
+        </div>
+      {/if}
+      <p class="hint">
+        last checked: {fmtMailChecked(a.last_checked_at)} · user {a.username}
+      </p>
+      {#if a.last_error}<p class="bad">Last error: {a.last_error}</p>{/if}
+      {#if readerPollInfo[a.id]}<p class="ok">{readerPollInfo[a.id]}</p>{/if}
+      {#if readerTest[a.id]}
+        <p class={readerTest[a.id].ok ? 'ok' : 'bad'}>
+          {readerTest[a.id].ok
+            ? `Connection OK — ${readerTest[a.id].items_accessible} item(s) accessible`
+            : `Test failed: ${readerTest[a.id].error || 'Unknown error'}`}
+        </p>
+      {/if}
+    </div>
+  {:else}
+    <p class="hint">No reader account connected yet.</p>
   {/each}
 </div>
 

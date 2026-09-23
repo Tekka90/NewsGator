@@ -465,6 +465,22 @@ the `Category`, then purges that cluster's suggestion log; no
 reclassification of past articles) or **Dismiss**
 (`POST /suggestions/dismiss` — suppresses the cluster going forward). Toggle
 `CATEGORY_SUGGESTIONS_ENABLED`; all three settings whitelisted like the rest.
+Third-party reader API ingestion (2026-09-23, Alembic 0015): per-user reader
+accounts (`reader_account` table: user_id/provider/api_base_url/username/password/
+auth_token/is_enabled/virtual_feed_id/sync_cursor), `feed.kind` `reader_api`
+(virtual feed e.g. "Inoreader" with pseudo-URL `reader:{provider}:{account_id}`),
+and `article.origin_feed_title` capturing the original subscription title
+from the reader service. Router `api/reader_accounts.py` (`/reader-accounts`,
+current_user-scoped; test/poll endpoints). Service `services/readers/`:
+Google Reader API client (`greader.py`, covering Inoreader, FreshRSS, Miniflux,
+The Old Reader, BazQux) and sync engine (`sync.py`). Entries are resolved to
+their canonical publisher URLs, articles processed through the standard pipeline.
+Bidirectional read-state: marking a story read/unread in `api/stories.py` pushes
+read/unread to the reader API for member reader articles via `edit-tag`; inbound
+sync marks single-source stories read or multi-source stories "Updated"
+(`read_at_version = story.version - 1`). Scheduler `reader_poll_sweep` (every
+`READER_POLL_MINUTES`, default 15). Legacy stamps: 0015 top entry keyed on
+`("reader_account", "sync_cursor")`.
 
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,

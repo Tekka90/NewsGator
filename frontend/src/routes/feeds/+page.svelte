@@ -172,6 +172,8 @@
       <strong>{feed.title || feed.url}</strong>
       {#if feed.kind === 'mail'}
         <span class="badge mail">✉ newsletter</span>
+      {:else if feed.kind === 'reader_api'}
+        <span class="badge reader">📡 reader api</span>
       {/if}
       <span class="badge" class:off={!feed.is_enabled}>
         {feed.is_enabled ? 'enabled' : 'disabled'}
@@ -206,6 +208,10 @@
         <span>from: {feed.sender_email}</span>
         <span>{feed.email_count} email{feed.email_count === 1 ? '' : 's'} ingested</span>
         <span>populated by the mailbox poll (Settings → Newsletter inboxes)</span>
+      {:else if feed.kind === 'reader_api'}
+        <span>virtual feed for connected RSS reader account</span>
+        <span>last fetched: {fmt(feed.last_fetched_at)}</span>
+        <span>managed under Settings → RSS Reader Accounts</span>
       {:else}
         <span>{feed.url}</span>
         <span>polls every {feed.poll_interval_min} min</span>
@@ -249,6 +255,7 @@
   .badge.off { background: var(--frozen-bg); color: var(--frozen-text); }
   .badge.warn { background: var(--error-bg); color: var(--error); }
   .badge.mail { background: var(--chip-bg); color: var(--accent); }
+  .badge.reader { background: var(--chip-bg); color: var(--accent); }
   .badge.counts {
     background: var(--chip-bg);
     color: var(--text-secondary);

@@ -59,6 +59,7 @@ class ArticleOut(BaseModel):
     content_status: str
     content_warning: str | None
     published_at: datetime | None
+    origin_feed_title: str | None = None
     feed_id: int
     feed_title: str
     feed_url: str
@@ -103,6 +104,7 @@ def _article_out(a: Article) -> ArticleOut:
         content_status=a.content_status,
         content_warning=a.content_warning,
         published_at=a.published_at,
+        origin_feed_title=a.origin_feed_title,
         feed_id=a.feed_id,
         feed_title=a.feed.title,
         feed_url=a.feed.url,
@@ -560,6 +562,11 @@ async def mark_read(
     state.read_at = datetime.now(UTC)
     await session.commit()
 
+    # Outbound sync: push read state to connected third-party reader APIs
+    from app.services.readers.sync import sync_story_read_state_outbound
+
+    await sync_story_read_state_outbound(session, user.id, story_id, is_read=True)
+
 
 @router.post("/{story_id}/unread", status_code=status.HTTP_204_NO_CONTENT)
 async def mark_unread(
@@ -571,6 +578,11 @@ async def mark_unread(
     if state is not None:
         state.is_read = False
         await session.commit()
+
+    # Outbound sync: push unread state to connected third-party reader APIs
+    from app.services.readers.sync import sync_story_read_state_outbound
+
+    await sync_story_read_state_outbound(session, user.id, story_id, is_read=False)
 
 
 @router.get("/{story_id}/diff")

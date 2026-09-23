@@ -18,6 +18,7 @@ activity, authentication, settings, and chat.
 | Feed management | `/api/feeds` CRUD, global/per-feed refresh and multipart OPML import/export; administrative permissions apply. |
 | Taxonomy | `/api/categories` and category suggestions; do not replace this with native-generated free-form tags. |
 | Newsletters | Per-user `/api/mail-accounts`; `kind=mail` feeds are not RSS endpoints. |
+| Reader accounts | Per-user `/api/reader-accounts`; `kind=reader_api` virtual feeds aggregate all remote subscriptions with bidirectional read-state sync. |
 | Activity | `/api/activity/recent`, `/pipeline`, `/llm`, `/stream`; SSE data uses `action`, `component`, arbitrary JSON `detail`, and `ts`. |
 | Administration | `/api/settings`, service probes, threshold report, `/api/users`, `/api/usage/*`. Costs are client-side estimates, not server measurements. |
 

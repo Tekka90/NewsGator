@@ -10,6 +10,7 @@ import type {
   FeedOption,
   MailAccount,
   ManagedUser,
+  ReaderAccount,
   SimilarStory,
   StoryDetail,
   StoryListItem,
@@ -221,6 +222,33 @@ export const api = {
     poll: (id: number) =>
       req<{ found: number; processing: boolean }>(
         `/mail-accounts/${id}/poll`,
+        { method: 'POST' }
+      )
+  },
+
+  // Per-user third-party RSS reader API accounts (Google Reader API standard)
+  readerAccounts: {
+    list: () => req<ReaderAccount[]>('/reader-accounts'),
+    create: (a: {
+      provider: 'greader';
+      title?: string;
+      api_base_url: string;
+      username: string;
+      password?: string;
+      auth_token?: string;
+      is_enabled?: boolean;
+    }) => req<ReaderAccount>('/reader-accounts', { method: 'POST', body: a }),
+    update: (id: number, patch: Partial<Omit<ReaderAccount, 'id' | 'user_id' | 'virtual_feed_id' | 'last_checked_at' | 'last_error' | 'created_at'>> & { password?: string; auth_token?: string }) =>
+      req<ReaderAccount>(`/reader-accounts/${id}`, { method: 'PATCH', body: patch }),
+    remove: (id: number) => req<void>(`/reader-accounts/${id}`, { method: 'DELETE' }),
+    test: (id: number) =>
+      req<{ ok: boolean; items_accessible: number; error: string | null }>(
+        `/reader-accounts/${id}/test`,
+        { method: 'POST' }
+      ),
+    poll: (id: number) =>
+      req<{ new_articles: number; read_synced: number }>(
+        `/reader-accounts/${id}/poll`,
         { method: 'POST' }
       )
   },

@@ -227,6 +227,16 @@ config validated; image build is the one step to run on the target machine)
   /api/categories/suggestions/{accept,dismiss}`. Config
   `CATEGORY_SUGGESTIONS_ENABLED`/`CATEGORY_SUGGESTION_MIN_ARTICLES`/
   `CATEGORY_SUGGESTION_WINDOW_DAYS` (whitelisted).
+- Third-party RSS Reader API integration (Google Reader API compatible) ⏳ (2026-09-23):
+  per-user reader accounts (Alembic 0015 `reader_account`, `feed.kind = 'reader_api'`,
+  `article.origin_feed_title`, `services/readers/greader.py`, `services/readers/sync.py`),
+  aggregated virtual feed per connected account (`reader:{provider}:{account_id}`),
+  canonical publisher URL extraction + original publisher favicons, origin feed title
+  tracking, individual article processing through the standard pipeline, bidirectional
+  read-state synchronization (outbound push on story read/unread; inbound sync marking
+  single-source stories read or multi-source stories "Updated"). API `/api/reader-accounts`
+  (+ test/poll), scheduler `reader_poll_sweep`, GUI Settings card + Feeds-page badge.
+
 
 ---
 

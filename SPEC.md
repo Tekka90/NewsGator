@@ -92,8 +92,8 @@ erDiagram
 
     FEED {
         int id PK
-        string url           "RSS URL, or pseudo-URL newsletter:{sender} for mail feeds"
-        string kind          "rss|mail — mail feeds are never RSS-polled"
+        string url           "RSS URL, pseudo-URL newsletter:{sender} for mail feeds, or reader:{provider}:{account_id} for reader_api feeds"
+        string kind          "rss|mail|reader_api — mail and reader_api feeds are not RSS-polled"
         string sender_email  "mail feeds only: the newsletter From: address"
         string title
         int poll_interval_min
@@ -122,6 +122,8 @@ erDiagram
         text   newsletter_intro "mail feeds only: human-written intro from the email;
                                preferred over the LLM summary when a NEW story is
                                created from this article"
+        string origin_feed_title "reader_api feeds only: original subscription/feed title
+                               from the third-party reader (e.g. 'Ars Technica')"
         string category
         blob   embedding     "float32 (sqlite-vec) or external id (Qdrant)"
         int    story_id FK   "nullable until clustered"
@@ -190,6 +192,22 @@ erDiagram
         bool   use_ssl
         bool   is_enabled
         int    last_uid       "IMAP UID watermark — only newer messages are processed"
+        datetime last_checked_at
+        string last_error
+        datetime created_at
+    }
+
+    READER_ACCOUNT {
+        int id PK
+        int user_id FK        "per-user reader account (§9 third-party reader ingestion)"
+        string provider       "greader (Google Reader API compatible: Inoreader, FreshRSS, Miniflux, The Old Reader, BazQux)"
+        string api_base_url   "endpoint base URL (e.g. https://www.inoreader.com/reader or self-hosted)"
+        string username       "API username/login or client ID"
+        string password       "write-only via the API; password / token / secret"
+        string auth_token     "cached session/auth token (e.g. Google Reader Auth=...)"
+        bool   is_enabled
+        int    virtual_feed_id "FK to feed.id: single aggregated virtual feed for this account"
+        string sync_cursor    "continuation / watermark token for polling"
         datetime last_checked_at
         string last_error
         datetime created_at
@@ -332,8 +350,8 @@ v1 is **data-first, no online learning**:
 | `GET /stories?filter=all\|unread\|updated&category=&feed=&sort=updated\|published\|sources&order=asc\|desc` | story list with **per-user** flags; `feed` keeps only stories with at least one source article from that feed; sort by article publication date (default), last update, or source count, ascending (default: oldest first) or descending; unknown dates always last |
 | `GET /stories/feed-options` | feeds that have at least one article in a story (`[{id, title, kind, url, sender_email}]`) — options for the story-list feed filter. Any authenticated user (feeds CRUD itself is admin-only) |
 | `GET /stories/{id}` | story detail: merged summary + source articles + revision history |
-| `POST /stories/{id}/read` | sets `read_at_version = story.version` (per user) |
-| `POST /stories/{id}/unread` | |
+| `POST /stories/{id}/read` | sets `read_at_version = story.version` (per user) and pushes read state to connected third-party reader APIs for any member articles from reader feeds |
+| `POST /stories/{id}/unread` | marks story unread and pushes unread state to connected third-party reader APIs for any member articles from reader feeds |
 | `GET /stories/{id}/diff?from={version}` | what changed |
 | `CRUD /feeds` | feed management (admin); `GET /feeds` also reports `story_count` / `unread_story_count` per feed (stories with a source from it; unread is per the requesting user) and `email_count` (mail feeds only: newsletter emails processed for that sender). **Creating a feed kicks an immediate background poll** (no waiting for the next scheduler tick) |
 | `POST /feeds/import-opml` | bulk-import feeds from an OPML subscription export (admin); added feeds are polled immediately in the background |
@@ -341,6 +359,8 @@ v1 is **data-first, no online learning**:
 | `POST /feeds/{id}/refresh`, `POST /feeds/refresh` | force-poll one/all RSS feeds now, bypassing the adaptive schedule (admin); mail feeds are rejected — they are refreshed by polling the mail account |
 | `GET/POST /mail-accounts`, `PATCH/DELETE /mail-accounts/{id}` | per-user IMAP accounts for newsletter ingestion (any user, own accounts only — 404 across users). Folder is mandatory; the password is write-only (never returned, replace via PATCH). Deleting an account keeps the mail feeds/articles it produced |
 | `POST /mail-accounts/{id}/test`, `POST /mail-accounts/{id}/poll` | probe IMAP login + folder existence (returns ok/errors, never the password), or poll the account immediately (202 + message count; **409 when a poll is already running** for that account) |
+| `GET/POST /reader-accounts`, `PATCH/DELETE /reader-accounts/{id}` | per-user third-party RSS reader API accounts (Google Reader API compatible: Inoreader, FreshRSS, Miniflux, The Old Reader, BazQux; own accounts only). All articles from an account are grouped into one virtual feed. Password/token is write-only (never returned) |
+| `POST /reader-accounts/{id}/test`, `POST /reader-accounts/{id}/poll` | probe reader API authentication + stream access, or poll the account immediately (202 + article count; 409 if poll currently in progress) |
 | `GET/PATCH /settings` | global: retention days, freeze window, thresholds, vector backend (admin). Precedence: **env var > DB override > code default**; env-set keys are reported in `env_locked`, shown read-only in the GUI, and rejected by PATCH |
 | `POST /settings/test-llm`, `POST /settings/test-qdrant`, `POST /settings/test-readeck` | connection probes for the external services (admin); return `ok` + errors without leaking secrets |
 | `POST /stories/{id}/merge` / `POST /articles/{id}/move` | manual override when clustering is wrong (important for trust) |
@@ -599,6 +619,45 @@ the scheduler polls every enabled account every `MAIL_POLL_MINUTES` (default 15)
   `mail_account_created/deleted`. The clean and
   extraction LLM calls are recorded as usage kinds `newsletter_clean` /
   `newsletter_extract`.
+
+### Third-party RSS Reader API ingestion (Google Reader API compatible)
+
+Users can connect third-party RSS reader services (e.g. Inoreader, FreshRSS, Miniflux,
+The Old Reader, BazQux) using the standard Google Reader API (`/reader/api/0`).
+Accounts are configured per-user (`READER_ACCOUNT`, own accounts only — 404 across
+users), and the scheduler polls enabled accounts every `READER_POLL_MINUTES` (default 15).
+
+- **Virtual Feed Aggregation**: All articles originating from a connected reader account
+  are associated with **one single virtual feed** (`FEED` with `kind = 'reader_api'`,
+  title e.g. "Inoreader" or custom account title, pseudo-URL `reader:{provider}:{account_id}`).
+  Sub-feeds within the third-party reader do NOT appear as individual feeds in NewsGator.
+- **Canonical Publisher Links**: Entry links are resolved to the **original publisher URL**
+  (from `canonical[0].href` or `alternate[0].href`, stripped of tracking parameters via
+  `canonicalize_url()`). Third-party redirect/tracking URLs are never stored as article URLs.
+- **Publisher Favicons**: Favicons in story cards and detail rows derive automatically
+  from the canonical `article.url` host (using the cached `/api/favicon?host=` proxy),
+  faithfully showing the original publisher's icon rather than the reader service's icon.
+- **Origin Feed Title**: The original subscription title reported by the reader API (e.g.
+  `origin.title = "Ars Technica"`) is preserved on `article.origin_feed_title`, allowing
+  story detail views to show the true publication name alongside the publisher favicon.
+- **Individual Article Pipeline**: Each imported entry undergoes the complete standard
+  pipeline (full-text extraction via trafilatura/readability → LLM summarization →
+  embedding → clustering into stories).
+- **Bidirectional Read-State Synchronization**:
+  - **Outbound**: When a story is marked as read in NewsGator (`POST /api/stories/{id}/read`),
+    all member articles originating from connected reader accounts have their read state
+    pushed upstream via the Google Reader API (`POST /reader/api/0/edit-tag` with
+    `a=user/-/state/com.google/read&i={item_id}`). Marking unread pushes `r=user/-/state/com.google/read`.
+  - **Inbound**: During account poll, read states of existing articles are inspected.
+    If an article was read on the remote service:
+    - If the story contains only that single article: the story is marked read
+      (`is_read = True`, `read_at_version = story.version`).
+    - If the story has multiple member articles and an article was read externally:
+      the story is marked as **"Updated"** (`is_read = True`, `read_at_version = story.version - 1`),
+      signifying that part of the story was read while other complementary coverage remains.
+- **Activity events** (component `reader`): `reader_poll_start/done/failed`,
+  `reader_read_pushed`, `reader_account_created/deleted`.
+
 
 ---
 

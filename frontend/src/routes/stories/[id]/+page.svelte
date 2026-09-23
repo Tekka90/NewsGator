@@ -182,7 +182,9 @@
       <div class="source">
         <div class="row">
           <img class="favicon" src={favicon(article.url)} alt="" loading="lazy" onerror={hideFav} />
-          <span class="srcname">{article.feed_title || 'Unknown source'}</span>
+          <span class="srcname" title={article.origin_feed_title && article.feed_title ? `via ${article.feed_title}` : ''}>
+            {article.origin_feed_title || article.feed_title || 'Unknown source'}
+          </span>
           {#if article.published_at}<span class="age">{fmt(article.published_at)}</span>{/if}
           <span class="lang">{article.language || '?'}</span>
           {#if article.content_status === 'partial'}

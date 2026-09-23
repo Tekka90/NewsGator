@@ -161,6 +161,42 @@ class MailAccountOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# --- third-party reader ingestion (per-user reader accounts) ---
+
+
+class ReaderAccountIn(BaseModel):
+    provider: str = Field(default="greader", pattern="^greader$")
+    title: str = Field(default="", max_length=256)
+    api_base_url: str = Field(min_length=1, max_length=1024)
+    username: str = Field(default="", max_length=256)
+    password: str = Field(default="", max_length=512)
+    auth_token: str | None = None
+
+
+class ReaderAccountPatch(BaseModel):
+    title: str | None = Field(default=None, max_length=256)
+    api_base_url: str | None = Field(default=None, min_length=1, max_length=1024)
+    username: str | None = Field(default=None, max_length=256)
+    password: str | None = Field(default=None, max_length=512)
+    auth_token: str | None = None
+    is_enabled: bool | None = None
+
+
+class ReaderAccountOut(BaseModel):
+    id: int
+    provider: str
+    title: str
+    api_base_url: str
+    username: str
+    is_enabled: bool
+    virtual_feed_id: int | None
+    last_checked_at: datetime | None
+    last_error: str | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 # --- categories ---
 
 

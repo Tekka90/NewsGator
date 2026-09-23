@@ -148,6 +148,7 @@ def test_story_list_detail_revision_and_feed_options(live: httpx.Client) -> None
         "id": 1, "title": "RSS source", "url": f"{live.base_url}fixture/source/1",
         "image_url": None, "language": "en", "summary": "Updated RSS facts.",
         "content_status": "full", "content_warning": None, "published_at": STAMP,
+        "origin_feed_title": None,
         "feed_id": 1, "feed_title": "Apple RSS", "feed_url": f"{live.base_url}fixture/rss",
     }]
     options = live.get("/api/stories/feed-options").json()

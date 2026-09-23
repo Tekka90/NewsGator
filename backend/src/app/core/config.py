@@ -89,6 +89,9 @@ class Settings(BaseSettings):
     # surviving news links. Far more reliable than one-pass triage.
     newsletter_llm_clean: bool = True
 
+    # Third-party RSS Reader API ingestion (SPEC §9, Google Reader API standard):
+    reader_poll_minutes: int = 15  # how often the scheduler polls all reader accounts
+
     # GUI: source favicon proxy cache (hours)
     favicon_cache_hours: int = 168
 

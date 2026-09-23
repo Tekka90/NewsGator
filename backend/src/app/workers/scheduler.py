@@ -38,6 +38,13 @@ async def mail_poll_sweep() -> None:
     await poll_all_accounts()
 
 
+async def reader_poll_sweep() -> None:
+    """Poll every enabled third-party reader account (SPEC §9, Google Reader API)."""
+    from app.services.readers.sync import poll_all_reader_accounts
+
+    await poll_all_reader_accounts()
+
+
 async def freeze_sweep() -> None:
     """Hourly: freeze stories past the freeze window + prune the activity ring buffer."""
     async for session in get_session():
@@ -94,6 +101,14 @@ def start_scheduler() -> None:
         trigger="interval",
         minutes=settings.mail_poll_minutes,
         id="mail_poll_sweep",
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        reader_poll_sweep,
+        trigger="interval",
+        minutes=settings.reader_poll_minutes,
+        id="reader_poll_sweep",
         max_instances=1,
         coalesce=True,
     )

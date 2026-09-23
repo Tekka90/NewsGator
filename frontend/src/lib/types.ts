@@ -114,8 +114,8 @@ export interface LLMInteraction {
 export interface Feed {
   id: number;
   url: string;
-  // 'rss' or 'mail' (newsletter ingestion; never RSS-polled)
-  kind: 'rss' | 'mail';
+  // 'rss', 'mail' (newsletter ingestion; never RSS-polled), or 'reader_api'
+  kind: 'rss' | 'mail' | 'reader_api';
   sender_email: string | null;
   title: string;
   is_enabled: boolean;
@@ -137,9 +137,25 @@ export interface Feed {
 export interface FeedOption {
   id: number;
   title: string;
-  kind: 'rss' | 'mail';
+  kind: 'rss' | 'mail' | 'reader_api';
   url: string;
   sender_email: string | null;
+}
+
+/** Per-user third-party RSS reader API account (GET /api/reader-accounts).
+ * Password is write-only and never returned. */
+export interface ReaderAccount {
+  id: number;
+  user_id: number;
+  provider: 'greader';
+  title: string | null;
+  api_base_url: string;
+  username: string;
+  is_enabled: boolean;
+  virtual_feed_id: number | null;
+  last_checked_at: string | null;
+  last_error: string | null;
+  created_at: string;
 }
 
 /** Per-user IMAP account for newsletter ingestion (GET /api/mail-accounts).
@@ -227,6 +243,7 @@ export interface StoryArticle {
   content_status: string;
   content_warning: string | null;
   published_at: string | null;
+  origin_feed_title: string | null;
   feed_id: number;
   feed_title: string;
   feed_url: string;
