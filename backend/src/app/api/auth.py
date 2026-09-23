@@ -110,6 +110,10 @@ async def patch_me(
 ) -> UserOut:
     if body.summary_language is not None:
         user.summary_language = body.summary_language
+        if body.summary_language:
+            from app.services.translation import prewarm_user_stories
+
+            await prewarm_user_stories(session, user.id, body.summary_language)
     if body.story_sort is not None:
         user.story_sort = body.story_sort
     if body.story_order is not None:

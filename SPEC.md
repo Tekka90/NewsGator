@@ -171,6 +171,15 @@ erDiagram
         datetime created_at
     }
 
+    STORY_TRANSLATION {
+        int story_id PK,FK
+        string language PK    "ISO 639-1 target code, e.g. de, fr, es"
+        int version           "matches story.version when up-to-date"
+        string title
+        text summary
+        datetime created_at
+    }
+
     LLM_USAGE {
         int id PK
         datetime ts

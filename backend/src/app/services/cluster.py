@@ -194,6 +194,9 @@ async def _create_story(
     story.image_url = article.image_url
     session.add(StoryRevision(story_id=story.id, version=1, summary=story.summary))
     await get_vector_store(session).upsert_story_centroid(story.id, list(vec))
+    from app.services.translation import enqueue_story_translation
+
+    enqueue_story_translation(story.id)
     return story
 
 
@@ -248,6 +251,9 @@ async def _attach_to_story(
                 story_id=story.id, version=story.version, summary=story.summary
             )
         )
+        from app.services.translation import enqueue_story_translation
+
+        enqueue_story_translation(story.id)
         await activity.emit(
             session, "cluster", "story_update",
             {"story_id": story.id, "version": story.version},

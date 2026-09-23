@@ -246,6 +246,19 @@ class StoryRevision(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
+class StoryTranslation(Base):
+    """Cached translations of story title and summary into non-default user languages."""
+
+    __tablename__ = "story_translation"
+
+    story_id: Mapped[int] = mapped_column(ForeignKey("story.id"), primary_key=True)
+    language: Mapped[str] = mapped_column(String(8), primary_key=True)
+    version: Mapped[int] = mapped_column(Integer)
+    title: Mapped[str] = mapped_column(String(512))
+    summary: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+
 class ActivityEvent(Base):
     __tablename__ = "activity_log"
 

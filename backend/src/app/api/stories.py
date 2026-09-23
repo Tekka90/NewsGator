@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -21,6 +21,7 @@ from app.models import (
     Story,
     StoryRevision,
     StoryState,
+    StoryTranslation,
     User,
     UserFeed,
 )
@@ -224,6 +225,14 @@ async def list_stories(
         ]
     )
 
+    translations: dict[int, tuple[str, str, int]] = {}
+    if user.summary_language and user.summary_language != settings.summary_language:
+        from app.services.translation import batch_get_translations
+
+        translations = await batch_get_translations(
+            session, [s.id for s in stories if s.id in user_story_ids], user.summary_language
+        )
+
     out: list[StoryListItem] = []
     for story in stories:
         if story.id not in user_story_ids:
@@ -239,11 +248,21 @@ async def list_stories(
         if feed_story_ids is not None and story.id not in feed_story_ids:
             continue
         source_count, published_at = stats.get(story.id, (0, None))
+        title = story.title
+        summary = story.summary
+        if user.summary_language and user.summary_language != settings.summary_language:
+            t = translations.get(story.id)
+            if t is not None and t[2] == story.version:
+                title, summary = t[0], t[1]
+            else:
+                from app.services.translation import enqueue_story_translation
+
+                enqueue_story_translation(story.id, [user.summary_language])
         out.append(
             StoryListItem(
                 id=story.id,
-                title=story.title,
-                summary=story.summary,
+                title=title,
+                summary=summary,
                 category=story.category,
                 image_url=story.image_url,
                 version=story.version,
@@ -358,10 +377,20 @@ async def story_detail(
             .order_by(StoryRevision.version)
         )
     ).all()
+
+    detail_title = story.title
+    detail_summary = story.summary
+    if user.summary_language and user.summary_language != settings.summary_language:
+        from app.services.translation import get_or_translate_story
+
+        detail_title, detail_summary = await get_or_translate_story(
+            session, story, user.summary_language
+        )
+
     return StoryDetail(
         id=story.id,
-        title=story.title,
-        summary=story.summary,
+        title=detail_title,
+        summary=detail_summary,
         category=story.category,
         image_url=story.image_url,
         version=story.version,
@@ -781,10 +810,16 @@ async def merge_story(
     if target.image_url is None:
         target.image_url = source.image_url
     await get_vector_store(session).delete_story(source.id)
+    await session.execute(
+        delete(StoryTranslation).where(StoryTranslation.story_id == source.id)
+    )
     await activity.emit(
         session, "cluster", "manual_merge",
         {"target": target.id, "source": source.id, "articles": len(moved)},
     )
+    from app.services.translation import enqueue_story_translation
+
+    enqueue_story_translation(target.id)
     await session.delete(source)
     await session.commit()
 

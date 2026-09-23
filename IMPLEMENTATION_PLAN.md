@@ -236,6 +236,12 @@ config validated; image build is the one step to run on the target machine)
   read-state synchronization (outbound push on story read/unread; inbound sync marking
   single-source stories read or multi-source stories "Updated"). API `/api/reader-accounts`
   (+ test/poll), scheduler `reader_poll_sweep`, GUI Settings card + Feeds-page badge.
+- Multi-language story summary translations ✅ (2026-09-23): per-user summary language
+  translations (Alembic 0017 `story_translation` table, `services/translation.py`).
+  Clustering and embeddings stay in global server language (`settings.summary_language`).
+  Users setting a custom `summary_language` receive translated headline and summary
+  on `GET /api/stories` and `GET /api/stories/{id}`. Background pre-warming worker translates
+  stories on creation/version bump and user language change; JIT fallback on story detail.
 
 
 ---

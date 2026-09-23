@@ -17,6 +17,7 @@ from app.models import (
     Story,
     StoryRevision,
     StoryState,
+    StoryTranslation,
     User,
     UserFeed,
 )
@@ -288,6 +289,9 @@ async def delete_feed(
             )
             await session.execute(
                 delete(StoryState).where(StoryState.story_id.in_(empty_story_ids))
+            )
+            await session.execute(
+                delete(StoryTranslation).where(StoryTranslation.story_id.in_(empty_story_ids))
             )
             await session.execute(delete(Story).where(Story.id.in_(empty_story_ids)))
         await activity.emit(

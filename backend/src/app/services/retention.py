@@ -18,6 +18,7 @@ from app.models import (
     Story,
     StoryRevision,
     StoryState,
+    StoryTranslation,
 )
 from app.services import activity
 from app.services.vectorstore import get_vector_store
@@ -56,6 +57,9 @@ async def purge_old_data(session: AsyncSession) -> dict[str, int]:
         )
         await session.execute(
             delete(StoryState).where(StoryState.story_id.in_(story_ids))
+        )
+        await session.execute(
+            delete(StoryTranslation).where(StoryTranslation.story_id.in_(story_ids))
         )
         await session.execute(delete(Story).where(Story.id.in_(story_ids)))
     report["stories"] = len(story_ids)
