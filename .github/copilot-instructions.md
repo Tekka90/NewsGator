@@ -543,9 +543,38 @@ Notes on the current code:
 - Frontend: SvelteKit 5 runes + adapter-node; dev proxy `/api → :8000` in
   `frontend/vite.config.ts`, production proxy in `frontend/src/hooks.server.ts`
   (`BACKEND_URL`).
-- Project site (2026-08-28): `docs/index.html` is a self-contained GitHub Pages
-  landing page (serve `main` /`docs`); screenshots in `docs/assets/shots/` are
-  captured against a seeded demo DB, never the production instance. Regenerate:
+- Project site (2026-09-24 redesign): `docs/index.html` is a self-contained GitHub
+  Pages landing page (serve `main` /`docs`), rewritten to the light "Editorial
+  Gator" palette (`--forest #146B3A`, `--gold #F2B827`, `--paper #F8F7F1` — same
+  tokens as `frontend/src/lib/theme.css`, hand-copied since this is a standalone
+  static file with no build step) with a Newsreader serif display font + Inter
+  body, replacing the old dark neon-green "hacker" theme. `docs/assets/logo.png`
+  is the real app icon (`Alligator.png`, copied byte-for-byte from
+  `Newsgator-Apple/NewsGatorShared/Sources/NewsGatorShared/Resources/Alligator.png`
+  — never redraw it, never edit it). The four core value props are their own
+  `#highlights` section (each with a real screenshot, alternating left/right):
+  01 merge duplicate coverage into one Story, 02 the honest 60-second summary,
+  03 "Read Original Source" always sends readers to the real publisher page
+  (ads intact — no paywall circumvention, invariant 8), 04 the standalone
+  Apple Intelligence engine needs no server. A `#modes` section contrasts
+  the self-hosted server vs. the `Newsgator-Apple` standalone mode, plus a
+  narrative block explaining that one Apple-Intelligence-capable device per
+  household is enough (iCloud sync, no coordinator device — see
+  `Newsgator-Apple/.github/copilot-instructions.md`). Product screenshots
+  (`#usage`) are split by platform: the web-app subsection currently uses
+  dashed placeholder frames (`.shot .placeholder`, no image — the previous
+  dark-navbar shots in `docs/assets/shots/` no longer match the current GUI
+  and are kept on disk but unreferenced; replace the placeholders once new
+  light-theme web app screenshots are captured, see the demo-seeding
+  instructions below) and the native-app subsection uses real English
+  light-mode screenshots copied from `Newsgator-Apple/docs/screenshots/en/`
+  into `docs/assets/apple/` (downscaled with `sips --resampleWidth` to keep
+  the page light — Mac shots at 1400px, iPhone shots at 700px; `mac-chat.png`
+  is additionally cropped to drop empty conversation whitespace below the
+  single exchange). CTAs link to both `github.com/Tekka90/NewsGator` (server)
+  and `github.com/Tekka90/Newsgator-Apple` (native app) throughout.
+  Screenshots in `docs/assets/shots/` are captured against a seeded demo DB,
+  never the production instance. Regenerate:
   `backend/src/app/scripts/seed_demo.py` writes fake feeds/stories/activity/usage
   (login `admin`/`demo1234`) + SVG lead images under `backend/demo_assets/`
   (gitignored; serve via `python -m http.server 8899 --directory demo_assets`),

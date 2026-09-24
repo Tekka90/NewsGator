@@ -170,6 +170,8 @@ async def create_feed(
         item = FeedOut.model_validate(exists)
         item.story_count = len(story_ids)
         item.unread_story_count = len(story_ids - read_ids)
+        # Poll right away for the newly subscribed feed
+        poll_feeds_background([exists.id])
         return item
 
     title = body.title
@@ -378,6 +380,7 @@ async def import_opml(
             session.add(UserFeed(user_id=user.id, feed_id=existing_feed.id))
             user_feed_ids.add(existing_feed.id)
             added.append(existing_feed)
+            new_feed_ids.append(existing_feed.id)
         else:
             feed = Feed(url=url, title=title)
             session.add(feed)

@@ -404,7 +404,8 @@ def poll_feeds_background(feed_ids: list[int]) -> None:
     """
     if not feed_ids or settings.environment == "test":
         return
-    task = asyncio.create_task(poll_feeds_by_id(feed_ids))
+    unique_ids = list(dict.fromkeys(feed_ids))
+    task = asyncio.create_task(poll_feeds_by_id(unique_ids))
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
 
