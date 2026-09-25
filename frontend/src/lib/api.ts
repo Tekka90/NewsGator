@@ -6,7 +6,9 @@ import type {
   CategorySuggestion,
   ChatResponse,
   ChatStory,
+  DiscoveredFeed,
   Feed,
+  FeedDiscoveryResult,
   FeedOption,
   MailAccount,
   ManagedUser,
@@ -138,6 +140,8 @@ export const api = {
     list: () => req<Feed[]>('/feeds'),
     create: (f: { url: string; title?: string; poll_interval_min?: number; backfill_days?: number }) =>
       req<Feed>('/feeds', { method: 'POST', body: f }),
+    discover: (params: { location?: string; themes?: string[]; query?: string; excluded_urls?: string[] }) =>
+      req<FeedDiscoveryResult>('/feeds/discover', { method: 'POST', body: params }),
     update: (id: number, patch: Partial<Feed>) =>
       req<Feed>(`/feeds/${id}`, { method: 'PATCH', body: patch }),
     remove: (id: number) => req<void>(`/feeds/${id}`, { method: 'DELETE' }),

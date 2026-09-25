@@ -4,6 +4,8 @@ Language invariant: summaries/headlines are written in `SUMMARY_LANGUAGE` — th
 language name is injected into prompts, never hardcoded.
 """
 
+from typing import Any
+
 from app.core.config import settings
 
 LANGUAGE_NAMES = {
@@ -61,15 +63,12 @@ Article text:
     return system, user
 
 
-def story_headline(
-    article_summaries: list[str], lang_code: str | None = None
-) -> tuple[str, str]:
+def story_headline(article_summaries: list[str], lang_code: str | None = None) -> tuple[str, str]:
     """Generate a short story headline from member article summaries."""
     lang = summary_language_name(lang_code)
     joined = "\n\n".join(f"- {s}" for s in article_summaries[:10])
     system = (
-        f"You write short, factual news headlines in {lang}. "
-        "Reply with ONLY a valid JSON object."
+        f"You write short, factual news headlines in {lang}. Reply with ONLY a valid JSON object."
     )
     user = f"""These summaries describe the same news story:
 
@@ -213,8 +212,7 @@ def newsletter_extract(
     invariant 2).
     """
     lines = "\n".join(
-        f"- URL: {url}\n  anchor: {anchor}\n  context: {context}"
-        for url, anchor, context in items
+        f"- URL: {url}\n  anchor: {anchor}\n  context: {context}" for url, anchor, context in items
     )
     system = (
         "You curate article links from email newsletters for a personal news reader. "
@@ -257,9 +255,7 @@ def chat_answer(
     )
     blocks = []
     for sid, title, summary, category, updated in stories:
-        blocks.append(
-            f"[Story {sid}] ({category}, updated {updated})\n{title}\n{summary}"
-        )
+        blocks.append(f"[Story {sid}] ({category}, updated {updated})\n{title}\n{summary}")
     context = "\n\n".join(blocks)
     user = f"""Answer the user's question in {lang}, using only these stories retrieved
 from the user's news archive (2-6 sentences, factual, no opinion). Cite every story
@@ -271,4 +267,129 @@ Stories:
 {context}
 
 Question: {question}"""
+    return system, user
+
+
+def discovery_queries(
+    location: str,
+    themes: list[str],
+    query: str,
+    lang_code: str | None = None,
+) -> tuple[str, str]:
+    """Generate search queries, candidate publication domains, and probable feed URLs.
+    Returns (system, user)."""
+    lang = summary_language_name(lang_code)
+    system = (
+        f"You are an expert news aggregator research assistant. Respond in {lang}. "
+        "Reply with ONLY a valid JSON object."
+    )
+    themes_str = ", ".join(themes) if themes else "General News"
+    loc_str = location.strip() if location.strip() else "Global / International"
+    q_str = query.strip() if query.strip() else "None provided"
+
+    user = f"""The user wants to discover high-quality RSS/Atom feeds matching their criteria:
+- Location / Region: {loc_str}
+- Themes / Categories: {themes_str}
+- Custom request: {q_str}
+
+Analyze the geographic granularity of the request:
+- "scope_level": classify into "city", "region", "country", "continent", or "global".
+  Examples: "Lyon, France" -> city, "Texas" -> region, "France" -> country, "Europe" -> continent, empty/"global" -> global.
+- "target_entity": the primary city or place name (e.g. "Lyon", "France", "Europe").
+
+Important location instructions:
+If scope is "city" or "region" (e.g. "{loc_str}"), focus specifically on local newspapers,
+regional daily publications, city portals, and local broadcasters from that specific area.
+Do NOT propose generic national or global outlets (such as BBC, Reuters, NPR, Le Monde, CNN) unless the scope is country/global.
+
+Suggest targeted web search queries to locate RSS/Atom feeds, top publication domains
+covering these topics in this region, and any known candidate feed URLs.
+
+Reply with JSON:
+{{
+  "scope_level": "city|region|country|continent|global",
+  "target_entity": "...",
+  "search_queries": ["query 1", "query 2", "query 3"],
+  "suggested_domains": ["example.com", "news-site.org"],
+  "candidate_feed_urls": ["https://example.com/rss", "https://news-site.org/feed"]
+}}"""
+    return system, user
+
+
+def discovery_synthesis(
+    candidates: list[dict[str, Any]],
+    location: str,
+    scope_level: str,
+    themes: list[str],
+    query: str,
+    lang_code: str | None = None,
+) -> tuple[str, str]:
+    """Rank, annotate, and describe discovered validated feeds with access level and geographic scope.
+    Returns (system, user)."""
+    lang = summary_language_name(lang_code)
+    system = (
+        f"You curate RSS/Atom feeds for a personal news reader. Respond in {lang}. "
+        "Reply with ONLY a valid JSON object."
+    )
+    themes_str = ", ".join(themes) if themes else "General News"
+    loc_str = location.strip() if location.strip() else "Global / International"
+    q_str = query.strip() if query.strip() else "None provided"
+
+    items_text = []
+    for c in candidates:
+        samples = ", ".join(f'"{t}"' for t in c.get("sample_titles", [])[:3])
+        access_hint = c.get("access_level", "unknown")
+        items_text.append(
+            f"- URL: {c.get('url')}\n"
+            f"  Title: {c.get('title')}\n"
+            f"  Site: {c.get('site_url') or 'unknown'}\n"
+            f"  Description: {c.get('description') or 'none'}\n"
+            f"  Detected Access: {access_hint}\n"
+            f"  Recent article headlines: {samples or 'none'}"
+        )
+    joined_items = "\n\n".join(items_text)
+
+    user = f"""The user is searching for feeds with:
+- Location: {loc_str} (Scope level: {scope_level})
+- Themes: {themes_str}
+- Custom query: {q_str}
+
+Below are verified live RSS/Atom feeds that were discovered:
+{joined_items}
+
+Important instructions:
+1. GEOGRAPHIC RELEVANCE:
+- If scope level is "city" or "region" (e.g. "{loc_str}"), candidate feeds MUST specifically focus on that city or regional area.
+  Assign "geographic_scope": "local" | "regional" | "national" | "global".
+  Feeds that are broad national or global outlets without local focus should be designated "national" or "global".
+- If scope level is "country", national publications are expected.
+- If scope level is "global" or "continent", international publications are expected.
+
+2. ACCESS LEVEL (PAYWALL VS FREE):
+Determine whether each publication requires a subscription or is freely accessible:
+- "paywalled": publisher requires a paid subscription / paywall (e.g. Le Monde, Financial Times, Mediapart, NYT) or marked reserved for subscribers.
+- "free_excerpt": free to access, but RSS articles only provide short excerpts/summaries rather than full content.
+- "free_full": 100% free with full article text in the feed.
+
+For each feed, output:
+- "url": exact feed URL as provided
+- "title": cleaned up, recognizable publication title
+- "description": a concise 1-2 sentence description in {lang} of what this publication covers
+- "match_reason": a short explanation (1 sentence in {lang}) of why it matches the user's location, themes, or custom query
+- "access_level": "free_full" | "free_excerpt" | "paywalled"
+- "geographic_scope": "local" | "regional" | "national" | "global"
+
+Reply with JSON:
+{{
+  "feeds": [
+    {{
+      "url": "...",
+      "title": "...",
+      "description": "...",
+      "match_reason": "...",
+      "access_level": "free_full|free_excerpt|paywalled",
+      "geographic_scope": "local|regional|national|global"
+    }}
+  ]
+}}"""
     return system, user

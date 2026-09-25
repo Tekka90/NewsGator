@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { api, faviconUrl, feedHost } from '$lib/api';
   import type { Feed } from '$lib/types';
+  import FeedDiscoveryModal from '$lib/components/FeedDiscoveryModal.svelte';
 
   let feeds = $state<Feed[]>([]);
   let url = $state('');
@@ -15,6 +16,7 @@
   let refreshingId = $state<number | null>(null);
   // '' = server default, '0' = import everything, else days
   let backfill = $state('');
+  let discoverOpen = $state(false);
 
   onMount(load);
 
@@ -142,8 +144,13 @@
     </select>
   </label>
   <button type="submit" disabled={adding}>{adding ? 'Adding…' : 'Add feed'}</button>
+  <button type="button" class="btn-discover" onclick={() => (discoverOpen = true)}>
+    ✨ Discover feeds
+  </button>
   {#if error}<span class="error">{error}</span>{/if}
 </form>
+
+<FeedDiscoveryModal bind:open={discoverOpen} onAdded={load} />
 
 <div class="card import">
   <label class="import-label">
@@ -234,6 +241,15 @@
 <style>
   .add { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
   .add input { flex: 1; min-width: 0; }
+  .btn-discover {
+    background: var(--surface-soft);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .btn-discover:hover {
+    background: var(--chip-bg);
+  }
   .backfill {
     display: flex;
     align-items: center;

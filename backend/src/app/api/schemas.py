@@ -121,6 +121,35 @@ class FeedOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class FeedDiscoveryIn(BaseModel):
+    location: str = ""
+    themes: list[str] = Field(default_factory=list)
+    query: str = ""
+    excluded_urls: list[str] = Field(default_factory=list)
+
+
+class DiscoveredSampleArticle(BaseModel):
+    title: str
+    url: str
+    published_at: str = ""
+
+
+class DiscoveredFeed(BaseModel):
+    title: str
+    url: str
+    site_url: str | None = None
+    description: str = ""
+    match_reason: str = ""
+    icon_url: str | None = None
+    access_level: str = "free_full"  # "free_full" | "free_excerpt" | "paywalled"
+    geographic_scope: str = "local"  # "local" | "regional" | "national" | "global"
+    sample_articles: list[DiscoveredSampleArticle] = Field(default_factory=list)
+
+
+class FeedDiscoveryOut(BaseModel):
+    feeds: list[DiscoveredFeed]
+
+
 # --- newsletter ingestion (per-user IMAP accounts) ---
 
 

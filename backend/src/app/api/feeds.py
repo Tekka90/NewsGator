@@ -7,7 +7,14 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import current_user
-from app.api.schemas import FeedIn, FeedOut, FeedPatch
+from app.api.schemas import (
+    DiscoveredFeed,
+    FeedDiscoveryIn,
+    FeedDiscoveryOut,
+    FeedIn,
+    FeedOut,
+    FeedPatch,
+)
 from app.core.db import get_session
 from app.models import (
     Article,
@@ -21,7 +28,7 @@ from app.models import (
     User,
     UserFeed,
 )
-from app.services import activity
+from app.services import activity, discovery
 from app.services.ingest import parse_opml, poll_feed, poll_feeds_background, render_opml
 from app.services.vectorstore import get_vector_store
 
@@ -103,6 +110,24 @@ async def refresh_all(
     return {"feeds_polled": len(feeds), "new_articles": total}
 
 
+@router.post("/discover")
+async def discover_feeds(
+    body: FeedDiscoveryIn,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> FeedDiscoveryOut:
+    """Discover candidate RSS/Atom feeds using multi-turn LLM research and live verification."""
+    results = await discovery.discover_feeds(
+        session,
+        location=body.location,
+        themes=body.themes,
+        query=body.query,
+        excluded_urls=body.excluded_urls,
+        lang_code=user.summary_language,
+    )
+    return FeedDiscoveryOut(feeds=[DiscoveredFeed.model_validate(f) for f in results])
+
+
 @router.post("/{feed_id}/refresh")
 async def refresh_feed(
     feed_id: int,
@@ -138,9 +163,7 @@ async def create_feed(
     exists = await session.scalar(select(Feed).where(Feed.url == url))
     if exists is not None:
         uf = await session.scalar(
-            select(UserFeed).where(
-                UserFeed.user_id == user.id, UserFeed.feed_id == exists.id
-            )
+            select(UserFeed).where(UserFeed.user_id == user.id, UserFeed.feed_id == exists.id)
         )
         if uf is not None:
             raise HTTPException(status.HTTP_409_CONFLICT, "Already subscribed to this feed")
@@ -300,9 +323,13 @@ async def delete_feed(
             session,
             "feeds",
             "feed_deleted",
-            {"feed_id": feed_id, "title": feed.title, "url": feed.url,
-             "articles_deleted": len(article_ids),
-             "stories_deleted": len(empty_story_ids)},
+            {
+                "feed_id": feed_id,
+                "title": feed.title,
+                "url": feed.url,
+                "articles_deleted": len(article_ids),
+                "stories_deleted": len(empty_story_ids),
+            },
         )
     else:
         await activity.emit(
@@ -353,17 +380,11 @@ async def import_opml(
     try:
         entries = await anyio.to_thread.run_sync(parse_opml, content)
     except Exception:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "Not a valid OPML file"
-        ) from None
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not a valid OPML file") from None
 
     all_feeds = {f.url: f for f in (await session.scalars(select(Feed))).all()}
     user_feed_ids = set(
-        (
-            await session.scalars(
-                select(UserFeed.feed_id).where(UserFeed.user_id == user.id)
-            )
-        ).all()
+        (await session.scalars(select(UserFeed.feed_id).where(UserFeed.user_id == user.id))).all()
     )
     added: list[Feed] = []
     new_feed_ids: list[int] = []

@@ -132,6 +132,28 @@ export interface Feed {
   email_count: number;
 }
 
+export interface DiscoveredSampleArticle {
+  title: string;
+  url: string;
+  published_at?: string;
+}
+
+export interface DiscoveredFeed {
+  title: string;
+  url: string;
+  site_url: string | null;
+  description: string;
+  match_reason: string;
+  icon_url: string | null;
+  access_level: 'free_full' | 'free_excerpt' | 'paywalled';
+  geographic_scope: 'local' | 'regional' | 'national' | 'global';
+  sample_articles?: DiscoveredSampleArticle[];
+}
+
+export interface FeedDiscoveryResult {
+  feeds: DiscoveredFeed[];
+}
+
 /** Story-list feed filter option (GET /api/stories/feed-options) — a feed
  * that has at least one article in a story. Available to all users. */
 export interface FeedOption {
