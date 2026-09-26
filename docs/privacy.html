@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Privacy Policy — NewsGator</title>
+<meta name="description" content="NewsGator Privacy Policy: A privacy-first, zero-tracking news reader powered by Apple Intelligence and optional self-hosted servers." />
+<link rel="icon" href="assets/logo.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --forest: #146B3A;
+  --forest-dark: #0B3D2A;
+  --leaf: #49A85A;
+  --gold: #F2B827;
+  --ink: #18211D;
+  --muted: #66716C;
+  --paper: #F8F7F1;
+  --surface: #FFFFFF;
+  --soft: #EFF5EE;
+  --line: #E3E7E1;
+  --radius: 18px;
+  --shadow-card: 0 3px 14px rgba(24, 33, 29, 0.05);
+  --font-display: "Newsreader", Georgia, serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16.5px;
+  line-height: 1.7;
+  padding: 40px 20px;
+}
+.wrap {
+  max-width: 760px;
+  margin: 0 auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 48px 40px;
+  box-shadow: var(--shadow-card);
+}
+@media (max-width: 600px) {
+  .wrap { padding: 28px 20px; }
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  margin-bottom: 32px;
+}
+.brand img {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+}
+h1 {
+  font-family: var(--font-display);
+  font-size: 38px;
+  line-height: 1.2;
+  margin-bottom: 12px;
+  color: var(--forest-dark);
+}
+.effective {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 36px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+h2 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  margin-top: 36px;
+  margin-bottom: 12px;
+  color: var(--forest-dark);
+}
+p, ul {
+  margin-bottom: 18px;
+  color: #2c3833;
+}
+ul {
+  padding-left: 24px;
+}
+li {
+  margin-bottom: 8px;
+}
+a {
+  color: var(--forest);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+a:hover {
+  color: var(--forest-dark);
+}
+.highlight-box {
+  background: var(--soft);
+  border: 1px solid rgba(20, 107, 58, 0.2);
+  border-radius: 14px;
+  padding: 20px 24px;
+  margin: 28px 0;
+}
+.highlight-box p {
+  margin-bottom: 0;
+  font-weight: 500;
+  color: var(--forest-dark);
+}
+footer {
+  margin-top: 48px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+  color: var(--muted);
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a href="index.html" class="brand">
+    <img src="assets/logo.png" alt="NewsGator Logo" />
+    NewsGator
+  </a>
+
+  <h1>Privacy Policy</h1>
+  <div class="effective">Effective Date: September 2026</div>
+
+  <div class="highlight-box">
+    <p>NewsGator is built from the ground up to respect your privacy. We do not track you, we do not sell your personal data, we do not include third-party advertising SDKs, and we collect zero analytics.</p>
+  </div>
+
+  <h2>1. Overview</h2>
+  <p>NewsGator is a privacy-first news reader and intelligence tool. It offers two operational modes:</p>
+  <ul>
+    <li><strong>Standalone Mode:</strong> Operates entirely on your Apple devices (iPhone, iPad, Mac). Ingestion, article extraction, clustering, and summarization run on-device or via Apple Private Cloud Compute.</li>
+    <li><strong>Server Mode:</strong> Operates by connecting directly to your own self-hosted NewsGator server or a server administered by you or your organization.</li>
+  </ul>
+
+  <h2>2. Data Collection and Usage</h2>
+  <p><strong>We do not collect any personal data.</strong> Specifically:</p>
+  <ul>
+    <li><strong>No User Accounts Required:</strong> Standalone mode requires no email address, password, or third-party login.</li>
+    <li><strong>No Analytics or Telemetry:</strong> NewsGator does not track screen views, read times, clicks, or gestures. No telemetry or crash reports are transmitted to any developer server.</li>
+    <li><strong>No Advertising:</strong> There are no advertising trackers, behavioral profiling, or advertising networks bundled in NewsGator.</li>
+  </ul>
+
+  <h2>3. Standalone Mode &amp; Apple Intelligence</h2>
+  <p>When running in Standalone mode:</p>
+  <ul>
+    <li><strong>AI Processing:</strong> Artificial intelligence inference (summarization and clustering) is executed using Apple Foundation Models framework. The app attempts Apple Private Cloud Compute first and falls back to the on-device system model. No article text is sent to third-party AI companies (e.g., OpenAI, Google, Anthropic).</li>
+    <li><strong>CloudKit Sync:</strong> Your subscribed feeds, saved reading states, and clustered stories sync securely across your personal Apple devices using your private Apple iCloud account via Apple CloudKit. This data is stored in your personal iCloud container and is inaccessible to the developers of NewsGator.</li>
+  </ul>
+
+  <h2>4. Optional Server Mode</h2>
+  <p>If you explicitly configure NewsGator to connect to a self-hosted server:</p>
+  <ul>
+    <li>All network communication occurs strictly between your app and the custom server URL you provide.</li>
+    <li>Authentication tokens and credentials are encrypted and stored in your device's native Keychain.</li>
+    <li>We (the creators of NewsGator) have no access to your self-hosted server, its logs, or your reading habits.</li>
+  </ul>
+
+  <h2>5. Direct Source Reading</h2>
+  <p>When you choose to read the full source of an article, NewsGator loads the original publisher's website. That interaction is directly between your browser and the news publisher, subject to the respective publisher's privacy policy and terms.</p>
+
+  <h2>6. Security</h2>
+  <p>All network requests for RSS feeds, newsletters, and CloudKit operations use industry-standard HTTPS/TLS encryption. Sensitive credentials in Server mode are secured in the Apple Keychain.</p>
+
+  <h2>7. Contact &amp; Questions</h2>
+  <p>If you have any questions about this Privacy Policy or NewsGator, you can reach out via GitHub:</p>
+  <p><a href="https://github.com/Tekka90/Newsgator-Apple/issues">https://github.com/Tekka90/Newsgator-Apple/issues</a></p>
+
+  <footer>
+    &copy; 2026 NewsGator. All rights reserved. <a href="index.html">Back to Home</a>
+  </footer>
+</div>
+</body>
+</html>
