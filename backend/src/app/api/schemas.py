@@ -125,6 +125,8 @@ class FeedDiscoveryIn(BaseModel):
     location: str = ""
     themes: list[str] = Field(default_factory=list)
     query: str = ""
+    mode: str = "smart"  # "catalog" | "smart"
+    locale: str | None = None
     excluded_urls: list[str] = Field(default_factory=list)
 
 

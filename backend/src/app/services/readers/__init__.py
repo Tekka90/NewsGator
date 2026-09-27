@@ -3,8 +3,8 @@
 from app.services.readers.greader import GReaderAuthError, GReaderClient, GReaderError, GReaderItem
 
 __all__ = [
+    "GReaderAuthError",
     "GReaderClient",
     "GReaderError",
-    "GReaderAuthError",
     "GReaderItem",
 ]

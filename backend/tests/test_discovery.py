@@ -39,11 +39,7 @@ async def test_discovery_with_mocked_llm(
 
     monkeypatch.setattr(llm_client, "chat_json", fake_chat_json)
 
-    # Mock web search and probe so test runs fast and offline
-    async def fake_search(query: str, max_results: int = 5):
-        return ["https://www.cyclingnews.com/feeds.xml"]
-
-    async def fake_gnews(query: str, location: str = "", max_results: int = 10):
+    async def fake_feedsearch(domain: str):
         return ["https://www.cyclingnews.com/feeds.xml"]
 
     async def fake_probe(url: str):
@@ -55,8 +51,7 @@ async def test_discovery_with_mocked_llm(
             "sample_titles": ["Tour de France Stage 1", "Giro Preview"],
         }
 
-    monkeypatch.setattr(discovery, "_search_web_duckduckgo_lite", fake_search)
-    monkeypatch.setattr(discovery, "_search_google_news_rss", fake_gnews)
+    monkeypatch.setattr(discovery, "_search_feedsearch", fake_feedsearch)
     monkeypatch.setattr(discovery, "_probe_url", fake_probe)
 
     resp = await client.post(
@@ -124,7 +119,9 @@ async def test_discovery_location_prioritizes_local_outlet(
 
     monkeypatch.setattr(llm_client, "chat_json", boom_chat_json)
 
-    async def fake_gnews_search(query: str, location: str = "", max_results: int = 10):
+    async def fake_directory_search(
+        location: str = "", themes: list[str] | None = None, query: str = ""
+    ):
         return ["https://www.lyoncapitale.fr", "https://feeds.bbci.co.uk/news/world/rss.xml"]
 
     async def fake_probe(url: str):
@@ -146,11 +143,7 @@ async def test_discovery_location_prioritizes_local_outlet(
             }
         return None
 
-    async def fake_ddg(q: str, max_results: int = 5):
-        return []
-
-    monkeypatch.setattr(discovery, "_search_google_news_rss", fake_gnews_search)
-    monkeypatch.setattr(discovery, "_search_web_duckduckgo_lite", fake_ddg)
+    monkeypatch.setattr(discovery, "_search_directory_feeds", fake_directory_search)
     monkeypatch.setattr(discovery, "_probe_url", fake_probe)
 
     resp = await client.post(
@@ -180,7 +173,9 @@ async def test_discovery_detects_paywall_and_access_level(
 
     monkeypatch.setattr(llm_client, "chat_json", boom_chat_json)
 
-    async def fake_gnews_search(query: str, location: str = "", max_results: int = 10):
+    async def fake_directory_search(
+        location: str = "", themes: list[str] | None = None, query: str = ""
+    ):
         return ["https://www.lemonde.fr/rss/une.xml", "https://feeds.arstechnica.com/arstechnica/index"]
 
     async def fake_probe(url: str):
@@ -203,11 +198,7 @@ async def test_discovery_detects_paywall_and_access_level(
                 "access_level": "free_full",
             }
 
-    async def fake_ddg(q: str, max_results: int = 5):
-        return []
-
-    monkeypatch.setattr(discovery, "_search_google_news_rss", fake_gnews_search)
-    monkeypatch.setattr(discovery, "_search_web_duckduckgo_lite", fake_ddg)
+    monkeypatch.setattr(discovery, "_search_directory_feeds", fake_directory_search)
     monkeypatch.setattr(discovery, "_probe_url", fake_probe)
 
     resp = await client.post(
@@ -237,7 +228,9 @@ async def test_discovery_excluded_urls_filters_sources(
 
     monkeypatch.setattr(llm_client, "chat_json", boom_chat_json)
 
-    async def fake_gnews_search(query: str, location: str = "", max_results: int = 10):
+    async def fake_directory_search(
+        location: str = "", themes: list[str] | None = None, query: str = ""
+    ):
         return [
             "https://www.lemonde.fr/rss/une.xml",
             "https://feeds.arstechnica.com/arstechnica/index",
@@ -274,11 +267,7 @@ async def test_discovery_excluded_urls_filters_sources(
             }
         return None
 
-    async def fake_ddg(q: str, max_results: int = 5):
-        return []
-
-    monkeypatch.setattr(discovery, "_search_google_news_rss", fake_gnews_search)
-    monkeypatch.setattr(discovery, "_search_web_duckduckgo_lite", fake_ddg)
+    monkeypatch.setattr(discovery, "_search_directory_feeds", fake_directory_search)
     monkeypatch.setattr(discovery, "_probe_url", fake_probe)
 
     # Exclude lemonde by URL and arstechnica by domain/URL
@@ -300,4 +289,80 @@ async def test_discovery_excluded_urls_filters_sources(
     assert "https://www.lemonde.fr/rss/une.xml" not in urls
     assert "https://feeds.arstechnica.com/arstechnica/index" not in urls
     assert any("techcrunch" in u for u in urls)
+
+
+async def test_discovery_catalog_mode(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await setup_admin(client)
+
+    llm_called = False
+
+    async def boom_llm(system: str, user: str, model: str | None = None):
+        nonlocal llm_called
+        llm_called = True
+        raise RuntimeError("LLM should not be called in deterministic catalog search")
+
+    monkeypatch.setattr(llm_client, "chat_json", boom_llm)
+
+    async def fake_catalog(query: str, locale: str | None = None, count: int = 20):
+        if "lyon" in query.lower():
+            return [
+                {
+                    "feedId": "feed/http://www.lyoncapitale.fr/feed",
+                    "title": "Lyon Capitale",
+                    "website": "https://www.lyoncapitale.fr",
+                    "subscribers": 1243,
+                },
+                {
+                    "feedId": "feed/http://lyon.citycrunch.fr/feed/",
+                    "title": "Lyon CityCrunch",
+                    "website": "https://lyon.citycrunch.fr",
+                    "subscribers": 463,
+                },
+            ]
+        return []
+
+    async def fake_probe(url: str):
+        if "lyoncapitale" in url:
+            return {
+                "url": url,
+                "title": "Lyon Capitale",
+                "site_url": "https://www.lyoncapitale.fr",
+                "description": "Lyon news",
+                "sample_titles": ["Article 1"],
+                "access_level": "free_full",
+            }
+        elif "citycrunch" in url:
+            return {
+                "url": url,
+                "title": "Lyon CityCrunch",
+                "site_url": "https://lyon.citycrunch.fr",
+                "description": "Good places in Lyon",
+                "sample_titles": ["Article 2"],
+                "access_level": "free_excerpt",
+            }
+        return None
+
+    monkeypatch.setattr(discovery, "_search_catalog", fake_catalog)
+    monkeypatch.setattr(discovery, "_probe_url", fake_probe)
+
+    resp = await client.post(
+        "/api/feeds/discover",
+        json={
+            "location": "Lyon",
+            "mode": "catalog",
+            "locale": "fr_FR",
+            "themes": ["news"],
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert not llm_called
+    feeds = data["feeds"]
+    assert len(feeds) == 2
+    # Ranked strictly by subscribers descending
+    assert feeds[0]["title"] == "Lyon Capitale"
+    assert feeds[1]["title"] == "Lyon CityCrunch"
+
 

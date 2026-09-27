@@ -294,15 +294,15 @@ def discovery_queries(
 
 Analyze the geographic granularity of the request:
 - "scope_level": classify into "city", "region", "country", "continent", or "global".
-  Examples: "Lyon, France" -> city, "Texas" -> region, "France" -> country, "Europe" -> continent, empty/"global" -> global.
 - "target_entity": the primary city or place name (e.g. "Lyon", "France", "Europe").
 
-Important location instructions:
-If scope is "city" or "region" (e.g. "{loc_str}"), focus specifically on local newspapers,
-regional daily publications, city portals, and local broadcasters from that specific area.
-Do NOT propose generic national or global outlets (such as BBC, Reuters, NPR, Le Monde, CNN) unless the scope is country/global.
-
-Suggest targeted web search queries to locate RSS/Atom feeds, top publication domains
+Important search instructions:
+1. When themes or custom requests are provided (e.g. "{themes_str}"), search queries and
+suggested publications MUST combine both the theme and the location unified
+(e.g. "{themes_str} in {loc_str}"). Do NOT propose generic general newspapers if the
+user requested a specific theme like Technology or Science.
+2. If scope is "city" or "region" without themes, focus on local publications from that area.
+3. Suggest targeted web search queries to locate RSS/Atom feeds, top publication domains
 covering these topics in this region, and any known candidate feed URLs.
 
 Reply with JSON:
@@ -324,7 +324,7 @@ def discovery_synthesis(
     query: str,
     lang_code: str | None = None,
 ) -> tuple[str, str]:
-    """Rank, annotate, and describe discovered validated feeds with access level and geographic scope.
+    """Rank, annotate, and describe discovered validated feeds with access level.
     Returns (system, user)."""
     lang = summary_language_name(lang_code)
     system = (
@@ -358,24 +358,29 @@ Below are verified live RSS/Atom feeds that were discovered:
 {joined_items}
 
 Important instructions:
-1. GEOGRAPHIC RELEVANCE:
-- If scope level is "city" or "region" (e.g. "{loc_str}"), candidate feeds MUST specifically focus on that city or regional area.
+1. THEMATIC RELEVANCE:
+When themes or a custom query are specified (e.g. "{themes_str}"), publications dedicated
+to that theme in that location must be prioritized and ranked highest. Do NOT prioritize
+generic general news or village newspapers over specialized theme publications.
+
+2. GEOGRAPHIC RELEVANCE:
+- If scope level is "city" or "region" (e.g. "{loc_str}"), candidate feeds should
+  specifically focus on or cover that area.
   Assign "geographic_scope": "local" | "regional" | "national" | "global".
-  Feeds that are broad national or global outlets without local focus should be designated "national" or "global".
-- If scope level is "country", national publications are expected.
+- If scope level is "country", national publications covering that country are expected.
 - If scope level is "global" or "continent", international publications are expected.
 
-2. ACCESS LEVEL (PAYWALL VS FREE):
+3. ACCESS LEVEL (PAYWALL VS FREE):
 Determine whether each publication requires a subscription or is freely accessible:
-- "paywalled": publisher requires a paid subscription / paywall (e.g. Le Monde, Financial Times, Mediapart, NYT) or marked reserved for subscribers.
-- "free_excerpt": free to access, but RSS articles only provide short excerpts/summaries rather than full content.
+- "paywalled": publisher requires a paid subscription / paywall or marked for subscribers.
+- "free_excerpt": free to access, but RSS articles only provide short excerpts/summaries.
 - "free_full": 100% free with full article text in the feed.
 
 For each feed, output:
 - "url": exact feed URL as provided
 - "title": cleaned up, recognizable publication title
 - "description": a concise 1-2 sentence description in {lang} of what this publication covers
-- "match_reason": a short explanation (1 sentence in {lang}) of why it matches the user's location, themes, or custom query
+- "match_reason": a short explanation (1 sentence in {lang}) of why it matches criteria
 - "access_level": "free_full" | "free_excerpt" | "paywalled"
 - "geographic_scope": "local" | "regional" | "national" | "global"
 

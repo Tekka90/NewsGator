@@ -28,6 +28,14 @@ the full normative spec — **read it before non-trivial changes**.
 
 ## Invariants — never break these
 
+0. **NEVER HARDCODE OR TAKE SHORTCUTS (RULE NUMBER ONE)**: Never introduce
+   hardcoded values, specific cities/regions (e.g. 'Lyon', 'Paris'), language-specific
+   keywords or query terms (e.g. 'presse', 'quotidien', 'zeitung', 'prensa'), publication
+   names (e.g. 'Le Progrès'), regional aliases, or ad-hoc heuristics to 'help' solve a
+   particular problem or patch a feature. If you are not sure or think code needs manual
+   assistance, **NEVER assume or shortcut — ASK THE USER**. All discovery, ranking,
+   querying, and pipeline processing must be completely generic, domain-agnostic,
+   and driven by structured LLM prompts, standard protocols, or user settings.
 1. **Language**: all summaries are written in the configured `SUMMARY_LANGUAGE`
    (default English, per-user override). Never hardcode English. GUI chrome is
    English-only for now.

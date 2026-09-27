@@ -9,7 +9,6 @@ import asyncio
 import logging
 import time
 from datetime import UTC, datetime
-from typing import Any
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,7 +17,7 @@ from app.models import Article, Feed, ReaderAccount, Story, StoryState, UserFeed
 from app.services import activity
 from app.services.fulltext import fetch_full_text_batch
 from app.services.process import enqueue_article
-from app.services.readers.greader import GReaderAuthError, GReaderClient, GReaderError
+from app.services.readers.greader import GReaderClient
 
 logger = logging.getLogger(__name__)
 

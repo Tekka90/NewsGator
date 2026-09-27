@@ -53,6 +53,11 @@ def _extract_usage(resp: Any) -> dict[str, Any] | None:
     }
 
 
+def is_configured() -> bool:
+    """Return True if an external LLM server base URL is configured."""
+    return bool(settings.llm_base_url)
+
+
 def _chat_client() -> AsyncOpenAI:
     return AsyncOpenAI(
         base_url=settings.llm_base_url,

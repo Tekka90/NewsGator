@@ -1,7 +1,6 @@
 """Tests for third-party RSS reader API integration (SPEC §9, Google Reader API standard)."""
 
 import json
-from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, patch
 from urllib.parse import parse_qs
@@ -13,14 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from tests.conftest import setup_admin
 
 from app.models import Article, Feed, ReaderAccount, Story, StoryState, User
-from app.services.readers.greader import GReaderClient, GReaderError, GReaderItem
+from app.services.readers.greader import GReaderClient
 from app.services.readers.sync import (
-    ensure_virtual_feed,
-    poll_all_reader_accounts,
     poll_reader_account,
     sync_story_read_state_outbound,
 )
-
 
 # --- Mock GReader Server Responses ---
 

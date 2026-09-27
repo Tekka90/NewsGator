@@ -1,21 +1,19 @@
-"""LLM-driven feed discovery service.
+"""LLM-driven & Catalog-driven feed discovery service.
 
-Supports both local LLMs and OpenAI-compatible cloud endpoints.
-Flow:
-1. Turn 1 (Query Formulation): LLM emits search queries, target domains, candidate URLs.
-2. Search & Discovery: Executes web queries (e.g. DuckDuckGo lite / curated directory),
-   scrapes target HTML for <link rel="alternate" type="application/rss+xml">.
-3. Live Validation: Probes candidate URLs with feedparser via anyio.to_thread to
-   ensure only active, working RSS/Atom feeds are returned.
-4. Turn 2 (Synthesis & Ranking): LLM annotates validated feeds with personalized
-   descriptions and match reasons tailored to the user's criteria.
+Supports two distinct discovery modes:
+1. Catalog Search (Deterministic):
+   Direct directory catalog lookup using #topic tags or city/region keywords with locale,
+   sorted strictly by subscribers descending. Zero AI required.
+2. Smart Search (AI):
+   Multi-turn LLM query formulation and synthesis to discover authoritative, local,
+   and independent media outlets and publisher domains.
 """
 
 import asyncio
 import concurrent.futures
 import re
 from typing import Any
-from urllib.parse import quote_plus, urljoin, urlparse
+from urllib.parse import urljoin, urlparse
 
 import anyio
 import feedparser
@@ -31,262 +29,191 @@ USER_AGENT = (
     "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 NewsGator/0.1"
 )
 
-# Curated high-quality seed feeds by category to augment web search & guarantee
-# reliable discovery results across standard themes & regions even when offline.
-CURATED_SEEDS: dict[str, list[dict[str, str]]] = {
-    "tech": [
-        {
-            "title": "Ars Technica",
-            "url": "https://feeds.arstechnica.com/arstechnica/index",
-            "site_url": "https://arstechnica.com",
-            "desc": "Original tech reporting, reviews, and analysis.",
-        },
-        {
-            "title": "Hacker News Frontpage",
-            "url": "https://news.ycombinator.com/rss",
-            "site_url": "https://news.ycombinator.com",
-            "desc": "Technology, startup, and computer science community news.",
-        },
-        {
-            "title": "The Verge",
-            "url": "https://www.theverge.com/rss/index.xml",
-            "site_url": "https://www.theverge.com",
-            "desc": "Technology, science, art, and European tech culture.",
-        },
-        {
-            "title": "AnandTech / Tom's Hardware",
-            "url": "https://www.tomshardware.com/feeds/all",
-            "site_url": "https://www.tomshardware.com",
-            "desc": "Hardware reviews, PC components, benchmarks, and semiconductors.",
-        },
-    ],
-    "general": [
-        {
-            "title": "BBC News - World",
-            "url": "https://feeds.bbci.co.uk/news/world/rss.xml",
-            "site_url": "https://www.bbc.com/news",
-            "desc": "International breaking news and global analysis from the BBC.",
-        },
-        {
-            "title": "Reuters World News",
-            "url": "https://www.reutersagency.com/feed/?best-topics=world&post_type=best",
-            "site_url": "https://www.reuters.com",
-            "desc": "Unbiased global breaking news, business, and investigative reporting.",
-        },
-        {
-            "title": "NPR News",
-            "url": "https://feeds.npr.org/1001/rss.xml",
-            "site_url": "https://www.npr.org",
-            "desc": "Independent, fact-based news coverage and in-depth journalism.",
-        },
-    ],
-    "science": [
-        {
-            "title": "Nature - Latest Research",
-            "url": "https://www.nature.com/nature.rss",
-            "site_url": "https://www.nature.com",
-            "desc": "Leading international peer-reviewed weekly scientific journal.",
-        },
-        {
-            "title": "ScienceDaily",
-            "url": "https://www.sciencedaily.com/rss/all.xml",
-            "site_url": "https://www.sciencedaily.com",
-            "desc": "Breaking science news and research articles from universities and journals.",
-        },
-        {
-            "title": "Phys.org",
-            "url": "https://phys.org/rss-feed/",
-            "site_url": "https://phys.org",
-            "desc": "Physics, space exploration, nanotechnology, and earth sciences.",
-        },
-    ],
-    "research": [
-        {
-            "title": "arXiv Computer Science",
-            "url": "https://rss.arxiv.org/rss/cs",
-            "site_url": "https://arxiv.org",
-            "desc": "Daily computer science preprint submissions from Cornell University.",
-        },
-        {
-            "title": "MIT Technology Review",
-            "url": "https://www.technologyreview.com/feed/",
-            "site_url": "https://www.technologyreview.com",
-            "desc": "In-depth research insights on emerging technologies and societal impact.",
-        },
-    ],
-    "gaming": [
-        {
-            "title": "IGN",
-            "url": "https://feeds.feedburner.com/ign/all",
-            "site_url": "https://www.ign.com",
-            "desc": "Video game news, reviews, guides, and trailers across all platforms.",
-        },
-        {
-            "title": "Polygon",
-            "url": "https://www.polygon.com/rss/index.xml",
-            "site_url": "https://www.polygon.com",
-            "desc": "Gaming culture, features, reviews, and entertainment coverage.",
-        },
-        {
-            "title": "Eurogamer",
-            "url": "https://www.eurogamer.net/feed",
-            "site_url": "https://www.eurogamer.net",
-            "desc": "European video game news, reviews, digital foundry technical analysis.",
-        },
-    ],
-    "business": [
-        {
-            "title": "Financial Times - World",
-            "url": "https://www.ft.com/rss/home/world",
-            "site_url": "https://www.ft.com",
-            "desc": "Global business, financial market trends, and economic analysis.",
-        },
-        {
-            "title": "Bloomberg Markets",
-            "url": "https://feeds.bloomberg.com/markets/news.rss",
-            "site_url": "https://www.bloomberg.com",
-            "desc": "Financial market updates, corporate earnings, and commodities.",
-        },
-        {
-            "title": "The Economist",
-            "url": "https://www.economist.com/rss/the_world_this_week_rss.xml",
-            "site_url": "https://www.economist.com",
-            "desc": "International business, economic policy, and political commentary.",
-        },
-    ],
-    "politics": [
-        {
-            "title": "Politico",
-            "url": "https://www.politico.com/rss/politicopicks.xml",
-            "site_url": "https://www.politico.com",
-            "desc": "Political reporting, election analysis, legislation, and public policy.",
-        },
-        {
-            "title": "Le Monde International",
-            "url": "https://www.lemonde.fr/international/rss_full.xml",
-            "site_url": "https://www.lemonde.fr",
-            "desc": "In-depth geopolitical reporting and European political analysis.",
-        },
-    ],
-    "climate": [
-        {
-            "title": "Inside Climate News",
-            "url": "https://insideclimatenews.org/feed/",
-            "site_url": "https://insideclimatenews.org",
-            "desc": "Pulitzer-winning journalism on climate, environmental policy and science.",
-        },
-        {
-            "title": "Yale Environment 360",
-            "url": "https://e360.yale.edu/feed",
-            "site_url": "https://e360.yale.edu",
-            "desc": "Analysis, reporting, and debate on global environmental issues.",
-        },
-    ],
-    "security": [
-        {
-            "title": "Krebs on Security",
-            "url": "https://krebsonsecurity.com/feed/",
-            "site_url": "https://krebsonsecurity.com",
-            "desc": "In-depth investigative journalism on cybersecurity and cybercrime.",
-        },
-        {
-            "title": "BleepingComputer",
-            "url": "https://www.bleepingcomputer.com/feed/",
-            "site_url": "https://www.bleepingcomputer.com",
-            "desc": "Information security news, ransomware alerts, and vulnerability advisories.",
-        },
-        {
-            "title": "Schneier on Security",
-            "url": "https://www.schneier.com/feed/atom/",
-            "site_url": "https://www.schneier.com",
-            "desc": "Security, privacy, cryptography essays and policy by Bruce Schneier.",
-        },
-    ],
-    "sports": [
-        {
-            "title": "Cyclingnews",
-            "url": "https://www.cyclingnews.com/feeds.xml",
-            "site_url": "https://www.cyclingnews.com",
-            "desc": "Global cycling races, Tour de France, results, gear and pro peloton news.",
-        },
-        {
-            "title": "The Athletic",
-            "url": "https://theathletic.com/rss/news/",
-            "site_url": "https://theathletic.com",
-            "desc": "In-depth sports journalism, live coverage, and player analysis.",
-        },
-        {
-            "title": "L'Équipe",
-            "url": "https://dwh.lequipe.fr/api/edito/rss?path=/",
-            "site_url": "https://www.lequipe.fr",
-            "desc": "French and European sports daily covering football, cycling, and tennis.",
-        },
-    ],
-}
+
+def _resolve_country_code(loc: str) -> str | None:
+    """Resolve location to standard ISO country code dynamically using babel."""
+    if not loc:
+        return None
+    loc_clean = loc.strip().lower()
+    try:
+        import babel
+
+        for lang in ("en", "fr", "de", "es", "it"):
+            locale = babel.Locale(lang)
+            for code, name in locale.territories.items():
+                if len(code) == 2 and name.lower() == loc_clean:
+                    return str(code)
+    except Exception:
+        pass
+    return None
 
 
-async def _search_google_news_rss(
-    query: str, location: str = "", max_results: int = 10
-) -> list[str]:
-    """Query Google News RSS to discover local regional publications and working topic feeds."""
-    combined = f"{location} {query}".lower()
-    if any(
-        k in combined
-        for k in (
-            "franc", "lyon", "paris", "marseille", "bordeaux", "toulouse", "lille",
-            "nantes", "strasbourg", "nice", "actualit"
-        )
-    ):
-        hl, gl, ceid = "fr", "FR", "FR:fr"
-    elif any(k in combined for k in ("german", "deutsch", "berlin", "münchen", "munich", "hamburg")):
-        hl, gl, ceid = "de", "DE", "DE:de"
-    elif any(k in combined for k in ("spain", "españ", "madrid", "barcelona")):
-        hl, gl, ceid = "es", "ES", "ES:es"
-    elif any(k in combined for k in ("ital", "roma", "milan")):
-        hl, gl, ceid = "it", "IT", "IT:it"
-    elif any(k in combined for k in ("uk", "london", "england")):
-        hl, gl, ceid = "en-GB", "GB", "GB:en"
-    else:
-        hl, gl, ceid = "en-US", "US", "US:en"
-
-    # Clean query to avoid RSS technical buzzwords reducing article hits
-    clean_q = query
-    for kw in ("flux rss", "rss feed", "rss", "feed"):
-        clean_q = re.sub(rf"\b{kw}\b", "", clean_q, flags=re.IGNORECASE)
-    clean_q = clean_q.strip() or location or "top news"
-
-    urls: list[str] = []
-    gnews_url = f"https://news.google.com/rss/search?q={quote_plus(clean_q)}&hl={hl}&gl={gl}&ceid={ceid}"
-
+async def _search_catalog(
+    query: str,
+    locale: str | None = None,
+    count: int = 20,
+) -> list[dict[str, Any]]:
+    """Query directory catalog API for candidate feeds."""
+    clean = query.strip()
+    if not clean:
+        return []
+    params: dict[str, Any] = {"query": clean, "count": count}
+    if locale:
+        params["locale"] = locale
     try:
         async with httpx.AsyncClient(
             headers={"User-Agent": USER_AGENT},
             follow_redirects=True,
-            timeout=8.0,
+            timeout=5.0,
         ) as client:
-            resp = await client.get(gnews_url)
-            if resp.status_code == 200 and resp.text:
-                sources = re.findall(
-                    r'<source[^>]*url=["\']([^"\']+)["\']', resp.text, flags=re.IGNORECASE
-                )
-                for src in sources:
-                    if src.startswith("http") and not any(
-                        x in src for x in ("google.com", "youtube.com", "duckduckgo.com", "bing.com", "yahoo.com")
-                    ):
-                        if src not in urls:
-                            urls.append(src)
-                            if len(urls) >= max_results:
-                                break
+            resp = await client.get("https://cloud.feedly.com/v3/search/feeds", params=params)
+            if resp.status_code == 200:
+                data = resp.json()
+                results = data.get("results")
+                if isinstance(results, list):
+                    return [r for r in results if isinstance(r, dict)]
     except Exception:
         pass
-    return urls
+    return []
+
+
+def _extract_catalog_candidate(item: dict[str, Any]) -> dict[str, Any] | None:
+    """Extract and validate feed metadata from a directory catalog item."""
+    feed_id = str(item.get("feedId") or item.get("id") or "").strip()
+    url = feed_id[5:] if feed_id.startswith("feed/") else feed_id
+    if not url.startswith(("http://", "https://")):
+        return None
+    if url.startswith("http://"):
+        url = "https://" + url[7:]
+    parsed = urlparse(url)
+    if not parsed.netloc or any(
+        b in parsed.netloc.lower()
+        for b in ("google.", "youtube.", "duckduckgo.", "bing.", "yahoo.")
+    ):
+        return None
+
+    site_url = str(item.get("website") or f"https://{parsed.netloc}").strip()
+    if site_url.startswith("http://"):
+        site_url = "https://" + site_url[7:]
+    subscribers = int(item.get("subscribers") or 0)
+    title = str(item.get("title") or parsed.netloc).strip()
+    desc = str(item.get("description") or "").strip()
+    icon = item.get("iconUrl") or item.get("visualUrl")
+
+    return {
+        "url": url,
+        "title": title,
+        "site_url": site_url,
+        "description": desc,
+        "subscribers": subscribers,
+        "icon_url": str(icon).strip() if icon else None,
+    }
+
+
+async def _search_feedsearch(domain_or_url: str) -> list[str]:
+    """Query Feedsearch API for verified feeds on a domain or URL."""
+    clean = domain_or_url.strip()
+    if clean.startswith("http://") or clean.startswith("https://"):
+        clean = urlparse(clean).netloc
+    if not clean:
+        return []
+    try:
+        async with httpx.AsyncClient(
+            headers={"User-Agent": USER_AGENT},
+            follow_redirects=True,
+            timeout=3.5,
+        ) as client:
+            resp = await client.get(f"https://feedsearch.dev/api/v1/search?url={clean}")
+            if resp.status_code == 200:
+                data = resp.json()
+                if isinstance(data, list):
+                    return [
+                        f["url"]
+                        for f in data
+                        if isinstance(f, dict) and isinstance(f.get("url"), str)
+                    ]
+    except Exception:
+        pass
+    return []
+
+
+def _catalog_tag(theme: str) -> str:
+    """Normalize a theme into a directory catalog tag."""
+    t = theme.lower().strip()
+    if "artif" in t or t == "ai":
+        return "artificialintelligence"
+    if "cyber" in t or "secur" in t:
+        return "cybersecurity"
+    if "tech" in t:
+        return "tech"
+    if "game" in t or "gaming" in t:
+        return "gaming"
+    if "sci" in t:
+        return "science"
+    if "health" in t:
+        return "health"
+    if "politic" in t:
+        return "politics"
+    if "finan" in t:
+        return "finance"
+    if "busin" in t:
+        return "business"
+    if "sport" in t:
+        return "sports"
+    if "env" in t or "climat" in t:
+        return "environment"
+    if "cult" in t:
+        return "culture"
+    if "news" in t:
+        return "news"
+    clean = "".join(c for c in t if c.isalnum())
+    return clean or "news"
+
+
+async def _search_directory_feeds(
+    location: str = "",
+    themes: list[str] | None = None,
+    query: str = "",
+    locale: str | None = None,
+) -> list[str]:
+    """Query open feed directory / Feedsearch for candidate feeds matching location or themes."""
+    results: list[str] = []
+    q_clean = query.strip()
+    loc_clean = location.strip()
+
+    # 1 search = 1 API call! Country selection is ONLY passed as locale, never as query.
+    if q_clean:
+        catalog_query = q_clean
+    elif themes:
+        tags = " ".join(f"#{_catalog_tag(t)}" for t in themes if t.strip())
+        catalog_query = (
+            f"{tags} {loc_clean}".strip()
+            if loc_clean and loc_clean.lower() not in ("global", "worldwide")
+            else tags
+        )
+    elif loc_clean and loc_clean.lower() not in ("global", "worldwide"):
+        catalog_query = loc_clean
+    else:
+        catalog_query = "#news"
+
+    cat_items = await _search_catalog(catalog_query, locale=locale, count=20)
+    for it in cat_items:
+        cand = _extract_catalog_candidate(it)
+        if cand and cand["url"] not in results:
+            results.append(cand["url"])
+
+    for t in (q_clean, loc_clean):
+        if "." in t and not t.startswith("http") and " " not in t and not t.startswith("#"):
+            fs_urls = await _search_feedsearch(t)
+            for u in fs_urls:
+                if u not in results:
+                    results.append(u)
+    return results
 
 
 def _clean_feed_title(raw: str) -> str:
     """Normalize verbose RSS feed titles into clean publication display names."""
     trimmed = raw.strip()
-    if "le progrès" in trimmed.lower() or "le progres" in trimmed.lower():
-        return "Le Progrès"
     if " | " in trimmed:
         parts = trimmed.split(" | ")
         if len(parts[-1].strip()) < len(parts[0].strip()) and len(parts[-1].strip()) >= 3:
@@ -298,82 +225,13 @@ def _clean_feed_title(raw: str) -> str:
     return trimmed
 
 
-def _expand_location_aliases(location: str) -> list[str]:
-    """Expand prominent cities/regions to their associated department, metropolitan or regional names."""
-    lower = location.lower()
-    aliases: list[str] = []
-    if "lyon" in lower:
-        aliases.extend(["rhone", "rhône", "auvergne-rhone-alpes"])
-    elif "paris" in lower:
-        aliases.extend(["ile-de-france", "idf"])
-    elif "marseille" in lower:
-        aliases.extend(["provence", "bouches-du-rhone", "paca"])
-    elif "bordeaux" in lower:
-        aliases.extend(["gironde", "aquitaine"])
-    elif "toulouse" in lower:
-        aliases.extend(["haute-garonne", "occitanie"])
-    elif "lille" in lower:
-        aliases.extend(["hauts-de-france", "nord"])
-    elif "nantes" in lower:
-        aliases.extend(["loire-atlantique", "pays-de-la-loire"])
-    elif "strasbourg" in lower:
-        aliases.extend(["alsace", "bas-rhin"])
-    elif "nice" in lower:
-        aliases.extend(["alpes-maritimes", "azur"])
-    elif "rennes" in lower:
-        aliases.extend(["bretagne", "ille-et-vilaine"])
-    elif "grenoble" in lower:
-        aliases.extend(["isere", "isère"])
-    elif "saint-etienne" in lower or "saint-étienne" in lower:
-        aliases.extend(["loire"])
-    elif "clermont" in lower:
-        aliases.extend(["auvergne", "puy-de-dome"])
-    elif "montpellier" in lower:
-        aliases.extend(["herault", "hérault", "occitanie"])
-    elif "munich" in lower or "münchen" in lower:
-        aliases.extend(["bayern", "bavaria"])
-    elif "barcelona" in lower:
-        aliases.extend(["catalunya", "catalonia"])
-    elif "madrid" in lower:
-        aliases.extend(["comunidad de madrid"])
-    return aliases
-
-
-async def _search_web_duckduckgo_lite(query: str, max_results: int = 6) -> list[str]:
-    """Execute a web search using DuckDuckGo Lite to locate candidate sites and feeds."""
-    urls: list[str] = []
-    try:
-        async with httpx.AsyncClient(
-            headers={"User-Agent": USER_AGENT, "Content-Type": "application/x-www-form-urlencoded"},
-            follow_redirects=True,
-            timeout=8.0,
-        ) as client:
-            resp = await client.post("https://lite.duckduckgo.com/lite/", data={"q": query})
-            if resp.status_code == 200 and resp.text:
-                tree = lxml_html.fromstring(resp.text)
-                for link in tree.xpath('//a[@class="result-link"]/@href'):
-                    if isinstance(link, str) and link.startswith("http"):
-                        # Exclude obvious non-feed/social redirects
-                        if not any(
-                            x in link for x in ("duckduckgo.com", "facebook.com", "instagram.com")
-                        ):
-                            urls.append(link)
-                            if len(urls) >= max_results:
-                                break
-    except Exception:
-        pass
-    return urls
-
-
 def _detect_paywall_markers(text: str) -> bool:
     """Look for standard paywall and subscription markers."""
-    return bool(
-        re.search(
-            r"\b(abonn[ée]s?|subscribers?|paywall|r[ée]serv[ée] aux abonn[ée]s|edition abonn[ée]|premium)\b",
-            text,
-            flags=re.IGNORECASE,
-        )
+    pattern = (
+        r"\b(abonn[ée]s?|subscribers?|paywall|r[ée]serv[ée] aux abonn[ée]s|"
+        r"edition abonn[ée]|premium)\b"
     )
+    return bool(re.search(pattern, text, flags=re.IGNORECASE))
 
 
 def _check_html_paywall(html_text: str) -> bool:
@@ -393,11 +251,13 @@ def _parse_feed_sync(url: str, html_paywalled: bool = False) -> dict[str, Any] |
     """Blocking feedparser validation called via anyio.to_thread."""
     try:
         parsed_u = urlparse(url)
-        if any(x in parsed_u.netloc.lower() for x in ("google.", "duckduckgo.", "bing.", "yahoo.", "youtube.")):
+        if any(
+            x in parsed_u.netloc.lower()
+            for x in ("google.", "duckduckgo.", "bing.", "yahoo.", "youtube.")
+        ):
             return None
 
         parsed = feedparser.parse(url)
-        # Check if feed contains valid structure
         feed_meta = getattr(parsed, "feed", {})
         entries = getattr(parsed, "entries", [])
         title = feed_meta.get("title") or ""
@@ -426,10 +286,14 @@ def _parse_feed_sync(url: str, html_paywalled: bool = False) -> dict[str, Any] |
             if body_len > 0:
                 content_lengths.append(body_len)
 
-        # Concurrently inspect sample article web pages to verify paywalls with immediate short-circuit
         if not has_paywall_marker and sample_links:
-            valid_links = [l for l in sample_links[:5] if isinstance(l, str) and l.startswith("http")]
+            valid_links = [
+                link
+                for link in sample_links[:5]
+                if isinstance(link, str) and link.startswith("http")
+            ]
             if valid_links:
+
                 def _check_link(link_url: str) -> bool:
                     try:
                         with httpx.Client(
@@ -442,7 +306,9 @@ def _parse_feed_sync(url: str, html_paywalled: bool = False) -> dict[str, Any] |
                     except Exception:
                         return False
 
-                with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(valid_links), 5)) as executor:
+                with concurrent.futures.ThreadPoolExecutor(
+                    max_workers=min(len(valid_links), 5)
+                ) as executor:
                     futures = [executor.submit(_check_link, link) for link in valid_links]
                     for future in concurrent.futures.as_completed(futures):
                         try:
@@ -452,8 +318,14 @@ def _parse_feed_sync(url: str, html_paywalled: bool = False) -> dict[str, Any] |
                         except Exception:
                             pass
 
-        has_full_text = bool(content_lengths and (sum(content_lengths) / len(content_lengths)) >= 800)
-        access_level = "paywalled" if has_paywall_marker else ("free_full" if has_full_text else "free_excerpt")
+        has_full_text = bool(
+            content_lengths and (sum(content_lengths) / len(content_lengths)) >= 800
+        )
+        access_level = (
+            "paywalled"
+            if has_paywall_marker
+            else ("free_full" if has_full_text else "free_excerpt")
+        )
 
         sample_articles = [
             {
@@ -481,17 +353,26 @@ def _parse_feed_sync(url: str, html_paywalled: bool = False) -> dict[str, Any] |
 async def _probe_url(url: str) -> dict[str, Any] | None:
     """Probe a candidate URL. If direct feedparser parses it, returns metadata.
     If it's an HTML page, extracts <link rel="alternate"> feed candidates and tests them."""
-    # First test if the URL itself is already a valid feed
+    if url.startswith("http://"):
+        url = "https://" + url[7:]
+
     res = await anyio.to_thread.run_sync(_parse_feed_sync, url, False)
     if res is not None:
         return res
 
-    # If not directly a feed, try HTML autodiscovery
     parsed_u = urlparse(url)
     if not parsed_u.netloc or any(
         x in parsed_u.netloc.lower()
         for x in ("google.", "duckduckgo.", "bing.", "yahoo.", "youtube.")
     ):
+        return None
+
+    path_lower = parsed_u.path.lower()
+    is_likely_feed = any(path_lower.endswith(ext) for ext in (".xml", ".atom", ".rss")) or any(
+        x in path_lower for x in ("/feed", "/rss")
+    )
+    if is_likely_feed:
+        # Do not replace specific topical feed path failures with generic root domain feeds
         return None
 
     html_paywalled = False
@@ -503,8 +384,9 @@ async def _probe_url(url: str) -> dict[str, Any] | None:
         ) as client:
             resp = await client.get(url)
             if resp.status_code == 200 and "html" in resp.headers.get("content-type", "").lower():
-                # Schema.org declarative paywall check
-                if re.search(r'["\']isAccessibleForFree["\']\s*:\s*false', resp.text, flags=re.IGNORECASE):
+                if re.search(
+                    r'["\']isAccessibleForFree["\']\s*:\s*false', resp.text, flags=re.IGNORECASE
+                ):
                     html_paywalled = True
 
                 tree = lxml_html.fromstring(resp.text)
@@ -516,45 +398,57 @@ async def _probe_url(url: str) -> dict[str, Any] | None:
                 )
                 for fl in feed_links:
                     candidate = urljoin(str(resp.url), fl)
-                    cand_res = await anyio.to_thread.run_sync(_parse_feed_sync, candidate, html_paywalled)
+                    cand_res = await anyio.to_thread.run_sync(
+                        _parse_feed_sync, candidate, html_paywalled
+                    )
                     if cand_res is not None:
                         return cand_res
     except Exception:
         pass
 
-    # Common feed path suffixes fallback
     base = f"{parsed_u.scheme}://{parsed_u.netloc}"
-    for path in ("/feed", "/rss", "/feed.xml", "/rss.xml", "/index.xml"):
+    for path in ("/feed", "/feed/", "/rss", "/feed.xml", "/rss.xml", "/index.xml", "/atom.xml"):
         cand_url = urljoin(base, path)
         cand_res = await anyio.to_thread.run_sync(_parse_feed_sync, cand_url, html_paywalled)
         if cand_res is not None:
             return cand_res
 
+    if parsed_u.netloc:
+        fs_urls = await _search_feedsearch(parsed_u.netloc)
+        for cand_url in fs_urls:
+            cand_res = await anyio.to_thread.run_sync(_parse_feed_sync, cand_url, html_paywalled)
+            if cand_res is not None:
+                return cand_res
+
     return None
 
 
-def _theme_key(theme_name: str) -> str:
-    """Normalize user theme category name to match curated seeds."""
-    t = theme_name.lower()
-    if "tech" in t or "ai" in t or "hardware" in t or "design" in t:
-        return "tech"
-    if "gaming" in t:
-        return "gaming"
-    if "science" in t or "nature" in t:
-        return "science"
-    if "research" in t or "academic" in t:
-        return "research"
-    if "business" in t or "finance" in t:
-        return "business"
-    if "politic" in t:
-        return "politics"
-    if "climate" in t or "environment" in t:
-        return "climate"
-    if "security" in t or "cyber" in t:
-        return "security"
-    if "sport" in t or "athletic" in t:
-        return "sports"
-    return "general"
+async def _translate_topic_tag(theme: str, locale: str | None, allow_llm: bool = False) -> str:
+    """Translate theme keyword to localized tag using LLM if requested/available, else clean tag."""
+    t_clean = theme.strip().lower().replace(" ", "").replace("&", "")
+    if not allow_llm or not locale:
+        return t_clean
+    lang = locale.split("_")[0].lower() if "_" in locale else locale.lower()
+    if lang == "en":
+        return t_clean
+    if llm_client.is_configured():
+        try:
+            sys_prompt = (
+                "Translate this single news category keyword to a single-word lowercase "
+                "topic tag in the requested language without spaces, punctuation, or accents."
+            )
+            user_prompt = (
+                f"Category: {theme}\nTarget language ISO code: {lang}\n"
+                'Output JSON: {"tag": "word"}'
+            )
+            parsed, _ = await llm_client.chat_json(sys_prompt, user_prompt)
+            if isinstance(parsed, dict) and parsed.get("tag"):
+                tag = str(parsed["tag"]).strip().lower().replace(" ", "").replace("#", "")
+                if tag:
+                    return tag
+        except Exception:
+            pass
+    return t_clean
 
 
 async def discover_feeds(
@@ -563,287 +457,327 @@ async def discover_feeds(
     location: str = "",
     themes: list[str] | None = None,
     query: str = "",
+    mode: str = "smart",
+    locale: str | None = None,
     excluded_urls: list[str] | None = None,
     lang_code: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Execute 2-turn LLM feed discovery with live HTTP/XML verification."""
+    """Execute dual-mode feed discovery (Catalog Search or Smart Search) with live verification."""
     themes = themes or []
     loc_clean = location.strip()
     q_clean = query.strip()
     excluded_set = set(excluded_urls or [])
     excluded_domains = {urlparse(u).netloc.lower() for u in excluded_set if urlparse(u).netloc}
 
+    use_smart = (mode == "smart") and llm_client.is_configured()
+
     await activity.emit(
         session,
         component="discovery",
         action="discover_start",
-        detail={"location": loc_clean, "themes": themes, "query": q_clean},
+        detail={
+            "mode": "smart" if use_smart else "catalog",
+            "location": loc_clean,
+            "themes": themes,
+            "query": q_clean,
+            "locale": locale,
+        },
     )
-
-    # --- Turn 1: Query Formulation via LLM ---
-    queries_to_run: list[str] = []
-    candidate_urls: list[str] = []
-    suggested_domains: list[str] = []
 
     is_global = not loc_clean or loc_clean.lower() in ("global", "worldwide")
-    if is_global:
-        scope_level = "global"
-    elif loc_clean.lower() in (
-        "france", "germany", "spain", "italy", "united states", "usa", "uk", "canada", "japan"
-    ):
-        scope_level = "country"
-    elif "," in loc_clean:
-        scope_level = "city"
-    else:
-        scope_level = "city"
+    scope_level = "global" if is_global else "region"
+    country_code = _resolve_country_code(loc_clean)
 
-    llmtrace.context("discover_queries", label=f"Discovery queries for {themes or 'all'}")
-    sys_prompt, usr_prompt = prompts.discovery_queries(
-        loc_clean, themes, q_clean, lang_code=lang_code
-    )
+    loc_words = [w for w in re.findall(r"\w+", loc_clean.lower()) if len(w) >= 3]
+    theme_words = [w for t in themes for w in re.findall(r"\w+", t.lower()) if len(w) >= 3]
+    q_words = [w for w in re.findall(r"\w+", q_clean.lower()) if len(w) >= 2]
 
-    try:
-        parsed_q, latency = await llm_client.chat_json(sys_prompt, usr_prompt)
-        usage.record(
-            session,
-            kind="discovery_queries",
-            endpoint="chat",
-            model=settings.llm_model,
-            latency_ms=latency,
-            prompt_chars=len(sys_prompt) + len(usr_prompt),
-            completion_chars=len(str(parsed_q)),
-        )
-        if isinstance(parsed_q, dict):
-            if parsed_q.get("scope_level") in ("city", "region", "country", "continent", "global"):
-                scope_level = parsed_q["scope_level"]
-            for q in parsed_q.get("search_queries", []):
-                if isinstance(q, str) and q.strip():
-                    queries_to_run.append(q.strip())
-            for d in parsed_q.get("suggested_domains", []):
-                if isinstance(d, str) and d.strip():
-                    suggested_domains.append(d.strip())
-            for u in parsed_q.get("candidate_feed_urls", []):
-                if isinstance(u, str) and u.strip().startswith("http"):
-                    candidate_urls.append(u.strip())
-    except Exception:
-        # If LLM Turn 1 fails (e.g. offline/timeout), fallback to heuristic queries
+    candidates_to_probe: list[dict[str, Any]] = []
+    seen_urls: set[str] = set(excluded_set)
+    seen_domains: set[str] = set(excluded_domains)
+
+    # Mode 1: Catalog Search (Deterministic, Directory-based)
+    if not use_smart:
+        catalog_tasks: list[asyncio.Task[list[dict[str, Any]]]] = []
+
         if q_clean:
-            queries_to_run.append(f"{q_clean} rss feed")
+            catalog_tasks.append(
+                asyncio.create_task(_search_catalog(q_clean, locale=locale, count=15))
+            )
+        if loc_clean and loc_clean.lower() not in ("global", "worldwide"):
+            catalog_tasks.append(
+                asyncio.create_task(_search_catalog(loc_clean, locale=locale, count=15))
+            )
+
         for t in themes:
-            queries_to_run.append(f"{t} {loc_clean} news rss feed")
+            tag = await _translate_topic_tag(t, locale)
+            catalog_tasks.append(
+                asyncio.create_task(_search_catalog(f"#{tag}", locale=locale, count=15))
+            )
 
-    # If no queries generated, construct default queries
-    if not queries_to_run:
-        base_term = " ".join(themes) if themes else "news"
-        queries_to_run.append(f"{base_term} {loc_clean} rss feed".strip())
+        if not catalog_tasks:
+            catalog_tasks.append(
+                asyncio.create_task(_search_catalog("news", locale=locale, count=15))
+            )
 
-    # --- Search & Web Discovery ---
-    loc_parts = [p.strip() for p in loc_clean.split(",") if p.strip()]
-    primary_city = loc_parts[0] if loc_parts else loc_clean
-    city_words = [w for w in re.findall(r"\w+", primary_city.lower()) if len(w) >= 3]
-    regional_aliases = _expand_location_aliases(loc_clean)
+        catalog_results = await asyncio.gather(*catalog_tasks, return_exceptions=True)
 
-    if not is_global:
-        lower_loc = loc_clean.lower()
-        if any(w in lower_loc for w in ("france", "lyon", "paris", "marseille", "bordeaux", "toulouse", "lille", "nantes", "rennes", "strasbourg", "nice")):
-            queries_to_run.extend([
-                f"presse {primary_city}",
-                f"{primary_city} journal quotidien",
-                f"{primary_city} presse régionale",
-            ])
-        elif any(w in lower_loc for w in ("germany", "deutschland", "berlin", "münchen", "munich", "hamburg", "köln")):
-            queries_to_run.extend([
-                f"presse zeitung {primary_city}",
-                f"{primary_city} tageszeitung nachrichten",
-            ])
-        elif any(w in lower_loc for w in ("spain", "españa", "madrid", "barcelona", "valencia", "sevilla")):
-            queries_to_run.extend([
-                f"prensa periodico {primary_city}",
-                f"{primary_city} diario noticias local",
-            ])
-        else:
-            queries_to_run.extend([
-                f"local newspaper {primary_city}",
-                f"{primary_city} daily news",
-            ])
+        for res in catalog_results:
+            if isinstance(res, list):
+                for item in res:
+                    cand = _extract_catalog_candidate(item)
+                    if not cand:
+                        continue
+                    u = cand["url"]
+                    dom = urlparse(u).netloc.lower()
+                    if u not in seen_urls and dom not in seen_domains:
+                        seen_urls.add(u)
+                        seen_domains.add(dom)
+                        candidates_to_probe.append(cand)
 
-    # Probe suggested candidate feed URLs
-    probe_targets: set[str] = set(candidate_urls)
+        if len(candidates_to_probe) < 10:
+            try:
+                dir_urls = await _search_directory_feeds(
+                    location=loc_clean, themes=themes, query=q_clean, locale=locale
+                )
+            except TypeError:
+                dir_urls = await _search_directory_feeds(
+                    location=loc_clean, themes=themes, query=q_clean
+                )
+            for u in dir_urls:
+                dom = urlparse(u).netloc.lower()
+                if u not in seen_urls and dom not in seen_domains:
+                    seen_urls.add(u)
+                    seen_domains.add(dom)
+                    candidates_to_probe.append(
+                        {
+                            "url": u,
+                            "title": dom,
+                            "site_url": f"https://{dom}",
+                            "description": "",
+                            "subscribers": 0,
+                            "icon_url": None,
+                        }
+                    )
 
-    for d in suggested_domains:
-        if not d.startswith("http"):
-            probe_targets.add(f"https://{d}")
-        else:
-            probe_targets.add(d)
+        candidates_to_probe.sort(key=lambda c: int(c.get("subscribers") or 0), reverse=True)
 
-    # Run searches for top queries via Google News RSS and DuckDuckGo
-    search_tasks = []
-    for q in queries_to_run[:4]:
-        search_tasks.append(_search_google_news_rss(q, location=loc_clean, max_results=8))
-        search_tasks.append(_search_web_duckduckgo_lite(q, max_results=5))
+    # Mode 2: Smart Search (LLM-driven)
+    else:
+        candidate_urls: list[str] = []
+        suggested_domains: list[str] = []
 
-    search_results = await asyncio.gather(*search_tasks, return_exceptions=True)
-    for res in search_results:
-        if isinstance(res, list):
-            for url in res:
-                if not any(x in url.lower() for x in ("google.", "duckduckgo.", "bing.", "yahoo.", "youtube.")):
-                    probe_targets.add(url)
+        llmtrace.context("discover_queries", label=f"Discovery queries for {themes or 'all'}")
+        sys_prompt, usr_prompt = prompts.discovery_queries(
+            loc_clean, themes, q_clean, lang_code=lang_code
+        )
 
-    # Add curated seeds for selected themes (only upfront if global search)
-    theme_keys = {_theme_key(t) for t in themes} if themes else {"general"}
-    curated_candidates: list[dict[str, Any]] = []
-    for k in theme_keys:
-        for seed in CURATED_SEEDS.get(k, []):
-            curated_candidates.append(seed)
-            if is_global:
-                probe_targets.add(seed["url"])
+        try:
+            parsed_q, latency = await llm_client.chat_json(sys_prompt, usr_prompt)
+            usage.record(
+                session,
+                kind="discovery_queries",
+                endpoint="chat",
+                model=settings.llm_model,
+                latency_ms=latency,
+                prompt_chars=len(sys_prompt) + len(usr_prompt),
+                completion_chars=len(str(parsed_q)),
+            )
+            if isinstance(parsed_q, dict):
+                if parsed_q.get("scope_level") in (
+                    "city",
+                    "region",
+                    "country",
+                    "continent",
+                    "global",
+                ):
+                    scope_level = parsed_q["scope_level"]
+                for d in parsed_q.get("suggested_domains", []):
+                    if isinstance(d, str) and d.strip():
+                        suggested_domains.append(d.strip())
+                for u in parsed_q.get("candidate_feed_urls", []):
+                    if isinstance(u, str) and u.strip().startswith("http"):
+                        candidate_urls.append(u.strip())
+        except Exception:
+            pass
 
-    # Filter out already excluded targets and domains
-    filtered_targets = [
-        u for u in probe_targets
-        if u not in excluded_set and urlparse(u).netloc.lower() not in excluded_domains
-    ]
+        for u in candidate_urls:
+            dom = urlparse(u).netloc.lower()
+            if u not in seen_urls and dom not in seen_domains:
+                seen_urls.add(u)
+                seen_domains.add(dom)
+                candidates_to_probe.append(
+                    {
+                        "url": u,
+                        "title": dom,
+                        "site_url": f"https://{dom}",
+                        "description": "",
+                        "subscribers": 0,
+                        "icon_url": None,
+                    }
+                )
 
-    # Prioritize targets matching city or regional keywords
-    def _target_priority(u: str) -> int:
-        u_lower = u.lower()
-        score = 0
-        for w in city_words:
+        for d in suggested_domains:
+            target_url = d if d.startswith("http") else f"https://{d}"
+            dom = urlparse(target_url).netloc.lower()
+            if target_url not in seen_urls and dom not in seen_domains:
+                seen_urls.add(target_url)
+                seen_domains.add(dom)
+                candidates_to_probe.append(
+                    {
+                        "url": target_url,
+                        "title": dom,
+                        "site_url": f"https://{dom}",
+                        "description": "",
+                        "subscribers": 0,
+                        "icon_url": None,
+                    }
+                )
+
+        try:
+            dir_urls = await _search_directory_feeds(
+                location=loc_clean, themes=themes, query=q_clean, locale=locale
+            )
+        except TypeError:
+            dir_urls = await _search_directory_feeds(
+                location=loc_clean, themes=themes, query=q_clean
+            )
+        for u in dir_urls:
+            dom = urlparse(u).netloc.lower()
+            if u not in seen_urls and dom not in seen_domains:
+                seen_urls.add(u)
+                seen_domains.add(dom)
+                candidates_to_probe.append(
+                    {
+                        "url": u,
+                        "title": dom,
+                        "site_url": f"https://{dom}",
+                        "description": "",
+                        "subscribers": 0,
+                        "icon_url": None,
+                    }
+                )
+
+    def _target_priority(c: dict[str, Any]) -> int:
+        u_lower = c["url"].lower()
+        score = int(c.get("subscribers") or 0) // 100
+        if country_code:
+            cc = country_code.lower()
+            if u_lower.endswith(f".{cc}") or f".{cc}/" in u_lower:
+                score += 80
+        for w in q_words:
             if w in u_lower:
                 score += 50
-        for a in regional_aliases:
-            if a in u_lower:
+        for w in theme_words:
+            if w in u_lower:
                 score += 40
-        if any(k in u_lower for k in ("presse", "journal", "actualite", "quotidien", "tribune", "gazette", "capitale")):
-            score += 25
+        for w in loc_words:
+            if w in u_lower:
+                score += 30
         return score
 
-    sorted_targets = sorted(filtered_targets, key=_target_priority, reverse=True)
+    if use_smart:
+        candidates_to_probe.sort(key=_target_priority, reverse=True)
 
-    # --- Live Verification Step ---
-    # Probe candidate targets concurrently with a semaphore
+    # Live Verification Loop
     sem = asyncio.Semaphore(6)
     validated_feeds: list[dict[str, Any]] = []
-    seen_urls: set[str] = set(excluded_set)
+    probed_feed_urls: set[str] = set(excluded_set)
+    probed_feed_hosts: set[str] = set(excluded_domains)
 
-    async def _safe_probe(u: str) -> None:
+    async def _safe_probe(cand: dict[str, Any]) -> None:
         async with sem:
             try:
-                res = await _probe_url(u)
-                if res and res["url"] not in seen_urls:
+                res = await _probe_url(cand["url"])
+                if res and res["url"] not in probed_feed_urls:
                     res_domain = urlparse(res["url"]).netloc.lower()
-                    if res_domain not in excluded_domains:
-                        seen_urls.add(res["url"])
+                    if res_domain not in probed_feed_hosts:
+                        probed_feed_urls.add(res["url"])
+                        probed_feed_hosts.add(res_domain)
+                        if cand.get("subscribers"):
+                            res["subscribers"] = cand["subscribers"]
+                        if cand.get("icon_url") and not res.get("icon_url"):
+                            res["icon_url"] = cand["icon_url"]
                         validated_feeds.append(res)
             except Exception:
                 pass
 
-    probe_tasks = [_safe_probe(u) for u in sorted_targets[:30]]
+    probe_tasks = [_safe_probe(c) for c in candidates_to_probe[:30]]
     await asyncio.gather(*probe_tasks, return_exceptions=True)
 
-    # Guarantee seeds ONLY if global or if zero local feeds could be discovered
-    if is_global and len(validated_feeds) < 3:
-        for seed in curated_candidates:
-            if seed["url"] not in seen_urls:
-                seen_urls.add(seed["url"])
-                validated_feeds.append(
-                    {
-                        "url": seed["url"],
-                        "title": seed["title"],
-                        "site_url": seed["site_url"],
-                        "description": seed["desc"],
-                        "sample_titles": [],
-                    }
-                )
-    elif not validated_feeds:
-        for seed in curated_candidates:
-            if seed["url"] not in seen_urls:
-                seen_urls.add(seed["url"])
-                validated_feeds.append(
-                    {
-                        "url": seed["url"],
-                        "title": seed["title"],
-                        "site_url": seed["site_url"],
-                        "description": seed["desc"],
-                        "sample_titles": [],
-                        "_is_fallback": True,
-                    }
-                )
+    def _loc_relevance(item: dict[str, Any]) -> int:
+        if is_global or not loc_words:
+            return 0
+        t = (item.get("title") or "").lower()
+        d = (item.get("description") or "").lower()
+        u = (item.get("url") or "").lower()
+        samples = " ".join(item.get("sample_titles") or []).lower()
+        sc = 0
+        for w in loc_words:
+            if w in t:
+                sc += 40
+            if w in u:
+                sc += 35
+            if w in samples:
+                sc += 25
+            if w in d:
+                sc += 15
+        return sc
 
-    # Relevance scoring and ranking
-    country_words = [
-        w for w in re.findall(r"\w+", loc_clean.lower()) if len(w) >= 3 and w not in city_words
-    ]
-    q_words = [w for w in re.findall(r"\w+", q_clean.lower()) if len(w) >= 2]
+    if not use_smart:
+        validated_feeds.sort(key=lambda f: int(f.get("subscribers") or 0), reverse=True)
+    else:
 
-    def _location_score(feed: dict[str, Any]) -> int:
-        t = (feed.get("title") or "").lower()
-        d = (feed.get("description") or "").lower()
-        u = (feed.get("url") or "").lower()
-        samples = " ".join(feed.get("sample_titles") or []).lower()
-        score = 0
-
-        # High-weight boost for user custom query terms
-        if q_clean:
-            q_lower = q_clean.lower()
-            if q_lower in t or q_lower in u:
-                score += 150
-            for w in q_words:
+        def _relevance_score(feed: dict[str, Any]) -> int:
+            t = (feed.get("title") or "").lower()
+            d = (feed.get("description") or "").lower()
+            u = (feed.get("url") or "").lower()
+            samples = " ".join(feed.get("sample_titles") or []).lower()
+            score = 0
+            if q_clean:
+                q_lower = q_clean.lower()
+                if q_lower in t or q_lower in u:
+                    score += 150
+                for w in q_words:
+                    if w in t:
+                        score += 60
+                    if w in u:
+                        score += 50
+                    if w in samples:
+                        score += 30
+                    if w in d:
+                        score += 20
+            for w in theme_words:
                 if w in t:
-                    score += 60
-                if w in u:
                     score += 50
+                if w in u:
+                    score += 40
                 if w in samples:
                     score += 30
                 if w in d:
                     score += 20
-
-        # General news daily press indicator boost
-        if any(x in t or x in u for x in ("quotidien", "journal", "tribune", "gazette", "presse")):
-            score += 35
-
-        if is_global:
+            if not is_global:
+                if country_code:
+                    cc = country_code.lower()
+                    if u.endswith(f".{cc}") or f".{cc}/" in u:
+                        score += 80
+                for w in loc_words:
+                    if w in t:
+                        score += 40
+                    if w in u:
+                        score += 35
+                    if w in samples:
+                        score += 25
+                    if w in d:
+                        score += 15
             return score
 
-        for w in city_words:
-            if w in t:
-                score += 50
-            if w in u:
-                score += 40
-            if w in samples:
-                score += 35
-            if w in d:
-                score += 20
-        for a in regional_aliases:
-            if a in t:
-                score += 45
-            if a in u:
-                score += 35
-            if a in samples:
-                score += 30
-            if a in d:
-                score += 15
-        if any(x in t for x in ("région", "region", "locale", "local")):
-            score += 15
-        for w in country_words:
-            if w in t:
-                score += 5
-            if w in u:
-                score += 5
-            if w in samples:
-                score += 3
-            if w in d:
-                score += 2
-        return score
+        validated_feeds.sort(key=_relevance_score, reverse=True)
 
-    validated_feeds.sort(key=_location_score, reverse=True)
-    # Limit to top 10 verified candidates for synthesis
     validated_top = validated_feeds[:10]
-
-    # --- Turn 2: Synthesis & Ranking via LLM ---
     final_feeds: list[dict[str, Any]] = []
 
-    if validated_top:
+    if use_smart and validated_top:
         llmtrace.context(
             "discover_synthesis", label=f"Discovery synthesis for {len(validated_top)} feeds"
         )
@@ -875,10 +809,10 @@ async def discover_feeds(
                             acc = base.get("access_level", "free_excerpt")
 
                         geo = f.get("geographic_scope") or (
-                            "local" if _location_score(base) >= 20 else "national"
+                            "local" if _loc_relevance(base) >= 20 else "national"
                         )
                         if geo not in ("local", "regional", "national", "global"):
-                            geo = "local" if _location_score(base) >= 20 else "national"
+                            geo = "local" if _loc_relevance(base) >= 20 else "national"
 
                         final_feeds.append(
                             {
@@ -893,37 +827,38 @@ async def discover_feeds(
                                 "access_level": acc,
                                 "geographic_scope": geo,
                                 "sample_articles": base.get("sample_articles") or [],
-                                "icon_url": f"{base.get('site_url', '').rstrip('/')}/favicon.ico"
-                                if base.get("site_url")
-                                else None,
+                                "icon_url": base.get("icon_url")
+                                or (
+                                    f"{base.get('site_url', '').rstrip('/')}/favicon.ico"
+                                    if base.get("site_url")
+                                    else None
+                                ),
                             }
                         )
         except Exception:
             pass
 
-    # Heuristic fallback if LLM synthesis failed or returned empty
     if not final_feeds:
         for item in validated_top:
-            if item.get("_is_fallback"):
-                reason = f"General news fallback (no local feeds found for {loc_clean})"
+            score = _loc_relevance(item)
+            if score >= 20:
+                reason = f"Local publication covering {loc_clean}"
+                geo_scope = "local"
+            elif score > 0 or scope_level == "country":
+                reason = f"National publication covering {loc_clean}"
+                geo_scope = "national"
+            elif not is_global:
+                reason = f"Publication for {loc_clean}"
+                geo_scope = "national"
+            elif themes:
+                reason = f"Coverage matching {', '.join(themes)}"
+                geo_scope = "global"
+            elif item.get("subscribers"):
+                reason = f"Popular publication ({item['subscribers']:,} subscribers)"
                 geo_scope = "global"
             else:
-                score = _location_score(item)
-                if score >= 20:
-                    reason = f"Local publication covering {loc_parts[0]}"
-                    geo_scope = "local"
-                elif score > 0 or scope_level == "country":
-                    reason = f"National publication covering {loc_clean}"
-                    geo_scope = "national"
-                elif not is_global:
-                    reason = f"Publication for {loc_clean}"
-                    geo_scope = "national"
-                elif themes:
-                    reason = f"Coverage matching {', '.join(themes)}"
-                    geo_scope = "global"
-                else:
-                    reason = "Recommended news publication"
-                    geo_scope = "global"
+                reason = "Recommended news publication"
+                geo_scope = "global"
 
             final_feeds.append(
                 {
@@ -936,17 +871,17 @@ async def discover_feeds(
                     "access_level": item.get("access_level", "free_excerpt"),
                     "geographic_scope": geo_scope,
                     "sample_articles": item.get("sample_articles") or [],
-                    "icon_url": f"{item.get('site_url', '').rstrip('/')}/favicon.ico"
-                    if item.get("site_url")
-                    else None,
+                    "icon_url": item.get("icon_url")
+                    or (
+                        f"{item.get('site_url', '').rstrip('/')}/favicon.ico"
+                        if item.get("site_url")
+                        else None
+                    ),
                 }
             )
 
-    # When searching for a specific city/region, filter out generic national/global outlets
     if scope_level in ("city", "region"):
-        local_only = [
-            f for f in final_feeds if f.get("geographic_scope") in ("local", "regional")
-        ]
+        local_only = [f for f in final_feeds if f.get("geographic_scope") in ("local", "regional")]
         if local_only:
             final_feeds = local_only
 

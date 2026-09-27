@@ -7,7 +7,7 @@ Inoreader, FreshRSS, Miniflux, The Old Reader, BazQux, etc.
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urlparse
 
 import httpx
 

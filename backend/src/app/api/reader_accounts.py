@@ -14,7 +14,7 @@ from app.api.schemas import ReaderAccountIn, ReaderAccountOut, ReaderAccountPatc
 from app.core.db import get_session
 from app.models import ReaderAccount, User
 from app.services import activity
-from app.services.readers.greader import GReaderAuthError, GReaderClient, GReaderError
+from app.services.readers.greader import GReaderClient
 from app.services.readers.sync import ensure_virtual_feed, poll_reader_account
 
 router = APIRouter(

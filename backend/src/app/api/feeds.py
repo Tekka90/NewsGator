@@ -116,12 +116,14 @@ async def discover_feeds(
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ) -> FeedDiscoveryOut:
-    """Discover candidate RSS/Atom feeds using multi-turn LLM research and live verification."""
+    """Discover candidate RSS/Atom feeds using catalog search or multi-turn LLM research."""
     results = await discovery.discover_feeds(
         session,
         location=body.location,
         themes=body.themes,
         query=body.query,
+        mode=body.mode,
+        locale=body.locale,
         excluded_urls=body.excluded_urls,
         lang_code=user.summary_language,
     )
