@@ -1,17 +1,20 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>NewsGator — One story per real-world event</title>
-<meta name="description" content="NewsGator is a news aggregator that merges duplicate coverage into one evolving story, writes honest clickbait-free titles, and sends you back to the original publisher. Run it as a native Apple Intelligence app or on your own self-hosted server." />
-<meta property="og:title" content="NewsGator — One story per real-world event" />
-<meta property="og:description" content="One story per event. Honest titles. Read the source and support its author. Run NewsGator with Apple Intelligence or on your own self-hosted server." />
+<title>NewsGator — 出来事ごとに1つのストーリー</title>
+<meta name="description" content="NewsGatorは、あらゆるソースの同じ出来事を1つの進化するストーリーに統合するニュースアグリゲーターです。誇張しない見出しと最新の中立要約で把握し、読むときは元の出版社へ戻れます。Apple Intelligenceアプリとして、または自分で運用するサーバーとして使えます。" />
+<meta property="og:locale" content="ja_JP" />
+<meta property="og:title" content="NewsGator — 出来事ごとに1つのストーリー" />
+<meta property="og:description" content="出来事ごとに1つのストーリー。誇張しない見出しで把握し、元記事を読んで書き手を支援。Apple Intelligenceまたはセルフホストのサーバーで動作します。" />
 <meta property="og:image" content="https://www.newsgator.app/assets/shots/app-mac-stories.jpg" />
-<meta property="og:url" content="https://www.newsgator.app/" />
+<meta property="og:url" content="https://www.newsgator.app/index-ja.html" />
 <meta property="og:type" content="website" />
 <meta name="twitter:card" content="summary_large_image" />
-<link rel="canonical" href="https://www.newsgator.app/" />
+<meta name="twitter:title" content="NewsGator — 出来事ごとに1つのストーリー" />
+<meta name="twitter:description" content="出来事ごとに1つのストーリー。誇張しない見出し。読むときは元の出版社へ。" />
+<link rel="canonical" href="https://www.newsgator.app/index-ja.html" />
 <link rel="icon" href="assets/logo.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -33,9 +36,9 @@
   --radius-lg: 26px;
   --shadow: 0 24px 60px rgba(11, 61, 42, 0.08);
   --shadow-card: 0 8px 28px rgba(24, 33, 29, 0.06);
-  --font-display: "Newsreader", Georgia, serif;
-  --font-body: "Inter", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-display: "Newsreader", "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", Georgia, serif;
+  --font-body: "Inter", "Hiragino Sans", "Yu Gothic", "Noto Sans JP", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", "Hiragino Sans", "Yu Gothic", ui-monospace, monospace;
 }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
@@ -45,7 +48,7 @@ body {
   color: var(--ink);
   font-family: var(--font-body);
   font-size: 17px;
-  line-height: 1.65;
+  line-height: 1.72;
   -webkit-font-smoothing: antialiased;
 }
 img { max-width: 100%; height: auto; display: block; }
@@ -61,8 +64,8 @@ section { padding: 88px 0; }
   gap: 8px;
   font-family: var(--font-mono);
   font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--forest);
 }
 .eyebrow {
@@ -74,24 +77,24 @@ section { padding: 88px 0; }
 h1, h2, h3 {
   margin: 0;
   color: var(--forest-dark);
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 h1 {
   font-family: var(--font-display);
   font-size: clamp(46px, 7vw, 82px);
-  line-height: 0.98;
+  line-height: 1.08;
   margin: 20px 0 18px;
 }
 h2 {
   font-family: var(--font-display);
   font-size: clamp(32px, 4.6vw, 50px);
-  line-height: 1.08;
+  line-height: 1.2;
   margin-bottom: 12px;
 }
 h3 {
   font-family: var(--font-display);
   font-size: 25px;
-  line-height: 1.14;
+  line-height: 1.3;
 }
 p { margin: 0; }
 .sub {
@@ -221,8 +224,8 @@ p { margin: 0; }
   color: var(--forest);
   font-family: var(--font-mono);
   font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
 }
 .promise h3 { margin-top: 10px; font-size: 23px; }
 .promise p { margin-top: 10px; color: var(--muted); font-size: 15.5px; }
@@ -504,15 +507,15 @@ footer {
 <body>
 <nav class="site-nav" id="site-nav">
   <div class="wrap">
-    <a class="brand" href="#top">
-      <img src="assets/logo.png" alt="NewsGator logo" />
+    <a class="brand" href="index-ja.html">
+      <img src="assets/logo.png" alt="NewsGator ロゴ" />
       <span>NewsGator</span>
     </a>
-    <div class="nav-links" aria-label="Primary">
-      <a href="#how">How it works</a>
-      <a href="#modes">Two engines</a>
-      <a href="#features">Features</a>
-      <a href="#screenshots">Screenshots</a>
+    <div class="nav-links" aria-label="主要ナビゲーション">
+      <a href="#how">仕組み</a>
+      <a href="#modes">2つのエンジン</a>
+      <a href="#features">特長</a>
+      <a href="#screenshots">スクリーンショット</a>
       <a class="nav-cta" href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
     </div>
   </div>
@@ -523,44 +526,44 @@ footer {
     <div class="wrap">
       <div class="hero-grid">
         <div class="hero-copy reveal">
-          <div class="eyebrow">News aggregator · not a plain RSS reader</div>
-          <h1>One story per<br />real-world event.</h1>
+          <div class="eyebrow">ニュースアグリゲーター · RSSリーダーだけではありません</div>
+          <h1>出来事ごとに、<br />1つのストーリー。</h1>
           <p class="lede">
-            NewsGator gathers every article covering the same event into <strong>one living story</strong>,
-            keeps its neutral summary current as new facts arrive, gives it an <strong>honest, clickbait-free title</strong>,
-            and sends you back to the <strong>original publisher</strong> when it is time to read more.
+            NewsGatorは、同じ出来事を報じる記事を<strong>1つの進化するストーリー</strong>にまとめ、
+            新しい事実が加わるたびに中立な要約を更新し、<strong>誇張しない見出し</strong>を付け、
+            もっと読みたいときは<strong>元の出版社</strong>へ戻します。
           </p>
-          <p class="note">Two engines: native Apple apps powered by Apple Intelligence, or your own self-hosted NewsGator server.</p>
+          <p class="note">2つのエンジン。Apple Intelligenceで動くネイティブアプリ、または自分で運用するNewsGatorサーバー。</p>
           <div class="actions">
-            <a class="btn primary" href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">View the self-hosted server</a>
-            <a class="btn secondary" href="mailto:support@newsgator.app?subject=TestFlight%20access%20request&amp;body=Hi%2C%20please%20add%20me%20to%20the%20NewsGator%20TestFlight.%0AApple%20ID%20email%3A%20">Request TestFlight access</a>
+            <a class="btn primary" href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">セルフホスト版サーバーを見る</a>
+            <a class="btn secondary" href="mailto:support@newsgator.app?subject=TestFlight%E3%81%B8%E3%81%AE%E5%8F%82%E5%8A%A0%E5%B8%8C%E6%9C%9B&amp;body=%E3%81%93%E3%82%93%E3%81%AB%E3%81%A1%E3%81%AF%E3%80%81NewsGator%E3%81%AETestFlight%E3%81%AB%E8%BF%BD%E5%8A%A0%E3%81%97%E3%81%A6%E3%81%8F%E3%81%A0%E3%81%95%E3%81%84%E3%80%82%0AApple%20ID%20%E3%81%AE%E3%83%A1%E3%83%BC%E3%83%AB%E3%82%A2%E3%83%89%E3%83%AC%E3%82%B9%3A%20">TestFlightへの参加をリクエスト</a>
           </div>
         </div>
 
         <div class="promise-stack reveal">
           <article class="promise">
-            <div class="k">Promise 01</div>
-            <h3>Aggregation that stays current</h3>
-            <p>Duplicate coverage becomes one story. When new facts arrive, the summary is refined in place and read stories come back badged <strong>updated</strong>, never fake unread.</p>
+            <div class="k">価値 01</div>
+            <h3>まとまって、しかも最新</h3>
+            <p>重複する記事は1つのストーリーになります。新しい事実が届くと要約をその場で磨き直し、読んだストーリーは未読に戻さず<strong>更新あり</strong>で知らせます。</p>
           </article>
           <article class="promise">
-            <div class="k">Promise 02</div>
-            <h3>Honest titles</h3>
-            <p>Every story gets a realistic, factual headline designed to tell you what happened, not trick you into a click.</p>
+            <div class="k">価値 02</div>
+            <h3>誇張しない見出し</h3>
+            <p>各ストーリーには、クリックを誘うためではなく、何が起きたかをそのまま伝える現実的で事実ベースの見出しを付けます。</p>
           </article>
           <article class="promise">
-            <div class="k">Promise 03</div>
-            <h3>Read the source, support its author</h3>
-            <p>The summary is a triage tool. One tap opens the original publisher so the visit, subscription, or ad view still goes to the journalists who did the work.</p>
+            <div class="k">価値 03</div>
+            <h3>元記事を読み、書き手を支援</h3>
+            <p>要約は仕分けのための道具です。1回のタップで元の出版社を開けるので、訪問、購読、広告表示は実際に取材したジャーナリストへ届きます。</p>
           </article>
         </div>
       </div>
 
       <div class="fact-strip reveal">
         <ul>
-          <li><strong>Standalone:</strong> Apple Intelligence, iCloud sync, no server or subscription.</li>
-          <li><strong>Self-hosted:</strong> Python/FastAPI + SvelteKit with any OpenAI-compatible AI you choose.</li>
-          <li><strong>Privacy:</strong> zero ads, zero third-party trackers, zero analytics.</li>
+          <li><strong>スタンドアロン:</strong> Apple Intelligence、iCloud同期、サーバー不要、追加料金不要。</li>
+          <li><strong>セルフホスト:</strong> Python/FastAPI + SvelteKit。好きなOpenAI互換AIを選べます。</li>
+          <li><strong>プライバシー:</strong> 広告なし、サードパーティトラッカーなし、分析なし。</li>
         </ul>
       </div>
     </div>
@@ -569,26 +572,26 @@ footer {
   <section id="how">
     <div class="wrap">
       <div class="section-head reveal">
-        <div class="eyebrow">How it works</div>
-        <h2>Three steps from news flood to signal.</h2>
-        <p class="sub">NewsGator is built for people who want coverage from many sources without reading the same story five times.</p>
+        <div class="eyebrow">仕組み</div>
+        <h2>ニュースの洪水を、3ステップで整理。</h2>
+        <p class="sub">NewsGatorは、多くのソースを追いたいけれど同じニュースを何度も読みたくない人のために作られています。</p>
       </div>
 
       <div class="grid-3">
         <article class="card reveal">
           <div class="step-num">01</div>
-          <h3>Add your sources</h3>
-          <p>Bring in RSS feeds, IMAP newsletters, or a synced reader account such as FreshRSS, Miniflux, or Inoreader. OPML import keeps setup quick.</p>
+          <h3>ソースを追加</h3>
+          <p>RSSフィード、IMAPニュースレター、FreshRSS・Miniflux・Inoreaderのような同期リーダーアカウントを取り込めます。OPML読み込みで初期設定もすぐ終わります。</p>
         </article>
         <article class="card reveal">
           <div class="step-num">02</div>
-          <h3>NewsGator groups the event</h3>
-          <p>It fetches the full text, clusters every article about the same real-world event, writes a neutral summary, and assigns a factual headline.</p>
+          <h3>NewsGatorが出来事を束ねる</h3>
+          <p>本文を取得し、同じ現実の出来事に関する記事をクラスタリングし、中立な要約を書き、事実ベースの見出しを付けます。</p>
         </article>
         <article class="card reveal">
           <div class="step-num">03</div>
-          <h3>You triage, then go deeper</h3>
-          <p>Read a short story first, open the publisher when it matters, then come back later to ask your archive, share a story, or follow the distilled story RSS feed.</p>
+          <h3>まず把握して、必要なら深掘り</h3>
+          <p>最初に短いストーリーで全体をつかみ、必要なときだけ出版社を開き、あとでアーカイブに質問したり、ストーリーを共有したり、整理済みのRSSフィードを追えます。</p>
         </article>
       </div>
     </div>
@@ -597,34 +600,34 @@ footer {
   <section id="modes">
     <div class="wrap">
       <div class="section-head reveal">
-        <div class="eyebrow">Two ways to run it</div>
-        <h2>The same idea, two very different engines.</h2>
-        <p class="sub">Pick the setup that fits your life: zero infrastructure on Apple devices, or a full self-hosted server for your household.</p>
+        <div class="eyebrow">2つの使い方</div>
+        <h2>同じ発想を、まったく違う2つのエンジンで。</h2>
+        <p class="sub">Appleデバイスだけで完結させることも、家庭向けに本格的なセルフホスト環境を動かすこともできます。</p>
       </div>
 
       <div class="modes">
         <article class="engine featured reveal">
-          <div class="mini-label">Standalone native apps</div>
-          <h3>Apple Intelligence, no server</h3>
-          <p>Native iPhone, iPad, and Mac apps powered by Apple Private Cloud Compute first, then the on-device model. Your library and read state sync through iCloud.</p>
+          <div class="mini-label">スタンドアロンのネイティブアプリ</div>
+          <h3>Apple Intelligenceで、サーバー不要</h3>
+          <p>iPhone、iPad、Mac向けのネイティブアプリです。まずApple Private Cloud Compute、次にオンデバイスモデルを使います。ライブラリと既読状態はiCloudで同期されます。</p>
           <ul>
-            <li>No server to run and no subscription required.</li>
-            <li>Available in 10 languages: English, French, German, Spanish, Italian, Brazilian Portuguese, Japanese, Korean, and Simplified and Traditional Chinese.</li>
-            <li>Siri and Shortcuts support for faster capture and reading flows.</li>
-            <li>The same story model: one event, one evolving story.</li>
+            <li>運用するサーバーは不要。サブスクリプションも必要ありません。</li>
+            <li>英語、フランス語、ドイツ語、スペイン語、イタリア語、ブラジルポルトガル語、日本語、韓国語、簡体字中国語、繁体字中国語で利用できます。</li>
+            <li>Siriとショートカットに対応し、保存や読書フローをすばやく進められます。</li>
+            <li>同じストーリーモデル: 1つの出来事、1つの進化するストーリー。</li>
           </ul>
         </article>
 
         <article class="engine reveal">
-          <div class="mini-label">Self-hosted server</div>
-          <h3>Python, FastAPI, SvelteKit, your AI</h3>
-          <p>Run the NewsGator server yourself and point it at any OpenAI-compatible AI you prefer: oMLX, Ollama, llama.cpp, LM Studio, or another compatible endpoint.</p>
+          <div class="mini-label">セルフホストのサーバー</div>
+          <h3>Python、FastAPI、SvelteKit、そして自分のAI</h3>
+          <p>NewsGatorサーバーを自分で動かし、好みのOpenAI互換AIにつなげられます。oMLX、Ollama、llama.cpp、LM Studio、そのほか互換エンドポイントに対応します。</p>
           <ul>
-            <li>Multi-user reading with per-user feeds, read state, and preferences.</li>
-            <li>Web app + PWA, archive chat, story sharing, story RSS feed, and activity tracing.</li>
-            <li>RSS, IMAP newsletters, and FreshRSS/Miniflux/Inoreader-style reader sync.</li>
+            <li>ユーザーごとのフィード、既読状態、設定を持つマルチユーザー環境。</li>
+            <li>Webアプリ + PWA、アーカイブチャット、ストーリー共有、ストーリーRSSフィード、アクティビティ追跡。</li>
+            <li>RSS、IMAPニュースレター、FreshRSS / Miniflux / Inoreader系のリーダー同期に対応。</li>
           </ul>
-          <div class="code-note"><span class="muted"># compact Docker setup</span><br />git clone …/NewsGator &amp;&amp; cd docker<br />cp .env.example .env<br />docker compose up --build</div>
+          <div class="code-note"><span class="muted"># 最小構成の Docker セットアップ</span><br />git clone …/NewsGator &amp;&amp; cd docker<br />cp .env.example .env<br />docker compose up --build</div>
         </article>
       </div>
     </div>
@@ -633,43 +636,43 @@ footer {
   <section id="features">
     <div class="wrap">
       <div class="section-head reveal">
-        <div class="eyebrow">Compact feature list</div>
-        <h2>The parts people actually use.</h2>
+        <div class="eyebrow">コンパクトな特長一覧</div>
+        <h2>実際によく使う機能だけを。</h2>
         
       </div>
 
       <div class="feature-grid">
         <article class="feature reveal">
-          <h3>Archive chat</h3>
-          <p>Ask your story archive questions with grounded, cited answers.</p>
+          <h3>アーカイブチャット</h3>
+          <p>ストーリーアーカイブに質問すると、根拠付きで答えます。</p>
         </article>
         <article class="feature reveal">
-          <h3>Newsletters included</h3>
-          <p>IMAP newsletters flow into the same story pipeline as feeds.</p>
+          <h3>ニュースレター対応</h3>
+          <p>IMAPニュースレターも、フィードと同じストーリーパイプラインに入ります。</p>
         </article>
         <article class="feature reveal">
-          <h3>Reader sync</h3>
-          <p>Connect FreshRSS, Miniflux, or Inoreader-compatible accounts.</p>
+          <h3>リーダー同期</h3>
+          <p>FreshRSS、Miniflux、Inoreader互換アカウントを接続できます。</p>
         </article>
         <article class="feature reveal">
-          <h3>Updated, not unread</h3>
-          <p>Read state stays honest when a story gains new facts.</p>
+          <h3>未読ではなく更新</h3>
+          <p>新しい事実が加わっても、既読状態は正直なままです。</p>
         </article>
         <article class="feature reveal">
-          <h3>OPML ready</h3>
-          <p>Import and export feed lists without rebuilding your library by hand.</p>
+          <h3>OPML対応</h3>
+          <p>ライブラリを一から作り直さなくても、フィード一覧を読み込み・書き出しできます。</p>
         </article>
         <article class="feature reveal">
-          <h3>Story sharing</h3>
-          <p>Share a story summary and still link straight to the original reporting.</p>
+          <h3>ストーリー共有</h3>
+          <p>ストーリー要約を共有しても、元の記事へまっすぐリンクできます。</p>
         </article>
         <article class="feature reveal">
-          <h3>Story RSS feed</h3>
-          <p>Your distilled story archive can itself be consumed in any RSS reader.</p>
+          <h3>ストーリーRSSフィード</h3>
+          <p>整理済みのストーリーアーカイブ自体を、任意のRSSリーダーで購読できます。</p>
         </article>
         <article class="feature reveal">
-          <h3>Multi-user server</h3>
-          <p>One self-hosted instance can serve a household without flattening everyone into one account.</p>
+          <h3>マルチユーザーサーバー</h3>
+          <p>1つのセルフホスト環境で、家族みんなが別々のアカウントとして使えます。</p>
         </article>
       </div>
     </div>
@@ -678,58 +681,58 @@ footer {
   <section id="screenshots">
     <div class="wrap">
       <div class="section-head gallery-intro reveal">
-        <div class="eyebrow">Screenshots</div>
-        <h2>Current native-app screens, not marketing mockups.</h2>
-        <p class="sub">Fresh captures from the iPhone and Mac apps, plus the self-hosted server's web app.</p>
+        <div class="eyebrow">スクリーンショット</div>
+        <h2>マーケティング用モックではなく、実際のネイティブアプリ画面です。</h2>
+        <p class="sub">iPhoneアプリ、Macアプリ、そしてセルフホスト版サーバーのWebアプリから撮った最新の画面です。</p>
       </div>
 
       <div class="gallery">
         <figure class="shot wide reveal">
           <div class="shot-media">
-            <img src="assets/shots/app-mac-stories.jpg" alt="Mac stories view showing one card per event in the NewsGator triage list" width="1600" height="1000" loading="lazy" />
+            <img src="assets/shots/app-mac-stories.jpg" alt="NewsGatorの一覧で、出来事ごとに1枚のカードが並ぶMacのストーリー表示" width="1600" height="1000" loading="lazy" />
           </div>
           <figcaption>
-            <strong>Stories triage on Mac</strong>
-            <span class="caption">One event per card, with factual titles, source count, category, and update state.</span>
+            <strong>Macでストーリーを仕分け</strong>
+            <span class="caption">1枚のカードに1つの出来事。事実ベースの見出し、ソース数、カテゴリ、更新状態をまとめて確認できます。</span>
           </figcaption>
         </figure>
 
         <figure class="shot phone reveal">
           <div class="shot-media">
-            <img src="assets/shots/app-iphone-stories.jpg" alt="iPhone story card view for quick swipe-based news triage" width="900" height="1950" loading="lazy" />
+            <img src="assets/shots/app-iphone-stories.jpg" alt="スワイプ中心ですばやくニュースを仕分けできるiPhoneのストーリーカード表示" width="900" height="1950" loading="lazy" />
           </div>
           <figcaption>
-            <strong>Fast triage on iPhone</strong>
-            <span class="caption">The touch-first story deck makes it easy to scan the day quickly and decide what deserves a deeper read.</span>
+            <strong>iPhoneで素早く仕分け</strong>
+            <span class="caption">タッチ中心のストーリーデッキで、その日の動きをざっと見て、深掘りすべき話題をすぐ決められます。</span>
           </figcaption>
         </figure>
 
         <figure class="shot wide reveal">
           <div class="shot-media">
-            <img src="assets/shots/app-mac-story-detail.jpg" alt="Mac story detail view with the original publisher page open beside the summarized story" width="1600" height="1000" loading="lazy" />
+            <img src="assets/shots/app-mac-story-detail.jpg" alt="要約されたストーリーの横に元の出版社ページが開いているMacのストーリー詳細画面" width="1600" height="1000" loading="lazy" />
           </div>
           <figcaption>
-            <strong>Read the source</strong>
-            <span class="caption">The summary is the front door. The original publisher remains the place for the full article.</span>
+            <strong>元記事を読む</strong>
+            <span class="caption">要約は入口です。記事全文を読む場所は、あくまで元の出版社です。</span>
           </figcaption>
         </figure>
 
         <figure class="shot wide reveal">
           <div class="shot-media">
-            <img src="assets/shots/app-mac-activity.jpg" alt="Mac activity view showing the NewsGator processing pipeline and live Apple Intelligence activity" width="1600" height="1000" loading="lazy" />
+            <img src="assets/shots/app-mac-activity.jpg" alt="NewsGatorの処理パイプラインとApple Intelligenceの進行状況を表示するMacのアクティビティ画面" width="1600" height="1000" loading="lazy" />
           </div>
           <figcaption>
-            <strong>Visible pipeline activity</strong>
-            <span class="caption">Track processing, devices, and story pipeline progress instead of guessing what the app is doing.</span>
+            <strong>見える処理状況</strong>
+            <span class="caption">アプリが何をしているかを推測するのではなく、処理、デバイス、ストーリーパイプラインの進み具合を確認できます。</span>
           </figcaption>
         </figure>
         <figure class="shot wide reveal">
           <div class="shot-media">
-            <img src="assets/shots/app-web-usage.jpg" alt="Server web app LLM usage page with token totals, tokens per day and a per-stage breakdown" width="1010" height="1130" loading="lazy" />
+            <img src="assets/shots/app-web-usage.jpg" alt="トークン合計、1日あたりの使用量、処理段階ごとの内訳を表示するサーバーWebアプリのLLM使用量ページ" width="1010" height="1130" loading="lazy" />
           </div>
           <figcaption>
-            <strong>Know what your AI costs</strong>
-            <span class="caption">With your own server, see tokens per day, stage and model, and compare providers with your real usage.</span>
+            <strong>AIコストを把握</strong>
+            <span class="caption">自分のサーバーなら、1日ごと・段階ごと・モデルごとのトークン使用量を見て、実際の利用にもとづいてプロバイダーを比較できます。</span>
           </figcaption>
         </figure>
       </div>
@@ -738,12 +741,12 @@ footer {
 
   <section class="cta-block">
     <div class="wrap reveal">
-      <div class="eyebrow">Open source</div>
-      <h2>Less duplicated noise. More signal.</h2>
-      <p class="sub">NewsGator helps you decide what is worth reading, then gets out of the way. No ads, no third-party trackers, no analytics.</p>
+      <div class="eyebrow">オープンソース</div>
+      <h2>重複ノイズを減らし、必要な情報を増やす。</h2>
+      <p class="sub">NewsGatorは、何を読む価値があるかを判断する手助けをしたら、あとは邪魔をしません。広告なし、サードパーティトラッカーなし、分析なし。</p>
       <div class="actions" style="justify-content:center;">
-        <a class="btn primary" href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">Server repository</a>
-        <a class="btn secondary" href="mailto:support@newsgator.app?subject=TestFlight%20access%20request&amp;body=Hi%2C%20please%20add%20me%20to%20the%20NewsGator%20TestFlight.%0AApple%20ID%20email%3A%20">Request TestFlight access</a>
+        <a class="btn primary" href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">サーバーのリポジトリ</a>
+        <a class="btn secondary" href="mailto:support@newsgator.app?subject=TestFlight%E3%81%B8%E3%81%AE%E5%8F%82%E5%8A%A0%E5%B8%8C%E6%9C%9B&amp;body=%E3%81%93%E3%82%93%E3%81%AB%E3%81%A1%E3%81%AF%E3%80%81NewsGator%E3%81%AETestFlight%E3%81%AB%E8%BF%BD%E5%8A%A0%E3%81%97%E3%81%A6%E3%81%8F%E3%81%A0%E3%81%95%E3%81%84%E3%80%82%0AApple%20ID%20%E3%81%AE%E3%83%A1%E3%83%BC%E3%83%AB%E3%82%A2%E3%83%89%E3%83%AC%E3%82%B9%3A%20">TestFlightへの参加をリクエスト</a>
       </div>
     </div>
   </section>
@@ -752,24 +755,24 @@ footer {
 <footer>
   <div class="wrap footer-grid">
     <div class="footer-note">
-      <strong>NewsGator</strong> — a news aggregator for people who want fewer tabs and better reading decisions.
+      <strong>NewsGator</strong> — タブを減らし、読む判断を良くしたい人のためのニュースアグリゲーター。
     </div>
     <div class="footer-links">
-      <a href="support.html">Support</a>
-      <a href="privacypolicy.html">Privacy Policy</a>
-      <a href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">Server GitHub</a>
-      <a href="https://github.com/Tekka90/Newsgator-Apple" target="_blank" rel="noopener noreferrer">Native app GitHub</a>
+      <a href="support-ja.html">サポート</a>
+      <a href="privacypolicy.html">プライバシーポリシー</a>
+      <a href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">サーバー GitHub</a>
+      <a href="https://github.com/Tekka90/Newsgator-Apple" target="_blank" rel="noopener noreferrer">ネイティブアプリ GitHub</a>
     </div>
   </div>
-  <div class="wrap"><div class="langs"><span class="current">English</span> <a href="index-fr.html" hreflang="fr">Français</a> <a href="index-de.html" hreflang="de">Deutsch</a> <a href="index-es.html" hreflang="es">Español</a> <a href="index-it.html" hreflang="it">Italiano</a> <a href="index-pt.html" hreflang="pt-BR">Português (Brasil)</a> <a href="index-ja.html" hreflang="ja">日本語</a> <a href="index-ko.html" hreflang="ko">한국어</a> <a href="index-zh-hans.html" hreflang="zh-Hans">简体中文</a> <a href="index-zh-hant.html" hreflang="zh-Hant">繁體中文</a></div></div>
+  <div class="wrap"><div class="langs"><a href="index.html" hreflang="en">English</a> <a href="index-fr.html" hreflang="fr">Français</a> <a href="index-de.html" hreflang="de">Deutsch</a> <a href="index-es.html" hreflang="es">Español</a> <a href="index-it.html" hreflang="it">Italiano</a> <a href="index-pt.html" hreflang="pt-BR">Português (Brasil)</a> <span class="current">日本語</span> <a href="index-ko.html" hreflang="ko">한국어</a> <a href="index-zh-hans.html" hreflang="zh-Hans">简体中文</a> <a href="index-zh-hant.html" hreflang="zh-Hant">繁體中文</a></div></div>
 </footer>
 
-<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Screenshot viewer" hidden>
-  <button class="lb-close" aria-label="Close">&times;</button>
-  <button class="lb-prev" aria-label="Previous screenshot">&#8249;</button>
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="スクリーンショットビューア" hidden>
+  <button class="lb-close" aria-label="閉じる">&times;</button>
+  <button class="lb-prev" aria-label="前のスクリーンショット">&#8249;</button>
   <img alt="" />
   <div class="lb-caption"></div>
-  <button class="lb-next" aria-label="Next screenshot">&#8250;</button>
+  <button class="lb-next" aria-label="次のスクリーンショット">&#8250;</button>
 </div>
 
 <script>

@@ -1,17 +1,18 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-Hant">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>NewsGator — One story per real-world event</title>
-<meta name="description" content="NewsGator is a news aggregator that merges duplicate coverage into one evolving story, writes honest clickbait-free titles, and sends you back to the original publisher. Run it as a native Apple Intelligence app or on your own self-hosted server." />
-<meta property="og:title" content="NewsGator — One story per real-world event" />
-<meta property="og:description" content="One story per event. Honest titles. Read the source and support its author. Run NewsGator with Apple Intelligence or on your own self-hosted server." />
+<title>NewsGator — 每個真實事件，只留一個事件</title>
+<meta name="description" content="NewsGator 是一款新聞聚合器，會把重複報導整合成同一個持續更新的事件，寫出誠實、不煽動點擊的標題，並帶你回到原始出版者。你可以把它當成原生 Apple Intelligence App 使用，也可以部署在自己的自架伺服器上。" />
+<meta property="og:title" content="NewsGator — 每個真實事件，只留一個事件" />
+<meta property="og:description" content="所有來源，一個事件。標題誠實不聳動，想深入時一點直達原始網站支持作者。可用 Apple Intelligence，或連接自己的自架伺服器。" />
 <meta property="og:image" content="https://www.newsgator.app/assets/shots/app-mac-stories.jpg" />
-<meta property="og:url" content="https://www.newsgator.app/" />
+<meta property="og:url" content="https://www.newsgator.app/index-zh-hant.html" />
 <meta property="og:type" content="website" />
+<meta property="og:locale" content="zh_TW" />
 <meta name="twitter:card" content="summary_large_image" />
-<link rel="canonical" href="https://www.newsgator.app/" />
+<link rel="canonical" href="https://www.newsgator.app/index-zh-hant.html" />
 <link rel="icon" href="assets/logo.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -33,8 +34,8 @@
   --radius-lg: 26px;
   --shadow: 0 24px 60px rgba(11, 61, 42, 0.08);
   --shadow-card: 0 8px 28px rgba(24, 33, 29, 0.06);
-  --font-display: "Newsreader", Georgia, serif;
-  --font-body: "Inter", system-ui, sans-serif;
+  --font-display: "Newsreader", "PingFang TC", "Noto Serif TC", "Microsoft JhengHei", Georgia, serif;
+  --font-body: "Inter", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
 * { box-sizing: border-box; }
@@ -45,7 +46,7 @@ body {
   color: var(--ink);
   font-family: var(--font-body);
   font-size: 17px;
-  line-height: 1.65;
+  line-height: 1.72;
   -webkit-font-smoothing: antialiased;
 }
 img { max-width: 100%; height: auto; display: block; }
@@ -75,23 +76,24 @@ h1, h2, h3 {
   margin: 0;
   color: var(--forest-dark);
   letter-spacing: -0.02em;
+  font-style: normal;
 }
 h1 {
   font-family: var(--font-display);
   font-size: clamp(46px, 7vw, 82px);
-  line-height: 0.98;
+  line-height: 1.08;
   margin: 20px 0 18px;
 }
 h2 {
   font-family: var(--font-display);
   font-size: clamp(32px, 4.6vw, 50px);
-  line-height: 1.08;
+  line-height: 1.18;
   margin-bottom: 12px;
 }
 h3 {
   font-family: var(--font-display);
   font-size: 25px;
-  line-height: 1.14;
+  line-height: 1.3;
 }
 p { margin: 0; }
 .sub {
@@ -504,15 +506,15 @@ footer {
 <body>
 <nav class="site-nav" id="site-nav">
   <div class="wrap">
-    <a class="brand" href="#top">
-      <img src="assets/logo.png" alt="NewsGator logo" />
+    <a class="brand" href="index-zh-hant.html">
+      <img src="assets/logo.png" alt="NewsGator 標誌" />
       <span>NewsGator</span>
     </a>
-    <div class="nav-links" aria-label="Primary">
-      <a href="#how">How it works</a>
-      <a href="#modes">Two engines</a>
-      <a href="#features">Features</a>
-      <a href="#screenshots">Screenshots</a>
+    <div class="nav-links" aria-label="主要導覽">
+      <a href="#how">運作方式</a>
+      <a href="#modes">兩種引擎</a>
+      <a href="#features">功能</a>
+      <a href="#screenshots">螢幕截圖</a>
       <a class="nav-cta" href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
     </div>
   </div>
@@ -523,44 +525,44 @@ footer {
     <div class="wrap">
       <div class="hero-grid">
         <div class="hero-copy reveal">
-          <div class="eyebrow">News aggregator · not a plain RSS reader</div>
-          <h1>One story per<br />real-world event.</h1>
+          <div class="eyebrow">新聞聚合器 · 不只是 RSS 閱讀器</div>
+          <h1>每個真實事件，<br />只留一個事件。</h1>
           <p class="lede">
-            NewsGator gathers every article covering the same event into <strong>one living story</strong>,
-            keeps its neutral summary current as new facts arrive, gives it an <strong>honest, clickbait-free title</strong>,
-            and sends you back to the <strong>original publisher</strong> when it is time to read more.
+            NewsGator 會把所有報導同一事件的文章整理成<strong>同一個持續更新的事件</strong>，
+            在新事實出現時更新中立摘要，替它寫出<strong>誠實、不煽動點擊的標題</strong>，
+            並在你想深入閱讀時帶你回到<strong>原始出版者</strong>。
           </p>
-          <p class="note">Two engines: native Apple apps powered by Apple Intelligence, or your own self-hosted NewsGator server.</p>
+          <p class="note">兩種引擎：由 Apple Intelligence 驅動的原生 Apple App，或你自己的自架 NewsGator 伺服器。</p>
           <div class="actions">
-            <a class="btn primary" href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">View the self-hosted server</a>
-            <a class="btn secondary" href="mailto:support@newsgator.app?subject=TestFlight%20access%20request&amp;body=Hi%2C%20please%20add%20me%20to%20the%20NewsGator%20TestFlight.%0AApple%20ID%20email%3A%20">Request TestFlight access</a>
+            <a class="btn primary" href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">查看自架伺服器</a>
+            <a class="btn secondary" href="mailto:support@newsgator.app?subject=%E7%94%B3%E8%AB%8B%20TestFlight%20%E5%AD%98%E5%8F%96%E6%AC%8A&amp;body=%E4%BD%A0%E5%A5%BD%EF%BC%8C%E8%AB%8B%E5%B0%87%E6%88%91%E5%8A%A0%E5%85%A5%20NewsGator%20TestFlight%E3%80%82%0AApple%20ID%20%E9%9B%BB%E5%AD%90%E9%83%B5%E4%BB%B6%EF%BC%9A%20">申請 TestFlight 存取權</a>
           </div>
         </div>
 
         <div class="promise-stack reveal">
           <article class="promise">
-            <div class="k">Promise 01</div>
-            <h3>Aggregation that stays current</h3>
-            <p>Duplicate coverage becomes one story. When new facts arrive, the summary is refined in place and read stories come back badged <strong>updated</strong>, never fake unread.</p>
+            <div class="k">承諾 01</div>
+            <h3>會持續更新的聚合</h3>
+            <p>重複報導只會留下同一個事件。新事實出現時，摘要會直接在原處更新；已讀事件只會標示為<strong>已更新</strong>，不會被假裝成未讀。</p>
           </article>
           <article class="promise">
-            <div class="k">Promise 02</div>
-            <h3>Honest titles</h3>
-            <p>Every story gets a realistic, factual headline designed to tell you what happened, not trick you into a click.</p>
+            <div class="k">承諾 02</div>
+            <h3>誠實標題</h3>
+            <p>每個事件都會得到一個務實、清楚的事實標題，重點是告訴你發生了什麼，而不是騙你點進去。</p>
           </article>
           <article class="promise">
-            <div class="k">Promise 03</div>
-            <h3>Read the source, support its author</h3>
-            <p>The summary is a triage tool. One tap opens the original publisher so the visit, subscription, or ad view still goes to the journalists who did the work.</p>
+            <div class="k">承諾 03</div>
+            <h3>閱讀原始來源，支持作者</h3>
+            <p>摘要只是幫你快速分流。想深入時，一點就能開啟原始出版者，讓瀏覽、訂閱或廣告曝光真正回到完成報導的記者身上。</p>
           </article>
         </div>
       </div>
 
       <div class="fact-strip reveal">
         <ul>
-          <li><strong>Standalone:</strong> Apple Intelligence, iCloud sync, no server or subscription.</li>
-          <li><strong>Self-hosted:</strong> Python/FastAPI + SvelteKit with any OpenAI-compatible AI you choose.</li>
-          <li><strong>Privacy:</strong> zero ads, zero third-party trackers, zero analytics.</li>
+          <li><strong>獨立模式：</strong>Apple Intelligence、iCloud 同步，不需要伺服器，也不需要訂閱。</li>
+          <li><strong>自架：</strong>Python/FastAPI + SvelteKit，可搭配任何 OpenAI 相容 AI。</li>
+          <li><strong>隱私：</strong>零廣告、零第三方追蹤器、零分析。</li>
         </ul>
       </div>
     </div>
@@ -569,26 +571,26 @@ footer {
   <section id="how">
     <div class="wrap">
       <div class="section-head reveal">
-        <div class="eyebrow">How it works</div>
-        <h2>Three steps from news flood to signal.</h2>
-        <p class="sub">NewsGator is built for people who want coverage from many sources without reading the same story five times.</p>
+        <div class="eyebrow">運作方式</div>
+        <h2>三個步驟，把新聞洪流變成真正訊號。</h2>
+        <p class="sub">NewsGator 適合想看多方報導，卻不想把同一則新聞讀五遍的人。</p>
       </div>
 
       <div class="grid-3">
         <article class="card reveal">
           <div class="step-num">01</div>
-          <h3>Add your sources</h3>
-          <p>Bring in RSS feeds, IMAP newsletters, or a synced reader account such as FreshRSS, Miniflux, or Inoreader. OPML import keeps setup quick.</p>
+          <h3>加入你的來源</h3>
+          <p>匯入 RSS、IMAP 電子報，或同步 FreshRSS、Miniflux、Inoreader 等閱讀器帳號。也支援 OPML 匯入，設定很快完成。</p>
         </article>
         <article class="card reveal">
           <div class="step-num">02</div>
-          <h3>NewsGator groups the event</h3>
-          <p>It fetches the full text, clusters every article about the same real-world event, writes a neutral summary, and assigns a factual headline.</p>
+          <h3>NewsGator 會整理成事件</h3>
+          <p>它會抓取全文、把所有談同一真實事件的文章分群，寫出中立摘要，再配上一個事實導向的標題。</p>
         </article>
         <article class="card reveal">
           <div class="step-num">03</div>
-          <h3>You triage, then go deeper</h3>
-          <p>Read a short story first, open the publisher when it matters, then come back later to ask your archive, share a story, or follow the distilled story RSS feed.</p>
+          <h3>先分流，再深入閱讀</h3>
+          <p>先看短摘要，重要時再打開原始出版者；之後還能回來查詢封存、分享事件，或追蹤整理後的事件 RSS feed。</p>
         </article>
       </div>
     </div>
@@ -597,34 +599,34 @@ footer {
   <section id="modes">
     <div class="wrap">
       <div class="section-head reveal">
-        <div class="eyebrow">Two ways to run it</div>
-        <h2>The same idea, two very different engines.</h2>
-        <p class="sub">Pick the setup that fits your life: zero infrastructure on Apple devices, or a full self-hosted server for your household.</p>
+        <div class="eyebrow">兩種執行方式</div>
+        <h2>同一個想法，兩套完全不同的引擎。</h2>
+        <p class="sub">選擇最適合你的設定：Apple 裝置上零基礎設施即可使用，或替家中成員架設完整的自架伺服器。</p>
       </div>
 
       <div class="modes">
         <article class="engine featured reveal">
-          <div class="mini-label">Standalone native apps</div>
-          <h3>Apple Intelligence, no server</h3>
-          <p>Native iPhone, iPad, and Mac apps powered by Apple Private Cloud Compute first, then the on-device model. Your library and read state sync through iCloud.</p>
+          <div class="mini-label">獨立模式原生 App</div>
+          <h3>Apple Intelligence，無需伺服器</h3>
+          <p>原生 iPhone、iPad 與 Mac App，優先使用 Apple Private Cloud Compute，其次才是裝置端模型。你的資料庫與閱讀狀態會透過 iCloud 同步。</p>
           <ul>
-            <li>No server to run and no subscription required.</li>
-            <li>Available in 10 languages: English, French, German, Spanish, Italian, Brazilian Portuguese, Japanese, Korean, and Simplified and Traditional Chinese.</li>
-            <li>Siri and Shortcuts support for faster capture and reading flows.</li>
-            <li>The same story model: one event, one evolving story.</li>
+            <li>不用維護伺服器，也不需要訂閱。</li>
+            <li>提供 10 種語言：English、Français、Deutsch、Español、Italiano、Português (Brasil)、日本語、한국어、简体中文、繁體中文。</li>
+            <li>支援 Siri 與 Shortcuts，讓擷取與閱讀流程更順手。</li>
+            <li>同樣的事件模型：一個真實事件，一個持續更新的事件。</li>
           </ul>
         </article>
 
         <article class="engine reveal">
-          <div class="mini-label">Self-hosted server</div>
-          <h3>Python, FastAPI, SvelteKit, your AI</h3>
-          <p>Run the NewsGator server yourself and point it at any OpenAI-compatible AI you prefer: oMLX, Ollama, llama.cpp, LM Studio, or another compatible endpoint.</p>
+          <div class="mini-label">自架伺服器</div>
+          <h3>Python、FastAPI、SvelteKit，以及你選的 AI</h3>
+          <p>自己執行 NewsGator 伺服器，並連到你偏好的任何 OpenAI 相容 AI：oMLX、Ollama、llama.cpp、LM Studio，或其他相容端點。</p>
           <ul>
-            <li>Multi-user reading with per-user feeds, read state, and preferences.</li>
-            <li>Web app + PWA, archive chat, story sharing, story RSS feed, and activity tracing.</li>
-            <li>RSS, IMAP newsletters, and FreshRSS/Miniflux/Inoreader-style reader sync.</li>
+            <li>多使用者閱讀體驗，支援各自的來源、閱讀狀態與偏好設定。</li>
+            <li>提供 Web App + PWA、封存聊天、事件分享、事件 RSS feed 與活動追蹤。</li>
+            <li>支援 RSS、IMAP 電子報，以及 FreshRSS／Miniflux／Inoreader 類型的閱讀器同步。</li>
           </ul>
-          <div class="code-note"><span class="muted"># compact Docker setup</span><br />git clone …/NewsGator &amp;&amp; cd docker<br />cp .env.example .env<br />docker compose up --build</div>
+          <div class="code-note"><span class="muted"># 精簡 Docker 設定</span><br />git clone …/NewsGator &amp;&amp; cd docker<br />cp .env.example .env<br />docker compose up --build</div>
         </article>
       </div>
     </div>
@@ -633,43 +635,43 @@ footer {
   <section id="features">
     <div class="wrap">
       <div class="section-head reveal">
-        <div class="eyebrow">Compact feature list</div>
-        <h2>The parts people actually use.</h2>
+        <div class="eyebrow">精簡功能清單</div>
+        <h2>真正會每天用到的那些功能。</h2>
         
       </div>
 
       <div class="feature-grid">
         <article class="feature reveal">
-          <h3>Archive chat</h3>
-          <p>Ask your story archive questions with grounded, cited answers.</p>
+          <h3>封存聊天</h3>
+          <p>直接向你的事件封存提問，得到有根據、可追溯的回答。</p>
         </article>
         <article class="feature reveal">
-          <h3>Newsletters included</h3>
-          <p>IMAP newsletters flow into the same story pipeline as feeds.</p>
+          <h3>電子報一起處理</h3>
+          <p>IMAP 電子報會進入和新聞來源相同的事件處理流程。</p>
         </article>
         <article class="feature reveal">
-          <h3>Reader sync</h3>
-          <p>Connect FreshRSS, Miniflux, or Inoreader-compatible accounts.</p>
+          <h3>閱讀器同步</h3>
+          <p>可連接 FreshRSS、Miniflux 或 Inoreader 相容帳號。</p>
         </article>
         <article class="feature reveal">
-          <h3>Updated, not unread</h3>
-          <p>Read state stays honest when a story gains new facts.</p>
+          <h3>已更新，不是假未讀</h3>
+          <p>事件加入新事實時，閱讀狀態依然誠實。</p>
         </article>
         <article class="feature reveal">
-          <h3>OPML ready</h3>
-          <p>Import and export feed lists without rebuilding your library by hand.</p>
+          <h3>支援 OPML</h3>
+          <p>匯入與匯出來源清單，不必手動重建你的資料庫。</p>
         </article>
         <article class="feature reveal">
-          <h3>Story sharing</h3>
-          <p>Share a story summary and still link straight to the original reporting.</p>
+          <h3>事件分享</h3>
+          <p>分享事件摘要時，仍可直接連回原始報導。</p>
         </article>
         <article class="feature reveal">
-          <h3>Story RSS feed</h3>
-          <p>Your distilled story archive can itself be consumed in any RSS reader.</p>
+          <h3>事件 RSS feed</h3>
+          <p>整理過的事件封存，本身也能被任何 RSS 閱讀器訂閱。</p>
         </article>
         <article class="feature reveal">
-          <h3>Multi-user server</h3>
-          <p>One self-hosted instance can serve a household without flattening everyone into one account.</p>
+          <h3>多使用者伺服器</h3>
+          <p>一台自架實例就能服務全家，不會把每個人都壓成同一個帳號。</p>
         </article>
       </div>
     </div>
@@ -678,58 +680,58 @@ footer {
   <section id="screenshots">
     <div class="wrap">
       <div class="section-head gallery-intro reveal">
-        <div class="eyebrow">Screenshots</div>
-        <h2>Current native-app screens, not marketing mockups.</h2>
-        <p class="sub">Fresh captures from the iPhone and Mac apps, plus the self-hosted server's web app.</p>
+        <div class="eyebrow">螢幕截圖</div>
+        <h2>這些都是目前的原生 App 畫面，不是行銷假圖。</h2>
+        <p class="sub">來自 iPhone 與 Mac App 的最新截圖，以及自架伺服器 Web App 的畫面。</p>
       </div>
 
       <div class="gallery">
         <figure class="shot wide reveal">
           <div class="shot-media">
-            <img src="assets/shots/app-mac-stories.jpg" alt="Mac stories view showing one card per event in the NewsGator triage list" width="1600" height="1000" loading="lazy" />
+            <img src="assets/shots/app-mac-stories.jpg" alt="Mac 上的事件列表畫面，在 NewsGator 分流清單中每張卡片代表一個事件" width="1600" height="1000" loading="lazy" />
           </div>
           <figcaption>
-            <strong>Stories triage on Mac</strong>
-            <span class="caption">One event per card, with factual titles, source count, category, and update state.</span>
+            <strong>Mac 上的事件分流</strong>
+            <span class="caption">每張卡片對應一個事件，附有事實標題、來源數量、分類與更新狀態。</span>
           </figcaption>
         </figure>
 
         <figure class="shot phone reveal">
           <div class="shot-media">
-            <img src="assets/shots/app-iphone-stories.jpg" alt="iPhone story card view for quick swipe-based news triage" width="900" height="1950" loading="lazy" />
+            <img src="assets/shots/app-iphone-stories.jpg" alt="iPhone 上以滑動操作快速分流新聞的事件卡片畫面" width="900" height="1950" loading="lazy" />
           </div>
           <figcaption>
-            <strong>Fast triage on iPhone</strong>
-            <span class="caption">The touch-first story deck makes it easy to scan the day quickly and decide what deserves a deeper read.</span>
+            <strong>iPhone 上的快速分流</strong>
+            <span class="caption">以觸控為主的事件卡片堆疊，讓你能快速掃過一天的新聞，再決定哪些值得深入讀。</span>
           </figcaption>
         </figure>
 
         <figure class="shot wide reveal">
           <div class="shot-media">
-            <img src="assets/shots/app-mac-story-detail.jpg" alt="Mac story detail view with the original publisher page open beside the summarized story" width="1600" height="1000" loading="lazy" />
+            <img src="assets/shots/app-mac-story-detail.jpg" alt="Mac 上的事件詳細畫面，摘要事件旁邊同時開啟原始出版者頁面" width="1600" height="1000" loading="lazy" />
           </div>
           <figcaption>
-            <strong>Read the source</strong>
-            <span class="caption">The summary is the front door. The original publisher remains the place for the full article.</span>
+            <strong>閱讀原始來源</strong>
+            <span class="caption">摘要只是入口，真正的完整文章仍然在原始出版者的網站上。</span>
           </figcaption>
         </figure>
 
         <figure class="shot wide reveal">
           <div class="shot-media">
-            <img src="assets/shots/app-mac-activity.jpg" alt="Mac activity view showing the NewsGator processing pipeline and live Apple Intelligence activity" width="1600" height="1000" loading="lazy" />
+            <img src="assets/shots/app-mac-activity.jpg" alt="Mac 上的活動畫面，顯示 NewsGator 處理流程與即時 Apple Intelligence 活動" width="1600" height="1000" loading="lazy" />
           </div>
           <figcaption>
-            <strong>Visible pipeline activity</strong>
-            <span class="caption">Track processing, devices, and story pipeline progress instead of guessing what the app is doing.</span>
+            <strong>看得見的處理流程</strong>
+            <span class="caption">不用猜 App 正在做什麼，處理進度、裝置狀態與事件流程都能直接查看。</span>
           </figcaption>
         </figure>
         <figure class="shot wide reveal">
           <div class="shot-media">
-            <img src="assets/shots/app-web-usage.jpg" alt="Server web app LLM usage page with token totals, tokens per day and a per-stage breakdown" width="1010" height="1130" loading="lazy" />
+            <img src="assets/shots/app-web-usage.jpg" alt="伺服器 Web App 的 LLM 用量頁面，顯示 token 總量、每日 token 與各階段拆解" width="1010" height="1130" loading="lazy" />
           </div>
           <figcaption>
-            <strong>Know what your AI costs</strong>
-            <span class="caption">With your own server, see tokens per day, stage and model, and compare providers with your real usage.</span>
+            <strong>清楚知道 AI 成本</strong>
+            <span class="caption">使用自己的伺服器時，可以依每日、階段與模型查看 token 用量，用真實使用情況比較不同服務。</span>
           </figcaption>
         </figure>
       </div>
@@ -738,12 +740,12 @@ footer {
 
   <section class="cta-block">
     <div class="wrap reveal">
-      <div class="eyebrow">Open source</div>
-      <h2>Less duplicated noise. More signal.</h2>
-      <p class="sub">NewsGator helps you decide what is worth reading, then gets out of the way. No ads, no third-party trackers, no analytics.</p>
+      <div class="eyebrow">開源</div>
+      <h2>少一點重複雜訊，多一點真正訊號。</h2>
+      <p class="sub">NewsGator 幫你先判斷什麼值得讀，之後就退到後面。沒有廣告、沒有第三方追蹤器，也沒有分析。</p>
       <div class="actions" style="justify-content:center;">
-        <a class="btn primary" href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">Server repository</a>
-        <a class="btn secondary" href="mailto:support@newsgator.app?subject=TestFlight%20access%20request&amp;body=Hi%2C%20please%20add%20me%20to%20the%20NewsGator%20TestFlight.%0AApple%20ID%20email%3A%20">Request TestFlight access</a>
+        <a class="btn primary" href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">伺服器儲存庫</a>
+        <a class="btn secondary" href="mailto:support@newsgator.app?subject=%E7%94%B3%E8%AB%8B%20TestFlight%20%E5%AD%98%E5%8F%96%E6%AC%8A&amp;body=%E4%BD%A0%E5%A5%BD%EF%BC%8C%E8%AB%8B%E5%B0%87%E6%88%91%E5%8A%A0%E5%85%A5%20NewsGator%20TestFlight%E3%80%82%0AApple%20ID%20%E9%9B%BB%E5%AD%90%E9%83%B5%E4%BB%B6%EF%BC%9A%20">申請 TestFlight 存取權</a>
       </div>
     </div>
   </section>
@@ -752,24 +754,24 @@ footer {
 <footer>
   <div class="wrap footer-grid">
     <div class="footer-note">
-      <strong>NewsGator</strong> — a news aggregator for people who want fewer tabs and better reading decisions.
+      <strong>NewsGator</strong> — 給想少開幾個分頁、做出更好閱讀判斷的人使用的新聞聚合器。
     </div>
     <div class="footer-links">
-      <a href="support.html">Support</a>
-      <a href="privacypolicy.html">Privacy Policy</a>
-      <a href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">Server GitHub</a>
-      <a href="https://github.com/Tekka90/Newsgator-Apple" target="_blank" rel="noopener noreferrer">Native app GitHub</a>
+      <a href="support-zh-hant.html">支援</a>
+      <a href="privacypolicy.html">隱私權政策</a>
+      <a href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">伺服器 GitHub</a>
+      <a href="https://github.com/Tekka90/Newsgator-Apple" target="_blank" rel="noopener noreferrer">原生 App GitHub</a>
     </div>
+    <div class="langs"><a href="index.html" hreflang="en">English</a> <a href="index-fr.html" hreflang="fr">Français</a> <a href="index-de.html" hreflang="de">Deutsch</a> <a href="index-es.html" hreflang="es">Español</a> <a href="index-it.html" hreflang="it">Italiano</a> <a href="index-pt.html" hreflang="pt-BR">Português (Brasil)</a> <a href="index-ja.html" hreflang="ja">日本語</a> <a href="index-ko.html" hreflang="ko">한국어</a> <a href="index-zh-hans.html" hreflang="zh-Hans">简体中文</a> <span class="current">繁體中文</span></div>
   </div>
-  <div class="wrap"><div class="langs"><span class="current">English</span> <a href="index-fr.html" hreflang="fr">Français</a> <a href="index-de.html" hreflang="de">Deutsch</a> <a href="index-es.html" hreflang="es">Español</a> <a href="index-it.html" hreflang="it">Italiano</a> <a href="index-pt.html" hreflang="pt-BR">Português (Brasil)</a> <a href="index-ja.html" hreflang="ja">日本語</a> <a href="index-ko.html" hreflang="ko">한국어</a> <a href="index-zh-hans.html" hreflang="zh-Hans">简体中文</a> <a href="index-zh-hant.html" hreflang="zh-Hant">繁體中文</a></div></div>
 </footer>
 
-<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Screenshot viewer" hidden>
-  <button class="lb-close" aria-label="Close">&times;</button>
-  <button class="lb-prev" aria-label="Previous screenshot">&#8249;</button>
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="螢幕截圖檢視器" hidden>
+  <button class="lb-close" aria-label="關閉">&times;</button>
+  <button class="lb-prev" aria-label="上一張截圖">&#8249;</button>
   <img alt="" />
   <div class="lb-caption"></div>
-  <button class="lb-next" aria-label="Next screenshot">&#8250;</button>
+  <button class="lb-next" aria-label="下一張截圖">&#8250;</button>
 </div>
 
 <script>
