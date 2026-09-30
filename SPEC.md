@@ -566,7 +566,9 @@ hardware budget:
   patterns typical of metered paywalls.
 - Polite crawling: per-domain rate limiting, `robots.txt` respected, conditional GETs;
   archive.is lookups are rate-limited too and failures are cached (don't re-probe the
-  same URL for 24h).
+  same URL for 24h). archive.is rejects non-browser agents (429), so archive lookups (and
+  only those) send a Safari User-Agent; the snapshot is reduced to its `#CONTENT` wrapper
+  (archive.is header/share/toolbar stripped) before extraction and paywall checks.
 - **Retention job** (nightly): purge stories/articles older than `RETENTION_DAYS`
   (default 45, GUI-configurable); cascades to revisions, read states, and vectors.
 - **First-poll backfill window**: on a feed's very first poll, skip entries older

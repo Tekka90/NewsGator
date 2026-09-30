@@ -3,6 +3,7 @@
 from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
 
+import httpx
 import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -715,3 +716,40 @@ async def test_reprocess_article_endpoint(
         assert a is not None
         assert a.full_text == LONG_TEXT
         assert a.processing_state == "fulltext"  # back through the LLM pipeline
+
+
+def test_strip_archive_chrome_keeps_only_snapshot() -> None:
+    html = (
+        '<html><body><div id="HEADER">archive toolbar</div><div id="DIVSHARE">share</div>'
+        '<div id="CONTENT"><article><p>Real story</p></article></div></body></html>'
+    )
+    out = fulltext._strip_archive_chrome(html)
+    assert "Real story" in out
+    assert "toolbar" not in out and "share" not in out
+
+
+def test_strip_archive_chrome_without_content_div_drops_known_chrome() -> None:
+    html = '<html><body><div id="HEADER">toolbar</div><p>Body</p></body></html>'
+    out = fulltext._strip_archive_chrome(html)
+    assert "Body" in out and "toolbar" not in out
+
+
+async def test_archive_requests_use_browser_user_agent(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: dict[str, str] = {}
+
+    class FakeClient:
+        def __init__(self, *a: object, **k: object) -> None: ...
+        async def __aenter__(self) -> "FakeClient":
+            return self
+        async def __aexit__(self, *a: object) -> None: ...
+        async def get(self, url: str, headers: dict[str, str], cookies: object = None):  # type: ignore[no-untyped-def]
+            seen[url] = headers["User-Agent"]
+            return httpx.Response(200, text="<html></html>")
+
+    monkeypatch.setattr(fulltext.httpx, "AsyncClient", FakeClient)
+    monkeypatch.setattr(fulltext, "_robots_allowed_sync", lambda url: True)
+    archive_url = "https://archive.is/newest/https%3A%2F%2Fx.example%2Fa"
+    await fulltext._fetch_page(archive_url)
+    await fulltext._fetch_page("https://news.example.com/a")
+    assert seen[archive_url] == fulltext.ARCHIVE_USER_AGENT
+    assert seen["https://news.example.com/a"] == fulltext.USER_AGENT

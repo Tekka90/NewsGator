@@ -36,6 +36,12 @@ PAYWALL_MARKERS = (
 )
 
 USER_AGENT = "NewsGator/0.1 (+self-hosted feed reader)"
+# archive.is answers 429 to non-browser agents, so lookups there present as Safari.
+ARCHIVE_HOSTS = frozenset({"archive.is", "archive.ph", "archive.today"})
+ARCHIVE_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
+    "(KHTML, like Gecko) Version/17.5 Safari/605.1.15"
+)
 MIN_INTERVAL_S = 2.0  # per-domain rate limit
 
 _robots_cache: dict[str, tuple[robots.RobotsParser, float]] = {}
@@ -96,7 +102,8 @@ async def _fetch_page(url: str, cookies: dict[str, str] | None = None) -> str | 
         return None
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=30) as client:
-            resp = await client.get(url, headers={"User-Agent": USER_AGENT}, cookies=cookies)
+            agent = ARCHIVE_USER_AGENT if _domain(url) in ARCHIVE_HOSTS else USER_AGENT
+            resp = await client.get(url, headers={"User-Agent": agent}, cookies=cookies)
         if resp.status_code >= 400:
             return None
         return resp.text
@@ -223,6 +230,22 @@ def _jsonld_dates(node: object) -> list[str]:
     return found
 
 
+def _strip_archive_chrome(html: str) -> str:
+    """Keep only the snapshotted page: drop archive.is's header, share box and toolbar."""
+    from lxml import html as lxml_html
+
+    try:
+        doc = lxml_html.fromstring(_clean_html(html))
+    except (ValueError, lxml_html.etree.ParserError):
+        return html
+    content = doc.xpath('//*[@id="CONTENT"]')
+    if content:
+        return str(lxml_html.tostring(content[0], encoding="unicode"))
+    for el in doc.xpath('//*[@id="HEADER" or @id="DIVSHARE" or @id="SOLID"]'):
+        el.drop_tree()
+    return str(lxml_html.tostring(doc, encoding="unicode"))
+
+
 def _explicit_page_date(html: str) -> datetime | None:
     """Publication date from EXPLICIT metadata only (og/article meta, JSON-LD).
 
@@ -314,8 +337,13 @@ async def fetch_full_text(session: AsyncSession, article: Article, feed: Feed) -
         if not cache_ok:
             archived = await _fetch_page(_archive_url(article.url))
             if archived:
-                candidate = await anyio.to_thread.run_sync(_extract_text, archived)
-                if candidate and len(candidate) >= settings.fulltext_min_chars:
+                stripped = await anyio.to_thread.run_sync(_strip_archive_chrome, archived)
+                candidate = await anyio.to_thread.run_sync(_extract_text, stripped)
+                if (
+                    candidate
+                    and len(candidate) >= settings.fulltext_min_chars
+                    and not _looks_paywalled(candidate)
+                ):
                     text, path = candidate, "archive.is"
                 else:
                     _archive_failures[article.url] = time.time()

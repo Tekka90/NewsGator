@@ -91,7 +91,7 @@ the full normative spec — **read it before non-trivial changes**.
 
 The **web GUI is English-only by design** (SPEC non-goal: localized GUI) — keep new web strings short,
 plain and in one place so they are easy to localize later. But every GUI feature that also appears in
-the native apps is **localized there in all 10 languages** (`de es fr it ja ko pt-BR zh-Hans zh-Hant`) in the Shared
+the native apps is **localized there in all 10 languages** (`de es fr it ja ko pt zh-Hans zh-Hant`) in the Shared
 **and** NewsGatorMac/NewsGatorIOS `Localizable.xcstrings`; see the "Localization" checklist in
 `Newsgator-Apple/.github/copilot-instructions.md` and run `Newsgator-Apple/scripts/check-localizations.py`.
 Never finish a GUI change without doing this.
