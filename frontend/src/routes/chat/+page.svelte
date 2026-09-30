@@ -10,7 +10,12 @@
 
   type Turn =
     | { role: 'user'; text: string }
-    | { role: 'assistant'; text: string; stories: ChatStory[]; latency_ms: number }
+    | {
+        role: 'assistant';
+        text: string;
+        stories: ChatStory[];
+        latency_ms: number;
+      }
     | { role: 'error'; text: string };
 
   let question = $state('');
@@ -24,7 +29,12 @@
       const hist = await api.chat.history();
       turns = hist.map((m) =>
         m.role === 'assistant'
-          ? { role: 'assistant', text: m.content, stories: m.stories, latency_ms: m.latency_ms }
+          ? {
+              role: 'assistant',
+              text: m.content,
+              stories: m.stories,
+              latency_ms: m.latency_ms
+            }
           : m.role === 'error'
             ? { role: 'error', text: m.content }
             : { role: 'user', text: m.content }
@@ -61,7 +71,12 @@
       const res = await api.chat.ask(q);
       turns = [
         ...turns,
-        { role: 'assistant', text: res.answer, stories: res.stories, latency_ms: res.latency_ms }
+        {
+          role: 'assistant',
+          text: res.answer,
+          stories: res.stories,
+          latency_ms: res.latency_ms
+        }
       ];
     } catch (e) {
       turns = [...turns, { role: 'error', text: e instanceof Error ? e.message : 'Chat failed' }];

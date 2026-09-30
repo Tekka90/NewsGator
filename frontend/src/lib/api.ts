@@ -370,9 +370,14 @@ export const api = {
     ask: (question: string) =>
       req<ChatResponse>('/chat', { method: 'POST', body: { question } }),
     history: () =>
-      req<{ role: string; content: string; stories: ChatStory[]; latency_ms: number }[]>(
-        '/chat/history'
-      ),
+      req<
+        {
+          role: string;
+          content: string;
+          stories: ChatStory[];
+          latency_ms: number;
+        }[]
+      >('/chat/history'),
     clearHistory: () => req<void>('/chat/history', { method: 'DELETE' })
   }
 };

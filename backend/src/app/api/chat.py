@@ -1,7 +1,6 @@
 """Chatbot API (SPEC §10): RAG question-answering over the story archive.
 
-`POST /api/chat` — one stateless turn. The frontend keeps conversation history
-locally; each request retrieves grounding stories fresh from the archive.
+`POST /api/chat` — one stateless turn: each request retrieves its grounding fresh.
 """
 
 from datetime import datetime
@@ -77,12 +76,14 @@ async def history(
     out: list[HistoryTurnOut] = []
     for m in await chat.get_history(session, user.id):
         try:
-            stories = json.loads(m.stories_json or "[]")
+            payload = json.loads(m.stories_json or "[]")
         except (ValueError, TypeError):
-            stories = []
+            payload = []
+        if not isinstance(payload, list):
+            payload = []
         out.append(
             HistoryTurnOut(
-                role=m.role, content=m.content, stories=stories, latency_ms=m.latency_ms
+                role=m.role, content=m.content, stories=payload, latency_ms=m.latency_ms
             )
         )
     return out

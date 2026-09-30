@@ -87,6 +87,22 @@ the full normative spec — **read it before non-trivial changes**.
 - **Config keys**: every new setting in `core/config.py` must also be added to
   `docker/.env.example` (commented out, with a one-line doc) in the same change.
 
+## GUI strings and localization
+
+The **web GUI is English-only by design** (SPEC non-goal: localized GUI) — keep new web strings short,
+plain and in one place so they are easy to localize later. But every GUI feature that also appears in
+the native apps is **localized there in all 10 languages** (`de es fr it ja ko pt-BR zh-Hans zh-Hant`) in the Shared
+**and** NewsGatorMac/NewsGatorIOS `Localizable.xcstrings`; see the "Localization" checklist in
+`Newsgator-Apple/.github/copilot-instructions.md` and run `Newsgator-Apple/scripts/check-localizations.py`.
+Never finish a GUI change without doing this.
+
+## In-app help (Apple apps only)
+
+App help (Chat → "App help") is an Apple-app feature: the knowledge bundle lives in
+`Newsgator-Apple/NewsGatorCore/Sources/NewsGatorCore/Resources/Knowledge/` and is answered
+on-device. The server has **no** docs mode. When a server change alters something the native apps
+expose to users, update that bundle (see `Newsgator-Apple/.github/copilot-instructions.md`).
+
 ## Current status
 
 **All 8 milestones done** (2026-08-24): backend (FastAPI, SQLAlchemy async, Alembic
