@@ -63,8 +63,9 @@ class MockGReaderServer:
         headers: dict[str, str] | None = None,
         params: dict[str, Any] | None = None,
         data: Any = None,
-        timeout: float = 30.0,
+        request_timeout: float = 30.0,
     ) -> tuple[int, bytes, dict[str, str]]:
+        del method, headers, params, request_timeout
         if url.endswith("/accounts/ClientLogin"):
             return 200, b"Auth=fake_auth_token_xyz\nSID=s123\nLSID=l456\n", {}
 
@@ -72,7 +73,11 @@ class MockGReaderServer:
             return 200, b"fake_action_token_abc\n", {}
 
         if "stream/contents" in url:
-            return 200, json.dumps(self.stream_data).encode("utf-8"), {"content-type": "application/json"}
+            return (
+                200,
+                json.dumps(self.stream_data).encode("utf-8"),
+                {"content-type": "application/json"},
+            )
 
         if url.endswith("/reader/api/0/edit-tag"):
             if isinstance(data, list):
@@ -81,7 +86,9 @@ class MockGReaderServer:
                     parsed.setdefault(k, []).append(v)
                 self.edit_tags_called.append(parsed)
             elif isinstance(data, dict):
-                self.edit_tags_called.append({k: [v] if isinstance(v, str) else list(v) for k, v in data.items()})
+                self.edit_tags_called.append(
+                    {k: [v] if isinstance(v, str) else list(v) for k, v in data.items()}
+                )
             elif isinstance(data, (bytes, str)):
                 s = data.decode("utf-8") if isinstance(data, bytes) else data
                 self.edit_tags_called.append(parse_qs(s))
@@ -161,7 +168,17 @@ async def test_reader_account_poll_and_virtual_feed(
 
     server = MockGReaderServer()
 
-    with patch("app.services.readers.greader._http_request", side_effect=server.fake_http_request),          patch("app.services.readers.sync.fetch_full_text_batch", new=AsyncMock(return_value=[])),          patch("app.services.readers.sync.enqueue_article"):
+    with (
+        patch(
+            "app.services.readers.greader._http_request",
+            side_effect=server.fake_http_request,
+        ),
+        patch(
+            "app.services.readers.sync.fetch_full_text_batch",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch("app.services.readers.sync.enqueue_article"),
+    ):
 
         async with db_session() as session:
             acc = await session.get(ReaderAccount, account_id)
@@ -204,7 +221,7 @@ async def test_reader_account_poll_and_virtual_feed(
 async def test_inbound_read_sync_updated_status(
     db_session: async_sessionmaker[AsyncSession],
 ) -> None:
-    """Test that inbound read items mark single-source stories Read, and multi-source stories 'Updated'."""
+    """Test inbound read items on single-source and multi-source stories."""
     async with db_session() as session:
         user = User(username="testuser", password_hash="hash", is_admin=False)
         session.add(user)
@@ -303,7 +320,9 @@ async def test_inbound_read_sync_updated_status(
         async with db_session() as session:
             # Check Story 1 state (single article: marked read)
             st1 = await session.scalar(
-                select(StoryState).where(StoryState.story_id == s1_id, StoryState.user_id == user.id)
+                select(StoryState).where(
+                    StoryState.story_id == s1_id, StoryState.user_id == user.id
+                )
             )
             assert st1 is not None
             assert st1.is_read is True
@@ -313,7 +332,9 @@ async def test_inbound_read_sync_updated_status(
 
             # Check Story 2 state (multiple articles: marked read but updated)
             st2 = await session.scalar(
-                select(StoryState).where(StoryState.story_id == s2_id, StoryState.user_id == user.id)
+                select(StoryState).where(
+                    StoryState.story_id == s2_id, StoryState.user_id == user.id
+                )
             )
             assert st2 is not None
             assert st2.is_read is True

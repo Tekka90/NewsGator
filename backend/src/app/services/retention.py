@@ -6,7 +6,7 @@ and vectors. Runs nightly via the scheduler.
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -28,9 +28,15 @@ async def purge_old_data(session: AsyncSession) -> dict[str, int]:
     cutoff = datetime.now(UTC) - timedelta(days=settings.retention_days)
     store = get_vector_store(session)
     report: dict[str, int] = {}
+    saved_story_ids = select(StoryState.story_id).where(StoryState.saved_at.is_not(None))
 
     old_articles = (
-        await session.scalars(select(Article.id).where(Article.fetched_at < cutoff))
+        await session.scalars(
+            select(Article.id).where(
+                Article.fetched_at < cutoff,
+                or_(Article.story_id.is_(None), Article.story_id.not_in(saved_story_ids)),
+            )
+        )
     ).all()
     for article_id in old_articles:
         await store.delete_article(article_id)
@@ -45,7 +51,10 @@ async def purge_old_data(session: AsyncSession) -> dict[str, int]:
 
     old_stories = (
         await session.scalars(
-            select(Story).where(Story.last_updated_at < cutoff)
+            select(Story).where(
+                Story.last_updated_at < cutoff,
+                Story.id.not_in(saved_story_ids),
+            )
         )
     ).all()
     story_ids = [s.id for s in old_stories]

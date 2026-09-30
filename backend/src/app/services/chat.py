@@ -53,15 +53,17 @@ async def _retrieve(
     qv = np.asarray(question_vec, dtype=np.float32)
     user_story_ids: set[int] | None = None
     if user_id is not None:
-        user_story_ids = set(
-            (
+        user_story_ids = {
+            story_id
+            for story_id in (
                 await session.scalars(
                     select(Article.story_id)
                     .join(UserFeed, UserFeed.feed_id == Article.feed_id)
                     .where(UserFeed.user_id == user_id, Article.story_id.is_not(None))
                 )
             ).all()
-        )
+            if story_id is not None
+        }
     scored: list[tuple[int, float]] = []
     for sid, _approx in await store.search_story_centroids(
         question_vec, limit=settings.chat_candidates

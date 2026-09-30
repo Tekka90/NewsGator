@@ -124,7 +124,7 @@ export const api = {
     summary_language?: string;
     story_sort?: 'updated' | 'published' | 'sources';
     story_order?: 'asc' | 'desc';
-    story_filter?: 'all' | 'unread' | 'updated';
+    story_filter?: 'all' | 'unread' | 'updated' | 'saved';
   }) => req<User>('/auth/me', { method: 'PATCH', body: patch }),
 
   users: {
@@ -258,8 +258,19 @@ export const api = {
   },
 
   stories: {
-    list: (filter: string = 'all', category?: string, sort: string = 'published', order: string = 'asc', feedId?: number) => {
-      const params = new URLSearchParams({ filter, sort, order });
+    list: (
+      filter: 'all' | 'unread' | 'updated' | 'saved' = 'all',
+      category?: string,
+      sort: string = 'published',
+      order: string = 'asc',
+      feedId?: number
+    ) => {
+      const params = new URLSearchParams({
+        filter: filter === 'saved' ? 'all' : filter,
+        sort,
+        order
+      });
+      if (filter === 'saved') params.set('saved', 'true');
       if (category) params.set('category', category);
       if (feedId) params.set('feed', String(feedId));
       return req<StoryListItem[]>(`/stories?${params}`);
@@ -274,6 +285,10 @@ export const api = {
       req<SimilarStory[]>(`/stories/articles/${articleId}/similar-stories`),
     read: (id: number) => req<void>(`/stories/${id}/read`, { method: 'POST' }),
     unread: (id: number) => req<void>(`/stories/${id}/unread`, { method: 'POST' }),
+    setSaved: (id: number, saved: boolean) =>
+      req<{ saved: boolean; saved_at: string | null }>(`/stories/${id}/saved`, {
+        method: saved ? 'PUT' : 'DELETE'
+      }),
     diff: (id: number, fromVersion: number) =>
       req<{ from_version: number; changes: { version: number; summary: string; at: string }[] }>(
         `/stories/${id}/diff?from=${fromVersion}`

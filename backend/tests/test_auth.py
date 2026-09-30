@@ -97,3 +97,7 @@ async def test_patch_me_story_ordering_prefs(client: AsyncClient) -> None:
     assert (
         await client.patch("/api/auth/me", json={"story_filter": "bogus"})
     ).status_code == 422
+
+    r = await client.patch("/api/auth/me", json={"story_filter": "saved"})
+    assert r.status_code == 200
+    assert r.json()["story_filter"] == "saved"

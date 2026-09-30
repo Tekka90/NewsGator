@@ -235,6 +235,7 @@ class StoryState(Base):
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
     read_at_version: Mapped[int] = mapped_column(Integer, default=0)
     read_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    saved_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
 
 
 class StoryRevision(Base):

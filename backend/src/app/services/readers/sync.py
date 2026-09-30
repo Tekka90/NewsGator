@@ -86,7 +86,9 @@ async def poll_reader_account(session: AsyncSession, account: ReaderAccount) -> 
         end_poll(account.id)
 
 
-async def _poll_reader_account_inner(session: AsyncSession, account: ReaderAccount) -> dict[str, int]:
+async def _poll_reader_account_inner(
+    session: AsyncSession, account: ReaderAccount
+) -> dict[str, int]:
     feed = await ensure_virtual_feed(session, account)
     client = GReaderClient(
         api_base_url=account.api_base_url,
@@ -217,7 +219,7 @@ async def _poll_reader_account_inner(session: AsyncSession, account: ReaderAccou
 
     # Fulltext fetch & LLM handoff (executed in small per-article transactions)
     if fulltext_pending:
-        ready_for_llm = await fetch_full_text_batch(session, fulltext_pending)
+        ready_for_llm = await fetch_full_text_batch(feed.id, fulltext_pending)
         llm_handoff.extend(ready_for_llm)
 
     for article_id in llm_handoff:
@@ -317,4 +319,3 @@ async def poll_all_reader_accounts() -> None:
             except Exception as exc:
                 logger.warning("Error polling reader account %s: %s", account.id, exc)
         break
-

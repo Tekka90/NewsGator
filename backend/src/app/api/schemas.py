@@ -49,7 +49,7 @@ class MePatch(BaseModel):
     password: str | None = Field(default=None, min_length=8)
     story_sort: str | None = Field(default=None, pattern="^(updated|published|sources)$")
     story_order: str | None = Field(default=None, pattern="^(asc|desc)$")
-    story_filter: str | None = Field(default=None, pattern="^(all|unread|updated)$")
+    story_filter: str | None = Field(default=None, pattern="^(all|unread|updated|saved)$")
 
 
 # --- admin user management ---

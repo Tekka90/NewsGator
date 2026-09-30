@@ -6,7 +6,7 @@ Inoreader, FreshRSS, Miniflux, The Old Reader, BazQux, etc.
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlparse
 
 import httpx
@@ -41,19 +41,21 @@ async def _http_request(
     headers: dict[str, str] | None = None,
     params: dict[str, Any] | None = None,
     data: dict[str, Any] | list[tuple[str, str]] | None = None,
-    timeout: float = 30.0,
+    request_timeout: float = 30.0,
 ) -> tuple[int, bytes, dict[str, str]]:
     """Low-level HTTP request helper (module-level seam for tests)."""
     req_headers = {"User-Agent": USER_AGENT}
     if headers:
         req_headers.update(headers)
-    async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
+    async with httpx.AsyncClient(
+        follow_redirects=True, timeout=request_timeout
+    ) as client:
         resp = await client.request(
             method,
             url,
             headers=req_headers,
             params=params,
-            data=data,
+            data=cast(Any, data),
         )
         return resp.status_code, resp.content, dict(resp.headers)
 
@@ -120,7 +122,10 @@ class GReaderClient:
         if status_code in (401, 403):
             raise GReaderAuthError("Invalid credentials")
         if status_code >= 400:
-            raise GReaderError(f"ClientLogin failed with HTTP {status_code}: {content.decode(errors='replace')}")
+            raise GReaderError(
+                "ClientLogin failed with HTTP "
+                f"{status_code}: {content.decode(errors='replace')}"
+            )
 
         text = content.decode("utf-8", errors="replace")
         for line in text.splitlines():
@@ -163,7 +168,9 @@ class GReaderClient:
         if not self.auth_token and (self.username and self.password):
             await self.authenticate()
 
-        stream_url = self._resolve_url("reader/api/0/stream/contents/user/-/state/com.google/reading-list")
+        stream_url = self._resolve_url(
+            "reader/api/0/stream/contents/user/-/state/com.google/reading-list"
+        )
         params: dict[str, Any] = {
             "output": "json",
             "n": str(limit),
@@ -226,7 +233,9 @@ class GReaderClient:
                     pass
             if published_at is None and raw.get("crawlTimeMsec"):
                 try:
-                    published_at = datetime.fromtimestamp(float(raw["crawlTimeMsec"]) / 1000.0, tz=UTC)
+                    published_at = datetime.fromtimestamp(
+                        float(raw["crawlTimeMsec"]) / 1000.0, tz=UTC
+                    )
                 except (ValueError, TypeError, OverflowError):
                     pass
 
@@ -236,7 +245,11 @@ class GReaderClient:
 
             # Read status (exact state tag; avoid prefix-matching 'reading-list')
             categories = raw.get("categories", [])
-            is_read = any(cat.endswith("/state/com.google/read") for cat in categories if isinstance(cat, str))
+            is_read = any(
+                cat.endswith("/state/com.google/read")
+                for cat in categories
+                if isinstance(cat, str)
+            )
 
             # Content
             content_val = ""
@@ -323,13 +336,14 @@ class GReaderClient:
                 )
             if status_code >= 400:
                 raise GReaderError(
-                    f"edit-tag failed with HTTP {status_code}: {content.decode('utf-8', errors='replace')}"
+                    "edit-tag failed with HTTP "
+                    f"{status_code}: {content.decode('utf-8', errors='replace')}"
                 )
 
     async def test_connection(self) -> dict[str, Any]:
         """Probe authentication and stream access."""
         auth_token = await self.authenticate()
-        token = await self.get_token()
+        await self.get_token()
         items, _ = await self.fetch_stream(limit=3)
         return {
             "ok": True,

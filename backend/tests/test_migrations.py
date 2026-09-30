@@ -110,6 +110,8 @@ async def test_legacy_create_all_db_stamped_and_upgraded(
     sync_conn.execute("DROP TABLE story_translation")
     # 0018 (story language) added later still
     sync_conn.execute("ALTER TABLE story DROP COLUMN language")
+    # 0019 (story_state.saved_at) added later still
+    sync_conn.execute("ALTER TABLE story_state DROP COLUMN saved_at")
     sync_conn.commit()
     sync_conn.close()
     db.init_engine(engine_url)  # reconnect after the sync-side ALTER
@@ -136,6 +138,7 @@ async def test_legacy_create_all_db_stamped_and_upgraded(
     assert "origin_feed_title" in _columns(path, "article")
     assert "user_feed" in _tables(path)
     assert "story_translation" in _tables(path)
+    assert "saved_at" in _columns(path, "story_state")
 
 
 async def test_already_at_head_is_noop(engine_url: str, tmp_path) -> None:

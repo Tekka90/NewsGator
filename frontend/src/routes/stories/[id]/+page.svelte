@@ -41,6 +41,14 @@
     await load();
   }
 
+  async function toggleSaved() {
+    if (!story) return;
+    const next = !story.saved;
+    const saved = await api.stories.setSaved(id, next);
+    story.saved = saved.saved;
+    story.saved_at = saved.saved_at;
+  }
+
   async function merge() {
     if (!mergeSel) return;
     error = '';
@@ -123,6 +131,16 @@
   <div class="row">
     <a href="/">← back</a>
     <span class="spacer"></span>
+    <button
+      class="savebtn"
+      class:active={story.saved}
+      onclick={toggleSaved}
+      aria-label={story.saved ? 'Remove saved story' : 'Save story'}
+      title={story.saved ? 'Saved story — click to remove' : 'Save story'}
+    >
+      <span class="star" aria-hidden="true">★</span>
+      {story.saved ? 'Saved' : 'Save'}
+    </button>
     {#if readeckEnabled}
       {@const saved = Boolean(story.readeck_bookmark_id)}
       <button
@@ -235,6 +253,19 @@
   .spacer { flex: 1; }
   .iconbtn { display: inline-flex; align-items: center; gap: 0.35rem; }
   .iconbtn.saved { color: var(--disabled-text); border-color: var(--disabled-bg); opacity: 0.75; }
+  .savebtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .savebtn.active {
+    color: var(--accent-signal);
+    border-color: var(--accent-signal);
+  }
+  .savebtn .star {
+    font-size: 1rem;
+    line-height: 1;
+  }
   h1 { font-size: 1.5rem; margin: 0.5rem 0; overflow-wrap: anywhere; }
   h2 { font-size: 1.05rem; margin-top: 0; }
   .lead {

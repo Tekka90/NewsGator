@@ -71,6 +71,57 @@ async def test_retention_purges_old_keeps_fresh(db_session, store) -> None:
         assert await s.scalar(select(func.count(StoryState.story_id))) == 0
 
 
+async def test_retention_keeps_saved_old_story(db_session, store) -> None:
+    old_date = datetime.now(UTC) - timedelta(days=settings.retention_days + 10)
+    async with db_session() as s:
+        feed = Feed(url="https://saved-retention.example.com/rss")
+        saved_story = Story(title="Saved old", summary="s", last_updated_at=old_date)
+        purged_story = Story(title="Purged old", summary="s", last_updated_at=old_date)
+        s.add_all([feed, saved_story, purged_story])
+        await s.flush()
+        s.add_all(
+            [
+                Article(
+                    feed_id=feed.id,
+                    guid="saved",
+                    url="https://saved-retention.example.com/saved",
+                    story_id=saved_story.id,
+                    fetched_at=old_date,
+                ),
+                Article(
+                    feed_id=feed.id,
+                    guid="purged",
+                    url="https://saved-retention.example.com/purged",
+                    story_id=purged_story.id,
+                    fetched_at=old_date,
+                ),
+                StoryRevision(story_id=saved_story.id, version=1, summary="s"),
+                StoryRevision(story_id=purged_story.id, version=1, summary="s"),
+                StoryState(user_id=1, story_id=saved_story.id, saved_at=old_date),
+            ]
+        )
+        await s.commit()
+        saved_story_id = saved_story.id
+        purged_story_id = purged_story.id
+
+    async with db_session() as s:
+        report = await retention.purge_old_data(s)
+        assert report["articles"] == 1
+        assert report["stories"] == 1
+        assert await s.get(Story, saved_story_id) is not None
+        assert await s.get(Story, purged_story_id) is None
+        saved_state = await s.get(StoryState, (1, saved_story_id))
+        assert saved_state is not None and saved_state.saved_at is not None
+        saved_articles = (
+            await s.scalars(select(Article).where(Article.story_id == saved_story_id))
+        ).all()
+        assert len(saved_articles) == 1
+        saved_revisions = (
+            await s.scalars(select(StoryRevision).where(StoryRevision.story_id == saved_story_id))
+        ).all()
+        assert len(saved_revisions) == 1
+
+
 async def test_threshold_report_with_labels(db_session) -> None:
     async with db_session() as s:
         feed = Feed(url="https://f.example.com/rss")

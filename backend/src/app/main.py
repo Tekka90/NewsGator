@@ -139,6 +139,12 @@ ALEMBIC_DIR = BACKEND_DIR / "alembic"
 _LEGACY_STAMPS: list[tuple[list[tuple[str, str]], str]] = [
     (
         [
+            ("story_state", "saved_at"),
+        ],
+        "0019_story_saved",
+    ),
+    (
+        [
             ("story", "language"),
         ],
         "0018_story_language",

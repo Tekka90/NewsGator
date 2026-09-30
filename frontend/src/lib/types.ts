@@ -9,7 +9,7 @@ export interface User {
   story_sort: '' | 'updated' | 'published' | 'sources';
   story_order: '' | 'asc' | 'desc';
   // '' = follow the server default (unread)
-  story_filter: '' | 'all' | 'unread' | 'updated';
+  story_filter: '' | 'all' | 'unread' | 'updated' | 'saved';
 }
 
 export interface AuthUser extends User {
@@ -224,6 +224,8 @@ export interface StoryListItem {
   last_updated_at: string;
   is_read: boolean;
   updated_since_read: boolean;
+  saved: boolean;
+  saved_at: string | null;
   readeck_bookmark_id: string | null;
 }
 

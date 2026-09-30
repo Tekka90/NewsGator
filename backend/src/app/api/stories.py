@@ -48,6 +48,8 @@ class StoryListItem(BaseModel):
     last_updated_at: datetime
     is_read: bool
     updated_since_read: bool
+    saved: bool
+    saved_at: datetime | None
     readeck_bookmark_id: str | None
 
 
@@ -90,6 +92,8 @@ class StoryDetail(BaseModel):
     published_at: datetime | None
     is_read: bool
     updated_since_read: bool
+    saved: bool
+    saved_at: datetime | None
     articles: list[ArticleOut]
     revisions: list[RevisionOut]
     readeck_bookmark_id: str | None
@@ -119,6 +123,30 @@ def _flags(state: StoryState | None, story: Story) -> tuple[bool, bool]:
     return is_read, updated
 
 
+def _saved_flag(state: StoryState | None) -> tuple[bool, datetime | None]:
+    saved_at = state.saved_at if state is not None else None
+    return saved_at is not None, saved_at
+
+
+async def _require_visible_story(
+    session: AsyncSession, user: User, story_id: int
+) -> Story:
+    story = await session.get(Story, story_id)
+    if story is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Story not found")
+    visible = (
+        await session.scalar(
+            select(func.count())
+            .select_from(Article)
+            .join(UserFeed, UserFeed.feed_id == Article.feed_id)
+            .where(Article.story_id == story_id, UserFeed.user_id == user.id)
+        )
+    ) or 0
+    if not visible:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Story not found")
+    return story
+
+
 def _source_hosts(rows: Iterable[tuple[int | None, str]]) -> dict[int, list[str]]:
     """story_id → distinct article hosts (≤5, first-seen order, www. stripped)."""
     from urllib.parse import urlparse
@@ -139,6 +167,7 @@ def _source_hosts(rows: Iterable[tuple[int | None, str]]) -> dict[int, list[str]
 @router.get("")
 async def list_stories(
     filter: str = Query(default="all", pattern="^(all|unread|updated)$"),
+    saved: bool = False,
     category: str | None = None,
     # only stories having at least one source article from this feed
     feed: int | None = None,
@@ -238,9 +267,12 @@ async def list_stories(
             continue
         state = states.get(story.id)
         is_read, updated = _flags(state, story)
+        is_saved, saved_at = _saved_flag(state)
         if filter == "unread" and is_read:
             continue
         if filter == "updated" and not updated:
+            continue
+        if saved and not is_saved:
             continue
         if category and story.category != category:
             continue
@@ -273,6 +305,8 @@ async def list_stories(
                 last_updated_at=story.last_updated_at,
                 is_read=is_read,
                 updated_since_read=updated,
+                saved=is_saved,
+                saved_at=saved_at,
                 readeck_bookmark_id=story.readeck_bookmark_id,
             )
         )
@@ -348,9 +382,7 @@ async def story_detail(
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ) -> StoryDetail:
-    story = await session.get(Story, story_id)
-    if story is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Story not found")
+    story = await _require_visible_story(session, user, story_id)
     articles = (
         await session.scalars(
             select(Article)
@@ -359,17 +391,9 @@ async def story_detail(
             .order_by(Article.id)
         )
     ).all()
-    user_feed_ids = set(
-        (
-            await session.scalars(
-                select(UserFeed.feed_id).where(UserFeed.user_id == user.id)
-            )
-        ).all()
-    )
-    if not any(a.feed_id in user_feed_ids for a in articles):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Story not found")
     state = await session.get(StoryState, (user.id, story_id))
     is_read, updated = _flags(state, story)
+    is_saved, saved_at = _saved_flag(state)
     revisions = (
         await session.scalars(
             select(StoryRevision)
@@ -405,10 +429,48 @@ async def story_detail(
         ),
         is_read=is_read,
         updated_since_read=updated,
+        saved=is_saved,
+        saved_at=saved_at,
         articles=[_article_out(a) for a in articles],
         revisions=[RevisionOut.model_validate(r) for r in revisions],
         readeck_bookmark_id=story.readeck_bookmark_id,
     )
+
+
+class SavedOut(BaseModel):
+    saved: bool
+    saved_at: datetime | None
+
+
+@router.put("/{story_id}/saved")
+async def set_saved(
+    story_id: int,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> SavedOut:
+    await _require_visible_story(session, user, story_id)
+    state = await session.get(StoryState, (user.id, story_id))
+    if state is None:
+        state = StoryState(user_id=user.id, story_id=story_id)
+        session.add(state)
+    if state.saved_at is None:
+        state.saved_at = datetime.now(UTC)
+    await session.commit()
+    return SavedOut(saved=True, saved_at=state.saved_at)
+
+
+@router.delete("/{story_id}/saved")
+async def clear_saved(
+    story_id: int,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> SavedOut:
+    await _require_visible_story(session, user, story_id)
+    state = await session.get(StoryState, (user.id, story_id))
+    if state is not None and state.saved_at is not None:
+        state.saved_at = None
+        await session.commit()
+    return SavedOut(saved=False, saved_at=None)
 
 
 class ReadeckOut(BaseModel):

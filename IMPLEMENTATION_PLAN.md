@@ -244,6 +244,13 @@ config validated; image build is the one step to run on the target machine)
   translated headline and summary on `GET /api/stories`, `GET /api/stories/{id}`, and
   `GET /api/feed.xml`. Background pre-warming worker translates stories on creation/version
   bump and user language change; JIT fallback on story detail.
+- Per-user saved stories ✅ (2026-09-30): `story_state.saved_at` (Alembic 0019) stores
+  a save/unsave flag orthogonal to read state. API: `PUT/DELETE /api/stories/{id}/saved`
+  returns `{saved, saved_at}`, `GET /api/stories?saved=true` composes with the existing
+  story filters, and story list/detail payloads now include `saved` + `saved_at`. Saved
+  stories are exempt from retention purging (including member articles/revisions/vectors).
+  Web GUI: star toggles in the story list and detail page, a Saved filter pill, and a
+  swipe-down save gesture in the mobile deck.
 
 
 ---

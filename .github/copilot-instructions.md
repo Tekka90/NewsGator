@@ -531,6 +531,16 @@ are pre-warmed via a background translation worker (`services/translation.py`, t
 on story creation, version bumps in clustering, manual merge, and when users update
 `summary_language`), or translated JIT on story detail fetch. Legacy stamps: 0018 top
 entry keyed on `("story", "language")`.
+Per-user saved stories (2026-09-30, Alembic 0019): `story_state.saved_at`
+stores a save/unsave flag orthogonal to read state. `PUT /api/stories/{id}/saved`
+and `DELETE /api/stories/{id}/saved` are idempotent, return `{saved, saved_at}`,
+and never change `read_at_version`; a saved-only `StoryState` row must still read
+as unread (`is_read = false`). `GET /api/stories?saved=true` composes with the
+existing list filters, and story list/detail payloads include `saved` + `saved_at`.
+Saved stories are exempt from retention purging (including member
+articles/revisions/vectors). Web GUI: a gold star toggle in story rows/detail, a
+Saved filter pill, and swipe-down save on the mobile deck. Legacy stamps: 0019 top
+entry keyed on `("story_state", "saved_at")`.
 
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,

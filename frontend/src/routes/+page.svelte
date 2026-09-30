@@ -9,11 +9,13 @@
 
   type Sort = 'updated' | 'published' | 'sources';
   type Order = 'asc' | 'desc';
+  type StoryFilter = 'all' | 'unread' | 'updated' | 'saved';
+  const filterPills: StoryFilter[] = ['all', 'unread', 'updated', 'saved'];
 
   let stories = $state<StoryListItem[]>([]);
   let categories = $state<Category[]>([]);
   let feedOptions = $state<FeedOption[]>([]);
-  let filter = $state<'all' | 'unread' | 'updated'>('unread');
+  let filter = $state<StoryFilter>('unread');
   let category = $state('');
   // 0 = all feeds (transient — not a persisted per-user pref)
   let feedId = $state(0);
@@ -29,7 +31,8 @@
   let isMobile = $state(false);
   let readeckEnabled = $state(false);
   let readeckSaving = $state<Record<number, boolean>>({});
-  let filterCounts = $state<{ all?: number; unread?: number; updated?: number }>({});
+  let saving = $state<Record<number, boolean>>({});
+  let filterCounts = $state<{ all?: number; unread?: number; updated?: number; saved?: number }>({});
   // Sticky title + filter bar — its height is measured at click time so a
   // just-read story can be scrolled out exactly behind it.
   let pagehead = $state<HTMLElement>();
@@ -37,11 +40,14 @@
   // --- swipe deck state (mobile card view) ---
   let index = $state(0);
   let dx = $state(0);
+  let dy = $state(0);
   let snap = $state(false);
   let dragging = $state(false);
   let dragStartX = 0;
   let dragStartY = 0;
-  let horizLock: boolean | null = null;
+  let axisLock: 'x' | 'y' | null = null;
+  let startScrollY = 0;
+  let swipeDownAllowed = false;
 
   let current = $derived(index < stories.length ? stories[index] : null);
   // Past the last card = the "all caught up" end card
@@ -187,10 +193,12 @@
         all: allStories.length,
         unread: allStories.filter((s) => !s.is_read).length,
         updated: allStories.filter((s) => s.updated_since_read).length,
+        saved: allStories.filter((s) => s.saved).length,
       };
     }
     index = 0;
     dx = 0;
+    dy = 0;
     loading = false;
   }
 
@@ -267,6 +275,36 @@
     }
   }
 
+  async function toggleSaved(story: StoryListItem, e?: Event) {
+    e?.preventDefault();
+    e?.stopPropagation();
+    if (saving[story.id]) return;
+    saving = { ...saving, [story.id]: true };
+    const next = !story.saved;
+    try {
+      const saved = await api.stories.setSaved(story.id, next);
+      story.saved = saved.saved;
+      story.saved_at = saved.saved_at;
+      stories = [...stories];
+      if (filterCounts.saved !== undefined) {
+        filterCounts = {
+          ...filterCounts,
+          saved: Math.max(0, (filterCounts.saved ?? 0) + (saved.saved ? 1 : -1))
+        };
+      }
+      if (filter === 'saved' && !saved.saved) {
+        const removedIndex = stories.findIndex((s) => s.id === story.id);
+        stories = stories.filter((s) => s.id !== story.id);
+        if (removedIndex >= 0 && index > removedIndex) index -= 1;
+        if (index >= stories.length) index = stories.length;
+      }
+    } catch {
+      /* quiet inline toggle */
+    } finally {
+      saving = { ...saving, [story.id]: false };
+    }
+  }
+
   async function markAllRead() {
     const unread = stories.filter((s) => !s.is_read);
     await Promise.all(unread.map((s) => api.stories.read(s.id).catch(() => {})));
@@ -277,32 +315,70 @@
   // Horizontal drag navigates cards; vertical stays native scroll (touch-action: pan-y).
   function onPointerDown(e: PointerEvent) {
     dragging = true;
-    horizLock = null;
+    axisLock = null;
     dragStartX = e.clientX;
     dragStartY = e.clientY;
+    startScrollY = window.scrollY ?? document.documentElement.scrollTop ?? 0;
+    swipeDownAllowed =
+      (e.target as Element | null)?.closest('a, button, input, select, textarea, .decksummary') ===
+      null;
   }
 
   function onPointerMove(e: PointerEvent) {
     if (!dragging) return;
     const mx = e.clientX - dragStartX;
     const my = e.clientY - dragStartY;
-    if (horizLock === null && (Math.abs(mx) > 8 || Math.abs(my) > 8)) {
-      horizLock = Math.abs(mx) > Math.abs(my);
+    if (axisLock === null && (Math.abs(mx) > 8 || Math.abs(my) > 8)) {
+      axisLock = Math.abs(mx) > Math.abs(my) ? 'x' : 'y';
     }
-    if (horizLock) dx = mx;
+    if (axisLock === 'x') {
+      dx = mx;
+      dy = 0;
+    } else if (axisLock === 'y' && swipeDownAllowed) {
+      dx = 0;
+      dy = Math.max(my, 0);
+    }
   }
 
   function onPointerUp() {
     if (!dragging) return;
     dragging = false;
-    if (dx <= -80) commit('left');
-    else if (dx >= 80) commit('right');
-    else dx = 0;
-    horizLock = null;
+    if (axisLock === 'x') {
+      if (dx <= -80) commit('left');
+      else if (dx >= 80) commit('right');
+      else dx = 0;
+    } else if (
+      axisLock === 'y' &&
+      swipeDownAllowed &&
+      dy >= 90 &&
+      Math.abs((window.scrollY ?? document.documentElement.scrollTop ?? 0) - startScrollY) < 4
+    ) {
+      commit('down');
+    } else {
+      dx = 0;
+      dy = 0;
+    }
+    axisLock = null;
+    swipeDownAllowed = false;
   }
 
-  function commit(dir: 'left' | 'right') {
+  function commit(dir: 'left' | 'right' | 'down') {
     const story = current;
+    if (dir === 'down') {
+      if (!story) {
+        dy = 0;
+        return;
+      }
+      const bounce = Math.min(Math.max(window.innerHeight * 0.16, 110), 180);
+      dy = bounce;
+      setTimeout(() => {
+        void toggleSaved(story);
+        snap = true;
+        dy = 0;
+        requestAnimationFrame(() => requestAnimationFrame(() => (snap = false)));
+      }, 140);
+      return;
+    }
     // left past the last story lands on the "all caught up" card; right from it comes back
     if (dir === 'left' && atEnd) { dx = 0; return; }
     if (dir === 'right' && index <= 0) { dx = 0; return; }
@@ -320,6 +396,7 @@
       index += dir === 'left' ? 1 : -1;
       snap = true;
       dx = 0;
+      dy = 0;
       requestAnimationFrame(() => requestAnimationFrame(() => (snap = false)));
     }, 220);
   }
@@ -352,13 +429,13 @@
 
   <div class="toolbar card">
     <div class="filters">
-      {#each ['all', 'unread', 'updated'] as f}
-        {@const count = filterCounts[f as 'all' | 'unread' | 'updated']}
+      {#each filterPills as f}
+        {@const count = filterCounts[f]}
         <button
           class:active={filter === f}
           onclick={() => { filter = f as typeof filter; savePrefs(); load(); }}
         >
-          {f === 'all' ? 'All' : f === 'unread' ? 'Unread' : 'Updated'}{#if count !== undefined}<span class="pill-count">{count}</span>{/if}
+          {f === 'all' ? 'All' : f === 'unread' ? 'Unread' : f === 'updated' ? 'Updated' : 'Saved'}{#if count !== undefined}<span class="pill-count">{count}</span>{/if}
         </button>
       {/each}
     </div>
@@ -453,26 +530,32 @@
   <div class="card"><p>Loading…</p></div>
 {:else if stories.length === 0}
   <div class="card">
-    <p>No stories yet. Add feeds on the <a href="/feeds">Feeds page</a> — articles are
-    clustered into stories automatically once the pipeline runs.</p>
+    <p>
+      {#if filter === 'saved'}
+        No saved stories yet.
+      {:else}
+        No stories yet. Add feeds on the <a href="/feeds">Feeds page</a> — articles are
+        clustered into stories automatically once the pipeline runs.
+      {/if}
+    </p>
   </div>
 {:else if isMobile}
   <!-- Mobile: story deck. Swipe ← marks read and opens the next story; → goes back.
-       Past the last story, a final "all caught up" card closes the deck. -->
+       Swipe ↓ toggles saved; past the last story, a final "all caught up" card closes the deck. -->
   <div class="deckmeta">
     <button class="navbtn" onclick={() => commit('right')} disabled={index === 0}>‹ Prev</button>
     {#if atEnd}
       <span>✓ done</span>
       <span class="hint">swipe → back to stories</span>
     {:else}
-      <span class="hint">swipe ← read &amp; next</span>
+      <span class="hint">swipe ← read &amp; next · ↓ save</span>
     {/if}
     <button class="navbtn" onclick={() => commit('left')} disabled={atEnd}>Next ›</button>
   </div>
   <div
     class="deckviewport"
     role="region"
-    aria-label="Story deck — swipe left to mark read and open the next story"
+    aria-label="Story deck — swipe left to mark read and open the next story, swipe down to save"
     onpointerdown={onPointerDown}
     onpointermove={onPointerMove}
     onpointerup={onPointerUp}
@@ -482,7 +565,7 @@
       <article
         class="card deckcard"
         class:readcard={current.is_read}
-        style:transform="translateX({dx}px) rotate({dx / 30}deg)"
+        style:transform="translate({dx}px, {dy}px) rotate({dx / 30}deg)"
         style:transition={dragging || snap ? 'none' : 'transform 0.22s ease-out'}
       >
       <div class="row">
@@ -491,12 +574,22 @@
         {#if current.updated_since_read}<span class="badge updated">UPDATED</span>{/if}
         {#if current.is_frozen}<span class="badge frozen">archived</span>{/if}
         <span class="spacer"></span>
+        <button
+          class="readbtn starbtn"
+          class:active={current.saved}
+          title={current.saved ? 'Saved story — click to remove' : 'Save story'}
+          aria-label={current.saved ? 'Remove saved story' : 'Save story'}
+          onclick={(e) => current && toggleSaved(current, e)}
+          disabled={saving[current.id]}
+        >
+          {#if saving[current.id]}…{:else}★{/if}
+        </button>
         {#if readeckEnabled}
-          {@const saved = Boolean(current.readeck_bookmark_id)}
+          {@const savedToReadeck = Boolean(current.readeck_bookmark_id)}
           <button
             class="readbtn iconbtn"
-            class:saved
-            title={saved ? 'Already saved to Readeck — save again' : 'Save to Readeck'}
+            class:saved={savedToReadeck}
+            title={savedToReadeck ? 'Already saved to Readeck — save again' : 'Save to Readeck'}
             aria-label="Save to Readeck"
             onclick={(e) => current && saveReadeck(current, e)}
             disabled={readeckSaving[current.id]}
@@ -536,7 +629,7 @@
       <!-- end of deck — the "you're done, go live your life" card -->
       <article
         class="card deckcard donecard"
-        style:transform="translateX({dx}px) rotate({dx / 30}deg)"
+        style:transform="translate({dx}px, {dy}px) rotate({dx / 30}deg)"
         style:transition={dragging || snap ? 'none' : 'transform 0.22s ease-out'}
       >
         <span class="doneemoji">{doneMsg.emoji}</span>
@@ -560,12 +653,22 @@
         {#if story.updated_since_read}<span class="badge updated">UPDATED</span>{/if}
         {#if story.is_frozen}<span class="badge frozen">archived</span>{/if}
         <span class="spacer"></span>
+        <button
+          class="readbtn starbtn"
+          class:active={story.saved}
+          title={story.saved ? 'Saved story — click to remove' : 'Save story'}
+          aria-label={story.saved ? 'Remove saved story' : 'Save story'}
+          onclick={(e) => toggleSaved(story, e)}
+          disabled={saving[story.id]}
+        >
+          {#if saving[story.id]}…{:else}★{/if}
+        </button>
         {#if readeckEnabled}
-          {@const saved = Boolean(story.readeck_bookmark_id)}
+          {@const savedToReadeck = Boolean(story.readeck_bookmark_id)}
           <button
             class="readbtn iconbtn"
-            class:saved
-            title={saved ? 'Already saved to Readeck — save again' : 'Save to Readeck'}
+            class:saved={savedToReadeck}
+            title={savedToReadeck ? 'Already saved to Readeck — save again' : 'Save to Readeck'}
             aria-label="Save to Readeck"
             onclick={(e) => saveReadeck(story, e)}
             disabled={readeckSaving[story.id]}
@@ -737,6 +840,18 @@
   .readbtn:hover { border-color: var(--ok); }
   .story.read .readbtn { color: var(--faint); }
   .iconbtn { display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem; }
+  .starbtn {
+    color: var(--muted);
+    font-size: 1rem;
+  }
+  .starbtn:hover {
+    border-color: var(--accent-signal);
+    color: var(--accent-signal);
+  }
+  .starbtn.active {
+    color: var(--accent-signal);
+    border-color: var(--accent-signal);
+  }
   /* Already pushed to Readeck — grey it out (still re-clickable to re-save). */
   .readbtn.saved { color: var(--disabled-text); border-color: var(--disabled-bg); opacity: 0.6; }
   .bulkrow { display: flex; justify-content: flex-end; margin-bottom: 0.4rem; }

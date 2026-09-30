@@ -132,13 +132,15 @@ def test_story_list_detail_revision_and_feed_options(live: httpx.Client) -> None
         "category": "Tech", "image_url": None, "version": 2, "is_frozen": False,
         "source_count": 1, "source_hosts": ["127.0.0.1"], "published_at": STAMP,
         "last_updated_at": STAMP, "is_read": True, "updated_since_read": True,
+        "saved": False, "saved_at": None,
         "readeck_bookmark_id": None,
     }
     detail = live.get("/api/stories/1").json()
     assert set(detail) == {
         "id", "title", "summary", "category", "image_url", "version", "is_frozen",
         "first_seen_at", "last_updated_at", "published_at", "is_read",
-        "updated_since_read", "articles", "revisions", "readeck_bookmark_id",
+        "updated_since_read", "saved", "saved_at", "articles", "revisions",
+        "readeck_bookmark_id",
     }
     assert detail["revisions"] == [
         {"version": 1, "summary": "Original RSS facts.", "created_at": STAMP},
