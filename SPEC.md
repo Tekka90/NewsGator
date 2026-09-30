@@ -236,6 +236,10 @@ erDiagram
 LLM call, full history is the point (cloud-readiness metrics). Cost estimation is a
 GUI-side playground (prices entered on the Usage page, never a server setting).
 
+### Saved flag
+
+`story_state.saved_at: datetime | None` (per user). Saved never changes `read_at_version` and never counts toward unread. Retention (`RETENTION_DAYS`) skips any story with at least one `story_state.saved_at IS NOT NULL`, along with its articles/revisions/vectors. Wording is **saved** everywhere (API, DB, UI); the Readeck `bookmark` is a separate, optional export.
+
 ### Key derived flag
 
 `updated_since_read(user, story) = is_read AND story.version > story_state.read_at_version`
@@ -384,6 +388,7 @@ v1 is **data-first, no online learning**:
 | `POST /settings/test-llm`, `POST /settings/test-qdrant`, `POST /settings/test-readeck` | connection probes for the external services (admin); return `ok` + errors without leaking secrets |
 | `POST /stories/{id}/merge` / `POST /articles/{id}/move` | manual override when clustering is wrong (important for trust) |
 | `GET /stories/{id}/similar`, `GET /stories/articles/{id}/similar-stories` | ranked merge/move candidates for the story-detail pickers: ANN over story centroids then exact cosine re-rank, `[{id, title, similarity}]` best-first, self/current story excluded; stories/articles without vectors fall back to unscored recency order (`similarity: null`). Read-only probes — no activity events |
+| `PUT /stories/{id}/saved`, `DELETE /stories/{id}/saved` | set / clear the per-user **saved** flag (idempotent, returns `{saved, saved_at}`). Stored on `story_state.saved_at` (NULL = not saved; migration `0019`). Saved is orthogonal to read/updated and independent of Readeck. `GET /stories` accepts `saved=true` (only saved) and every story item/detail carries `saved: bool` + `saved_at`. Saved stories (and their member articles, revisions and vectors) are **exempt from retention purging and cluster aging deletion** for every user who saved them. Requires a story the user can see (404 otherwise) |
 | `POST /stories/{id}/readeck` | push the story to Readeck as a permanent, self-contained bookmark (headline + summary + all source links as uploaded HTML; canonical `url` = primary source article). 404 when Readeck isn't configured; 502 on upstream failure. On success the bookmark UID is stored on `story.readeck_bookmark_id` (surfaced in list + detail so the GUI can grey out the button). Optional — enabled only when both `READECK_BASE_URL` and `READECK_TOKEN` are set (env or settings override) |
 | `GET /stories/share-languages` | languages offered by the share picker (from `SHARE_LANGUAGES`, ISO codes filtered to known names) + the current summary language |
 | `POST /stories/{id}/share` | build the share card (headline + merged summary + all source links; `url` = primary source article) for the client-side Web Share API / clipboard. Body `{language}` = ISO code for on-demand LLM translation of headline + summary; null/omitted = share as-is (no LLM call). Always available — nothing to configure. 400 on unsupported language or incomplete translation, 502 on LLM failure |
