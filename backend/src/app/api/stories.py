@@ -164,6 +164,47 @@ def _source_hosts(rows: Iterable[tuple[int | None, str]]) -> dict[int, list[str]
     return hosts
 
 
+# SQLite caps bound parameters per statement; larger id sets are queried in chunks.
+_ID_CHUNK = 500
+
+
+def _chunked(ids: list[int]) -> Iterable[list[int]]:
+    for start in range(0, len(ids), _ID_CHUNK):
+        yield ids[start : start + _ID_CHUNK]
+
+
+async def _article_stats(
+    session: AsyncSession, story_ids: list[int]
+) -> dict[int, tuple[int, datetime | None]]:
+    """story_id → (source article count, earliest publication date) for the given stories."""
+    stats: dict[int, tuple[int, datetime | None]] = {}
+    for chunk in _chunked(story_ids):
+        rows = await session.execute(
+            select(
+                Article.story_id,
+                func.count(Article.id),
+                func.min(Article.published_at),
+            )
+            .where(Article.story_id.in_(chunk))
+            .group_by(Article.story_id)
+        )
+        for story_id, count, first_published in rows.all():
+            stats[story_id] = (count, first_published)
+    return stats
+
+
+async def _article_urls(
+    session: AsyncSession, story_ids: list[int]
+) -> list[tuple[int | None, str]]:
+    rows: list[tuple[int | None, str]] = []
+    for chunk in _chunked(story_ids):
+        result = await session.execute(
+            select(Article.story_id, Article.url).where(Article.story_id.in_(chunk))
+        )
+        rows.extend((story_id, url) for story_id, url in result.all())
+    return rows
+
+
 @router.get("")
 async def list_stories(
     filter: str = Query(default="all", pattern="^(all|unread|updated)$"),
@@ -173,6 +214,9 @@ async def list_stories(
     feed: int | None = None,
     sort: str = Query(default="published", pattern="^(updated|published|sources)$"),
     order: str = Query(default="asc", pattern="^(asc|desc)$"),
+    # optional paging, applied after filtering and sorting; omitted = the full list
+    limit: int | None = Query(default=None, ge=1),
+    offset: int = Query(default=0, ge=0),
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[StoryListItem]:
@@ -229,45 +273,13 @@ async def list_stories(
             await session.scalars(select(StoryState).where(StoryState.user_id == user.id))
         ).all()
     }
-    stats: dict[int, tuple[int, datetime | None]] = {
-        story_id: (count, first_published)
-        for story_id, count, first_published in (
-            await session.execute(
-                select(
-                    Article.story_id,
-                    func.count(Article.id),
-                    func.min(Article.published_at),
-                ).group_by(Article.story_id)
-            )
-        ).all()
-    }
-    hosts = _source_hosts(
-        [
-            (story_id, url)
-            for story_id, url in (
-                await session.execute(
-                    select(Article.story_id, Article.url).where(
-                        Article.story_id.is_not(None)
-                    )
-                )
-            ).all()
-        ]
-    )
-
-    user_lang = user.summary_language or settings.summary_language
-    from app.services.translation import batch_get_translations
-
-    translations = await batch_get_translations(
-        session, [s.id for s in stories if s.id in user_story_ids], user_lang
-    )
-
-    out: list[StoryListItem] = []
+    selected: list[Story] = []
     for story in stories:
         if story.id not in user_story_ids:
             continue
         state = states.get(story.id)
         is_read, updated = _flags(state, story)
-        is_saved, saved_at = _saved_flag(state)
+        is_saved, _ = _saved_flag(state)
         if filter == "unread" and is_read:
             continue
         if filter == "updated" and not updated:
@@ -278,6 +290,39 @@ async def list_stories(
             continue
         if feed_story_ids is not None and story.id not in feed_story_ids:
             continue
+        selected.append(story)
+
+    # statistics are needed to sort; hosts and translations only for the returned page
+    stats = await _article_stats(session, [s.id for s in selected])
+    ordered = list(selected)
+    if sort == "published":
+        # article publication date; unknown dates always last regardless of order
+        def published_of(story: Story) -> datetime | None:
+            return stats.get(story.id, (0, None))[1]
+
+        ordered.sort(key=lambda s: (published_of(s) is not None, published_of(s)), reverse=True)
+        if not reverse:
+            known = [s for s in ordered if published_of(s) is not None]
+            ordered = known[::-1] + [s for s in ordered if published_of(s) is None]
+    elif sort == "sources":
+        ordered.sort(
+            key=lambda s: (stats.get(s.id, (0, None))[0], s.last_updated_at),
+            reverse=reverse,
+        )
+    page = ordered[offset : offset + limit] if limit is not None else ordered[offset:]
+    page_ids = [s.id for s in page]
+
+    hosts = _source_hosts(await _article_urls(session, page_ids))
+    user_lang = user.summary_language or settings.summary_language
+    from app.services.translation import batch_get_translations
+
+    translations = await batch_get_translations(session, page_ids, user_lang)
+
+    out: list[StoryListItem] = []
+    for story in page:
+        state = states.get(story.id)
+        is_read, updated = _flags(state, story)
+        is_saved, saved_at = _saved_flag(state)
         source_count, published_at = stats.get(story.id, (0, None))
         title = story.title
         summary = story.summary
@@ -310,14 +355,6 @@ async def list_stories(
                 readeck_bookmark_id=story.readeck_bookmark_id,
             )
         )
-    if sort == "published":
-        # article publication date; unknown dates always last regardless of order
-        out.sort(key=lambda s: (s.published_at is not None, s.published_at), reverse=True)
-        if not reverse:
-            known = [s for s in out if s.published_at is not None]
-            out = known[::-1] + [s for s in out if s.published_at is None]
-    elif sort == "sources":
-        out.sort(key=lambda s: (s.source_count, s.last_updated_at), reverse=reverse)
     return out
 
 

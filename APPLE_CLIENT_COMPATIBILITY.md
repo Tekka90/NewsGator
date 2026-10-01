@@ -10,7 +10,7 @@ activity, authentication, settings, and chat.
 | Native capability | Server contract |
 | --- | --- |
 | Login and first-run setup | `/api/auth/login`, `/api/auth/setup-needed`, `/api/auth/setup`; issued tokens belong in Keychain. |
-| Story browsing | `/api/stories` returns an array with integer IDs, one category, versions, per-user read state, and per-user saved state (`saved`, `saved_at`); there is no pagination envelope. `saved=true` filters to saved stories. |
+| Story browsing | `/api/stories` returns an array with integer IDs, one category, versions, per-user read state, and per-user saved state (`saved`, `saved_at`); there is no pagination envelope. `saved=true` filters to saved stories. Optional `limit` (≥1) and `offset` (≥0) page the filtered, sorted array; omitting them returns the full list. Source hosts and translations are computed only for the returned page. |
 | Reading and editorial actions | Story detail, read/unread, per-user save/unsave (`PUT`/`DELETE /api/stories/{id}/saved`), diff, similar/merge, article move/reprocess, share/translation and Readeck endpoints. |
 | In-app source browsing | Native apps embed publisher pages directly via `WKWebView` tabs; the Web app opens source links externally in new browser tabs due to publisher `X-Frame-Options` / CSP iframe restrictions. |
 | Non-admin browsing | `/api/stories/feed-options` and `/api/feeds`; stories are scoped to the user's subscribed feeds. |

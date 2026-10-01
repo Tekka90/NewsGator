@@ -188,7 +188,7 @@ next to the "Stories" title inside the sticky header so it never scrolls away
 deckmeta counter), and marking a story read
 in the desktop list smooth-scrolls down (`scrollPastStory`, desktop only) so
 the dimmed card slides out behind the header and the next story lands right
-under it. Source logos in card meta rows: `GET /api/stories` returns `source_hosts` (distinct article
+under it. Source logos in card meta rows: `GET /api/stories` (optional `limit`/`offset` paging; hosts and translations are computed only for the returned page) returns `source_hosts` (distinct article
 hosts per story, ≤5) and the GUI renders them via a cached, auth-protected
 favicon proxy `GET /api/favicon?host=` (`api/favicons.py`; `_fetch_favicon`
 is the monkeypatch seam; `FAVICON_CACHE_HOURS`, failures cached 1h) — never a
