@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, TypeDecorator
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, TypeDecorator
 from sqlalchemy.engine import Dialect
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -184,6 +184,8 @@ class Story(Base):
 
 class Article(Base):
     __tablename__ = "article"
+    # story_id sits after the large text columns, so unindexed lookups read through them
+    __table_args__ = (Index("ix_article_feed_story", "feed_id", "story_id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     feed_id: Mapped[int] = mapped_column(ForeignKey("feed.id"), index=True)
@@ -197,7 +199,9 @@ class Article(Base):
     language: Mapped[str] = mapped_column(String(8), default="")
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     category: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    story_id: Mapped[int | None] = mapped_column(ForeignKey("story.id"), nullable=True)
+    story_id: Mapped[int | None] = mapped_column(
+        ForeignKey("story.id"), nullable=True, index=True
+    )
     # Human-written intro extracted from the source newsletter (mail feeds only).
     # The LLM summary still drives embeddings/clustering (invariant 2), but a NEW
     # story created from this article shows this text instead (SPEC §4).
