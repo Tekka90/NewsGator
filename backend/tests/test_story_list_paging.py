@@ -65,3 +65,45 @@ async def test_invalid_paging_is_rejected(client: AsyncClient, db_session) -> No
     await setup_admin(client)
     assert (await client.get("/api/stories?limit=0")).status_code == 422
     assert (await client.get("/api/stories?offset=-1")).status_code == 422
+
+
+async def test_since_ranks_stories_by_recent_sources(client: AsyncClient, db_session) -> None:
+    await setup_admin(client)
+    now = datetime.now(UTC)
+    async with db_session() as s:
+        feed = Feed(url="https://since.example.com/rss", title="Since")
+        s.add(feed)
+        await s.flush()
+        s.add(UserFeed(user_id=1, feed_id=feed.id))
+        # (recent articles, old articles) per story
+        layouts = {"busy-old": (1, 5), "hot": (3, 0), "warm": (2, 0), "stale": (0, 4)}
+        ids: dict[str, int] = {}
+        for name, (recent, old) in layouts.items():
+            story = Story(title=name, summary="Summary", version=1)
+            s.add(story)
+            await s.flush()
+            ids[name] = story.id
+            for index in range(recent + old):
+                s.add(
+                    Article(
+                        feed_id=feed.id,
+                        guid=f"{name}-{index}",
+                        url=f"https://{name}{index}.example.com/",
+                        title=name,
+                        story_id=story.id,
+                        published_at=now - timedelta(hours=1 if index < recent else 72),
+                        processing_state="clustered",
+                    )
+                )
+        await s.commit()
+
+    since = (now - timedelta(hours=24)).isoformat().replace("+00:00", "Z")
+    response = await client.get(
+        "/api/stories", params={"sort": "sources", "order": "desc", "since": since}
+    )
+    assert response.status_code == 200
+    assert [story["title"] for story in response.json()] == ["hot", "warm", "busy-old"]
+
+    everything = await client.get("/api/stories", params={"sort": "sources", "order": "desc"})
+    assert everything.json()[0]["title"] == "busy-old"
+    assert (await client.get("/api/stories?since=nonsense")).status_code == 422

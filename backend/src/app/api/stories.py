@@ -193,6 +193,23 @@ async def _article_stats(
     return stats
 
 
+async def _recent_source_counts(
+    session: AsyncSession, story_ids: list[int], since: datetime
+) -> dict[int, int]:
+    """story_id → number of source articles published (else fetched) at or after ``since``."""
+    counts: dict[int, int] = {}
+    moment = func.coalesce(Article.published_at, Article.fetched_at)
+    for chunk in _chunked(story_ids):
+        rows = await session.execute(
+            select(Article.story_id, func.count(Article.id))
+            .where(Article.story_id.in_(chunk), moment >= since)
+            .group_by(Article.story_id)
+        )
+        for story_id, count in rows.all():
+            counts[story_id] = count
+    return counts
+
+
 async def _article_urls(
     session: AsyncSession, story_ids: list[int]
 ) -> list[tuple[int | None, str]]:
@@ -214,6 +231,9 @@ async def list_stories(
     feed: int | None = None,
     sort: str = Query(default="published", pattern="^(updated|published|sources)$"),
     order: str = Query(default="asc", pattern="^(asc|desc)$"),
+    # only stories with source articles published (else fetched) at or after this instant;
+    # with sort=sources the ranking counts only those recent sources
+    since: datetime | None = None,
     # optional paging, applied after filtering and sorting; omitted = the full list
     limit: int | None = Query(default=None, ge=1),
     offset: int = Query(default=0, ge=0),
@@ -294,6 +314,10 @@ async def list_stories(
 
     # statistics are needed to sort; hosts and translations only for the returned page
     stats = await _article_stats(session, [s.id for s in selected])
+    recent_counts: dict[int, int] = {}
+    if since is not None:
+        recent_counts = await _recent_source_counts(session, [s.id for s in selected], since)
+        selected = [s for s in selected if recent_counts.get(s.id, 0) > 0]
     ordered = list(selected)
     if sort == "published":
         # article publication date; unknown dates always last regardless of order
@@ -306,7 +330,10 @@ async def list_stories(
             ordered = known[::-1] + [s for s in ordered if published_of(s) is None]
     elif sort == "sources":
         ordered.sort(
-            key=lambda s: (stats.get(s.id, (0, None))[0], s.last_updated_at),
+            key=lambda s: (
+                recent_counts.get(s.id, 0) if since is not None else stats.get(s.id, (0, None))[0],
+                s.last_updated_at,
+            ),
             reverse=reverse,
         )
     page = ordered[offset : offset + limit] if limit is not None else ordered[offset:]
