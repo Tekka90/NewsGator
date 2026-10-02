@@ -222,6 +222,112 @@ async def _article_urls(
     return rows
 
 
+async def _user_feed_ids(session: AsyncSession, user: User) -> set[int]:
+    return set(
+        (await session.scalars(select(UserFeed.feed_id).where(UserFeed.user_id == user.id))).all()
+    )
+
+
+async def _story_ids_of_feeds(session: AsyncSession, feed_ids: set[int]) -> set[int]:
+    return {
+        story_id
+        for story_id in (
+            await session.scalars(
+                select(Article.story_id).where(
+                    Article.feed_id.in_(feed_ids), Article.story_id.is_not(None)
+                )
+            )
+        ).all()
+        if story_id is not None
+    }
+
+
+async def _story_items(
+    session: AsyncSession,
+    user: User,
+    page: list[Story],
+    states: dict[int, StoryState],
+    stats: dict[int, tuple[int, datetime | None]],
+) -> list[StoryListItem]:
+    """Build list items (hosts, translations, flags) for the given stories."""
+    page_ids = [s.id for s in page]
+
+    hosts = _source_hosts(await _article_urls(session, page_ids))
+    user_lang = user.summary_language or settings.summary_language
+    from app.services.translation import batch_get_translations
+
+    translations = await batch_get_translations(session, page_ids, user_lang)
+
+    out: list[StoryListItem] = []
+    for story in page:
+        state = states.get(story.id)
+        is_read, updated = _flags(state, story)
+        is_saved, saved_at = _saved_flag(state)
+        source_count, published_at = stats.get(story.id, (0, None))
+        title = story.title
+        summary = story.summary
+        story_lang = story.language or settings.summary_language
+        if user_lang != story_lang:
+            t = translations.get(story.id)
+            if t is not None and t[2] == story.version:
+                title, summary = t[0], t[1]
+            else:
+                from app.services.translation import enqueue_story_translation
+
+                enqueue_story_translation(story.id, [user_lang])
+        out.append(
+            StoryListItem(
+                id=story.id,
+                title=title,
+                summary=summary,
+                category=story.category,
+                image_url=story.image_url,
+                version=story.version,
+                is_frozen=story.is_frozen,
+                source_count=source_count,
+                source_hosts=hosts.get(story.id, []),
+                published_at=published_at,
+                last_updated_at=story.last_updated_at,
+                is_read=is_read,
+                updated_since_read=updated,
+                saved=is_saved,
+                saved_at=saved_at,
+                readeck_bookmark_id=story.readeck_bookmark_id,
+            )
+        )
+    return out
+
+
+def _order_stories(
+    selected: list[Story],
+    stats: dict[int, tuple[int, datetime | None]],
+    recent_counts: dict[int, int],
+    since: datetime | None,
+    sort: str,
+    reverse: bool,
+) -> list[Story]:
+    """Order stories by publication date, last update or source count."""
+    ordered = list(selected)
+    if sort == "published":
+        # article publication date; unknown dates always last regardless of order
+        def published_of(story: Story) -> datetime | None:
+            return stats.get(story.id, (0, None))[1]
+
+        ordered.sort(key=lambda s: (published_of(s) is not None, published_of(s)), reverse=True)
+        if not reverse:
+            known = [s for s in ordered if published_of(s) is not None]
+            ordered = known[::-1] + [s for s in ordered if published_of(s) is None]
+    elif sort == "sources":
+        ordered.sort(
+            key=lambda s: (
+                recent_counts.get(s.id, 0) if since is not None else stats.get(s.id, (0, None))[0],
+                s.last_updated_at,
+            ),
+            reverse=reverse,
+        )
+    return ordered
+
+
 @router.get("")
 async def list_stories(
     filter: str = Query(default="all", pattern="^(all|unread|updated)$"),
@@ -240,28 +346,13 @@ async def list_stories(
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[StoryListItem]:
-    user_feed_ids = set(
-        (
-            await session.scalars(
-                select(UserFeed.feed_id).where(UserFeed.user_id == user.id)
-            )
-        ).all()
-    )
+    user_feed_ids = await _user_feed_ids(session, user)
     if not user_feed_ids:
         return []
     if feed is not None and feed not in user_feed_ids:
         return []
 
-    user_story_ids = set(
-        (
-            await session.scalars(
-                select(Article.story_id).where(
-                    Article.feed_id.in_(user_feed_ids),
-                    Article.story_id.is_not(None),
-                )
-            )
-        ).all()
-    )
+    user_story_ids = await _story_ids_of_feeds(session, user_feed_ids)
     if not user_story_ids:
         return []
 
@@ -318,71 +409,9 @@ async def list_stories(
     if since is not None:
         recent_counts = await _recent_source_counts(session, [s.id for s in selected], since)
         selected = [s for s in selected if recent_counts.get(s.id, 0) > 0]
-    ordered = list(selected)
-    if sort == "published":
-        # article publication date; unknown dates always last regardless of order
-        def published_of(story: Story) -> datetime | None:
-            return stats.get(story.id, (0, None))[1]
-
-        ordered.sort(key=lambda s: (published_of(s) is not None, published_of(s)), reverse=True)
-        if not reverse:
-            known = [s for s in ordered if published_of(s) is not None]
-            ordered = known[::-1] + [s for s in ordered if published_of(s) is None]
-    elif sort == "sources":
-        ordered.sort(
-            key=lambda s: (
-                recent_counts.get(s.id, 0) if since is not None else stats.get(s.id, (0, None))[0],
-                s.last_updated_at,
-            ),
-            reverse=reverse,
-        )
+    ordered = _order_stories(selected, stats, recent_counts, since, sort, reverse)
     page = ordered[offset : offset + limit] if limit is not None else ordered[offset:]
-    page_ids = [s.id for s in page]
-
-    hosts = _source_hosts(await _article_urls(session, page_ids))
-    user_lang = user.summary_language or settings.summary_language
-    from app.services.translation import batch_get_translations
-
-    translations = await batch_get_translations(session, page_ids, user_lang)
-
-    out: list[StoryListItem] = []
-    for story in page:
-        state = states.get(story.id)
-        is_read, updated = _flags(state, story)
-        is_saved, saved_at = _saved_flag(state)
-        source_count, published_at = stats.get(story.id, (0, None))
-        title = story.title
-        summary = story.summary
-        story_lang = story.language or settings.summary_language
-        if user_lang != story_lang:
-            t = translations.get(story.id)
-            if t is not None and t[2] == story.version:
-                title, summary = t[0], t[1]
-            else:
-                from app.services.translation import enqueue_story_translation
-
-                enqueue_story_translation(story.id, [user_lang])
-        out.append(
-            StoryListItem(
-                id=story.id,
-                title=title,
-                summary=summary,
-                category=story.category,
-                image_url=story.image_url,
-                version=story.version,
-                is_frozen=story.is_frozen,
-                source_count=source_count,
-                source_hosts=hosts.get(story.id, []),
-                published_at=published_at,
-                last_updated_at=story.last_updated_at,
-                is_read=is_read,
-                updated_since_read=updated,
-                saved=is_saved,
-                saved_at=saved_at,
-                readeck_bookmark_id=story.readeck_bookmark_id,
-            )
-        )
-    return out
+    return await _story_items(session, user, page, states, stats)
 
 
 class FeedOption(BaseModel):
@@ -396,6 +425,73 @@ class FeedOption(BaseModel):
 
 
 # Declared before /{story_id} so the literal path wins over the int param.
+class WidgetSnapshotOut(BaseModel):
+    # unread stories visible to the user, before any limit
+    unread_count: int
+    # list name → stories; names: latest, latest_unread, oldest, oldest_unread,
+    # most_sources, most_sources_unread
+    lists: dict[str, list[StoryListItem]]
+
+
+@router.get("/widget-snapshot")
+async def widget_snapshot(
+    # sources are counted over this trailing window for the most_sources lists
+    since: datetime,
+    limit: int = Query(default=12, ge=1, le=50),
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> WidgetSnapshotOut:
+    """Everything the home-screen widgets show, computed in one pass for the requesting user."""
+    names = (
+        "latest", "latest_unread", "oldest", "oldest_unread", "most_sources", "most_sources_unread"
+    )
+    empty = WidgetSnapshotOut(unread_count=0, lists={name: [] for name in names})
+    user_feed_ids = await _user_feed_ids(session, user)
+    if not user_feed_ids:
+        return empty
+    user_story_ids = await _story_ids_of_feeds(session, user_feed_ids)
+    if not user_story_ids:
+        return empty
+
+    stories = [
+        story
+        for story in (await session.scalars(select(Story))).all()
+        if story.id in user_story_ids
+    ]
+    states = {
+        s.story_id: s
+        for s in (
+            await session.scalars(select(StoryState).where(StoryState.user_id == user.id))
+        ).all()
+    }
+    stats = await _article_stats(session, [s.id for s in stories])
+    recent_counts = await _recent_source_counts(session, [s.id for s in stories], since)
+    unread = [s for s in stories if not _flags(states.get(s.id), s)[0]]
+    recent = [s for s in stories if recent_counts.get(s.id, 0) > 0]
+    recent_unread = [s for s in recent if not _flags(states.get(s.id), s)[0]]
+
+    def top(pool: list[Story], sort: str, reverse: bool) -> list[Story]:
+        return _order_stories(pool, stats, recent_counts, since, sort, reverse)[:limit]
+
+    chosen = {
+        "latest": top(stories, "published", True),
+        "latest_unread": top(unread, "published", True),
+        "oldest": top(stories, "published", False),
+        "oldest_unread": top(unread, "published", False),
+        "most_sources": top(recent, "sources", True),
+        "most_sources_unread": top(recent_unread, "sources", True),
+    }
+    union = {story.id: story for pool in chosen.values() for story in pool}
+    items = {
+        item.id: item
+        for item in await _story_items(session, user, list(union.values()), states, stats)
+    }
+    return WidgetSnapshotOut(
+        unread_count=len(unread),
+        lists={name: [items[s.id] for s in pool] for name, pool in chosen.items()},
+    )
+
+
 @router.get("/feed-options")
 async def feed_options(
     user: User = Depends(current_user),

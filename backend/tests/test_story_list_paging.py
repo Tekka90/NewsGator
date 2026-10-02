@@ -107,3 +107,22 @@ async def test_since_ranks_stories_by_recent_sources(client: AsyncClient, db_ses
     everything = await client.get("/api/stories", params={"sort": "sources", "order": "desc"})
     assert everything.json()[0]["title"] == "busy-old"
     assert (await client.get("/api/stories?since=nonsense")).status_code == 422
+
+
+async def test_widget_snapshot_returns_every_list_in_one_call(
+    client: AsyncClient, db_session
+) -> None:
+    await setup_admin(client)
+    ids = await _seed(db_session, 5)
+    since = (datetime.now(UTC) - timedelta(hours=24)).isoformat().replace("+00:00", "Z")
+
+    response = await client.get("/api/stories/widget-snapshot", params={"since": since, "limit": 2})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["unread_count"] == 5
+    assert [s["id"] for s in body["lists"]["latest"]] == [ids[4], ids[3]]
+    assert [s["id"] for s in body["lists"]["oldest_unread"]] == [ids[0], ids[1]]
+    assert body["lists"]["most_sources"] == []  # the seeded articles are older than the window
+    assert body["lists"]["latest"][0]["source_hosts"] == ["host4.example.com"]
+
+    assert (await client.get("/api/stories/widget-snapshot")).status_code == 422
