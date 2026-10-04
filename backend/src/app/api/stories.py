@@ -1,6 +1,7 @@
 """Stories API (SPEC §6): list with per-user flags, detail, read/unread, diff,
 manual merge/move (logged as labeled pairs — invariant 9)."""
 
+from collections import Counter
 from collections.abc import Iterable
 from datetime import UTC, datetime
 
@@ -489,6 +490,79 @@ async def widget_snapshot(
     return WidgetSnapshotOut(
         unread_count=len(unread),
         lists={name: [items[s.id] for s in pool] for name, pool in chosen.items()},
+    )
+
+
+class FacetCount(BaseModel):
+    key: str
+    count: int
+
+
+class StoryFacetsOut(BaseModel):
+    """Story counts per category and per feed under the current list filter."""
+
+    categories: list[FacetCount]
+    feeds: list[FacetCount]
+
+
+@router.get("/facets")
+async def story_facets(
+    filter: str = Query(default="all", pattern="^(all|unread|updated)$"),
+    saved: bool = False,
+    category: str | None = None,
+    feed: int | None = None,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> StoryFacetsOut:
+    """Counts shown beside each category and feed in the filter menu.
+
+    Category counts honour the selected feed and feed counts honour the selected
+    category, so every menu entry shows what picking it would return.
+    """
+    empty = StoryFacetsOut(categories=[], feeds=[])
+    user_feed_ids = await _user_feed_ids(session, user)
+    if not user_feed_ids:
+        return empty
+    pairs = (
+        await session.execute(
+            select(Article.feed_id, Article.story_id)
+            .where(Article.feed_id.in_(user_feed_ids), Article.story_id.is_not(None))
+            .distinct()
+        )
+    ).all()
+    feeds_of: dict[int, set[int]] = {}
+    for feed_id, story_id in pairs:
+        feeds_of.setdefault(story_id, set()).add(feed_id)
+    if not feeds_of:
+        return empty
+    states = {
+        s.story_id: s
+        for s in (
+            await session.scalars(select(StoryState).where(StoryState.user_id == user.id))
+        ).all()
+    }
+    category_counts: Counter[str] = Counter()
+    feed_counts: Counter[int] = Counter()
+    for story in (await session.scalars(select(Story))).all():
+        story_feeds = feeds_of.get(story.id)
+        if not story_feeds:
+            continue
+        state = states.get(story.id)
+        is_read, updated = _flags(state, story)
+        is_saved, _ = _saved_flag(state)
+        if (
+            (filter == "unread" and is_read)
+            or (filter == "updated" and not updated)
+            or (saved and not is_saved)
+        ):
+            continue
+        if feed is None or feed in story_feeds:
+            category_counts[story.category] += 1
+        if not category or story.category == category:
+            feed_counts.update(story_feeds)
+    return StoryFacetsOut(
+        categories=[FacetCount(key=k, count=c) for k, c in sorted(category_counts.items())],
+        feeds=[FacetCount(key=str(k), count=c) for k, c in sorted(feed_counts.items())],
     )
 
 
