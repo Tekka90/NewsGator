@@ -73,11 +73,7 @@
 
   function toggleTheme(themeId: string) {
     customQuery = '';
-    if (selectedThemes.includes(themeId)) {
-      selectedThemes = selectedThemes.filter((t) => t !== themeId);
-    } else {
-      selectedThemes = [...selectedThemes, themeId];
-    }
+    selectedThemes = selectedThemes.includes(themeId) ? [] : [themeId];
   }
 
   async function handleResearch(proposeMore = false) {
@@ -275,7 +271,7 @@
         <div class="field">
           <span class="label">
             <strong>Themes & Categories</strong>
-            <span class="hint">(select one or more, or use Other below)</span>
+            <span class="hint">(pick one, or use Other below)</span>
           </span>
           <div class="theme-grid">
             {#each THEMES as theme (theme.id)}
