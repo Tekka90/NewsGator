@@ -116,7 +116,14 @@ async def discover_feeds(
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ) -> FeedDiscoveryOut:
-    """Discover candidate RSS/Atom feeds using catalog search or multi-turn LLM research."""
+    """Discover candidate feeds from curated topics, news mentions or LLM suggestions."""
+    followed = (
+        await session.scalars(
+            select(Feed.url).join(UserFeed, UserFeed.feed_id == Feed.id).where(
+                UserFeed.user_id == user.id
+            )
+        )
+    ).all()
     results = await discovery.discover_feeds(
         session,
         location=body.location,
@@ -124,7 +131,7 @@ async def discover_feeds(
         query=body.query,
         mode=body.mode,
         locale=body.locale,
-        excluded_urls=body.excluded_urls,
+        excluded_urls=[*body.excluded_urls, *followed],
         lang_code=user.summary_language,
     )
     return FeedDiscoveryOut(feeds=[DiscoveredFeed.model_validate(f) for f in results])

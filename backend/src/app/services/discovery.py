@@ -1,113 +1,41 @@
-"""LLM-driven & Catalog-driven feed discovery service.
+"""Feed discovery service (aligned with the Apple standalone pipeline).
 
-Supports two distinct discovery modes:
-1. Catalog Search (Deterministic):
-   Direct directory catalog lookup using #topic tags or city/region keywords with locale,
-   sorted strictly by subscribers descending. Zero AI required.
-2. Smart Search (AI):
-   Multi-turn LLM query formulation and synthesis to discover authoritative, local,
-   and independent media outlets and publisher domains.
+Leads come from three independent sources that are merged and ranked:
+- the feed directory's curated topic lists (see `feed_directory`), or its keyword search for
+  free text no topic matches;
+- publishers mentioned by Google News for the same terms;
+- in "smart" mode, publications suggested by the configured LLM.
+
+Every lead is then verified live: the feed must parse, be recent, be in the requested
+language, and (when it did not come from a curated list) cover the requested topic.
+Feeds the user already follows and duplicates are never returned.
 """
 
 import asyncio
+import calendar
 import concurrent.futures
+import math
 import re
+import time
+from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
 import anyio
 import feedparser
 import httpx
+from langdetect import detect
+from langdetect.lang_detect_exception import LangDetectException
 from lxml import html as lxml_html
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.services import activity, llm_client, llmtrace, prompts, usage
+from app.services import activity, feed_directory, llm_client, llmtrace, prompts, usage
 
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 NewsGator/0.1"
 )
-
-
-def _resolve_country_code(loc: str) -> str | None:
-    """Resolve location to standard ISO country code dynamically using babel."""
-    if not loc:
-        return None
-    loc_clean = loc.strip().lower()
-    try:
-        import babel
-
-        for lang in ("en", "fr", "de", "es", "it"):
-            locale = babel.Locale(lang)
-            for code, name in locale.territories.items():
-                if len(code) == 2 and name.lower() == loc_clean:
-                    return str(code)
-    except Exception:
-        pass
-    return None
-
-
-async def _search_catalog(
-    query: str,
-    locale: str | None = None,
-    count: int = 20,
-) -> list[dict[str, Any]]:
-    """Query directory catalog API for candidate feeds."""
-    clean = query.strip()
-    if not clean:
-        return []
-    params: dict[str, Any] = {"query": clean, "count": count}
-    if locale:
-        params["locale"] = locale
-    try:
-        async with httpx.AsyncClient(
-            headers={"User-Agent": USER_AGENT},
-            follow_redirects=True,
-            timeout=5.0,
-        ) as client:
-            resp = await client.get("https://cloud.feedly.com/v3/search/feeds", params=params)
-            if resp.status_code == 200:
-                data = resp.json()
-                results = data.get("results")
-                if isinstance(results, list):
-                    return [r for r in results if isinstance(r, dict)]
-    except Exception:
-        pass
-    return []
-
-
-def _extract_catalog_candidate(item: dict[str, Any]) -> dict[str, Any] | None:
-    """Extract and validate feed metadata from a directory catalog item."""
-    feed_id = str(item.get("feedId") or item.get("id") or "").strip()
-    url = feed_id[5:] if feed_id.startswith("feed/") else feed_id
-    if not url.startswith(("http://", "https://")):
-        return None
-    if url.startswith("http://"):
-        url = "https://" + url[7:]
-    parsed = urlparse(url)
-    if not parsed.netloc or any(
-        b in parsed.netloc.lower()
-        for b in ("google.", "youtube.", "duckduckgo.", "bing.", "yahoo.")
-    ):
-        return None
-
-    site_url = str(item.get("website") or f"https://{parsed.netloc}").strip()
-    if site_url.startswith("http://"):
-        site_url = "https://" + site_url[7:]
-    subscribers = int(item.get("subscribers") or 0)
-    title = str(item.get("title") or parsed.netloc).strip()
-    desc = str(item.get("description") or "").strip()
-    icon = item.get("iconUrl") or item.get("visualUrl")
-
-    return {
-        "url": url,
-        "title": title,
-        "site_url": site_url,
-        "description": desc,
-        "subscribers": subscribers,
-        "icon_url": str(icon).strip() if icon else None,
-    }
 
 
 async def _search_feedsearch(domain_or_url: str) -> list[str]:
@@ -135,80 +63,6 @@ async def _search_feedsearch(domain_or_url: str) -> list[str]:
     except Exception:
         pass
     return []
-
-
-def _catalog_tag(theme: str) -> str:
-    """Normalize a theme into a directory catalog tag."""
-    t = theme.lower().strip()
-    if "artif" in t or t == "ai":
-        return "artificialintelligence"
-    if "cyber" in t or "secur" in t:
-        return "cybersecurity"
-    if "tech" in t:
-        return "tech"
-    if "game" in t or "gaming" in t:
-        return "gaming"
-    if "sci" in t:
-        return "science"
-    if "health" in t:
-        return "health"
-    if "politic" in t:
-        return "politics"
-    if "finan" in t:
-        return "finance"
-    if "busin" in t:
-        return "business"
-    if "sport" in t:
-        return "sports"
-    if "env" in t or "climat" in t:
-        return "environment"
-    if "cult" in t:
-        return "culture"
-    if "news" in t:
-        return "news"
-    clean = "".join(c for c in t if c.isalnum())
-    return clean or "news"
-
-
-async def _search_directory_feeds(
-    location: str = "",
-    themes: list[str] | None = None,
-    query: str = "",
-    locale: str | None = None,
-) -> list[str]:
-    """Query open feed directory / Feedsearch for candidate feeds matching location or themes."""
-    results: list[str] = []
-    q_clean = query.strip()
-    loc_clean = location.strip()
-
-    # 1 search = 1 API call! Country selection is ONLY passed as locale, never as query.
-    if q_clean:
-        catalog_query = q_clean
-    elif themes:
-        tags = " ".join(f"#{_catalog_tag(t)}" for t in themes if t.strip())
-        catalog_query = (
-            f"{tags} {loc_clean}".strip()
-            if loc_clean and loc_clean.lower() not in ("global", "worldwide")
-            else tags
-        )
-    elif loc_clean and loc_clean.lower() not in ("global", "worldwide"):
-        catalog_query = loc_clean
-    else:
-        catalog_query = "#news"
-
-    cat_items = await _search_catalog(catalog_query, locale=locale, count=20)
-    for it in cat_items:
-        cand = _extract_catalog_candidate(it)
-        if cand and cand["url"] not in results:
-            results.append(cand["url"])
-
-    for t in (q_clean, loc_clean):
-        if "." in t and not t.startswith("http") and " " not in t and not t.startswith("#"):
-            fs_urls = await _search_feedsearch(t)
-            for u in fs_urls:
-                if u not in results:
-                    results.append(u)
-    return results
 
 
 def _clean_feed_title(raw: str) -> str:
@@ -337,8 +191,15 @@ def _parse_feed_sync(url: str, html_paywalled: bool = False) -> dict[str, Any] |
             if e.get("title")
         ]
 
+        stamps = [
+            calendar.timegm(t)
+            for e in entries
+            if (t := e.get("published_parsed") or e.get("updated_parsed"))
+        ]
+
         return {
             "url": url,
+            "newest_ts": float(max(stamps)) if stamps else None,
             "title": str(title).strip() or urlparse(url).netloc,
             "site_url": str(site_url).strip() or f"https://{urlparse(url).netloc}",
             "description": str(desc).strip(),
@@ -423,32 +284,298 @@ async def _probe_url(url: str) -> dict[str, Any] | None:
     return None
 
 
-async def _translate_topic_tag(theme: str, locale: str | None, allow_llm: bool = False) -> str:
-    """Translate theme keyword to localized tag using LLM if requested/available, else clean tag."""
-    t_clean = theme.strip().lower().replace(" ", "").replace("&", "")
-    if not allow_llm or not locale:
-        return t_clean
-    lang = locale.split("_")[0].lower() if "_" in locale else locale.lower()
-    if lang == "en":
-        return t_clean
-    if llm_client.is_configured():
+# --- discovery pipeline ---------------------------------------------------------------
+
+MAX_LEADS = 60
+TARGET_RESULTS = 30
+PROBE_CONCURRENCY = 6
+MAX_NEWS_HOSTS = 25
+STALE_DAYS = 180
+FRESH_DAYS = 30
+BLOCKED_HOSTS = ("google.", "youtube.", "facebook.", "twitter.", "duckduckgo.", "bing.", "yahoo.")
+NEWS_URL = "https://news.google.com/rss/search"
+
+
+@dataclass
+class _Lead:
+    site_url: str
+    feed_url: str | None = None
+    title: str = ""
+    description: str = ""
+    subscribers: int = 0
+    language: str | None = None
+    icon_url: str | None = None
+    curated: bool = False
+    mentions: int = 0
+    terms_matched: int = 0
+    sources: set[str] = field(default_factory=set)
+    pre_score: float = 0.0
+
+
+def feed_key(url: str) -> str:
+    """Identity of a feed: scheme, `www.`, case, trailing slash and fragment are ignored."""
+    p = urlparse(url.strip())
+    key = f"{p.netloc.lower().removeprefix('www.')}{p.path.rstrip('/')}"
+    return f"{key}?{p.query}" if p.query else key
+
+
+def site_key(url_or_host: str) -> str:
+    host = urlparse(url_or_host).netloc if "://" in url_or_host else url_or_host
+    return host.lower().removeprefix("www.")
+
+
+def _blocked(host: str) -> bool:
+    h = host.lower()
+    return (
+        not h
+        or any(b in h for b in BLOCKED_HOSTS)
+        or h in ("x.com", "www.x.com")
+        or h.endswith(".x.com")
+        or "reddit." in h
+    )
+
+
+def _https(url: str) -> str:
+    return "https://" + url[7:] if url.startswith("http://") else url
+
+
+def _directory_lead(item: dict[str, Any], curated: bool) -> _Lead | None:
+    feed_id = str(item.get("feed_id") or "")
+    url = _https(feed_id[5:] if feed_id.startswith("feed/") else feed_id)
+    host = urlparse(url).netloc
+    if not url.startswith("https://") or _blocked(host):
+        return None
+    site = _https(str(item.get("website") or f"https://{host}"))
+    lang = item.get("language")
+    return _Lead(
+        site_url=site,
+        feed_url=url,
+        title=str(item.get("title") or ""),
+        description=str(item.get("description") or ""),
+        subscribers=int(item.get("subscribers") or 0),
+        language=str(lang).lower()[:2] if lang else None,
+        icon_url=str(item["icon_url"]) if item.get("icon_url") else None,
+        curated=curated,
+        sources={"directory"},
+    )
+
+
+async def _directory_leads(
+    themes: list[str], text: str, language: str | None
+) -> tuple[list[_Lead], int]:
+    """Leads from curated topics (or the keyword search fallback) and the number of terms."""
+    batches: list[tuple[list[dict[str, Any]], bool]] = []
+    if themes:
+        for theme in themes:
+            topic = feed_directory.CATEGORY_TOPICS.get(theme)
+            if topic:
+                batches.append((await feed_directory.topic_feeds(topic, language), True))
+            else:
+                batches.append((await feed_directory.search_feeds(theme, language, 100), False))
+    else:
+        for topic in feed_directory.focus_topics(text):
+            batches.append((await feed_directory.topic_feeds(topic, language), True))
+        if not any(items for items, _ in batches) and text:
+            batches = [(await feed_directory.search_feeds(text, language, 100), False)]
+    by_key: dict[str, _Lead] = {}
+    for items, curated in batches:
+        for item in items:
+            lead = _directory_lead(item, curated)
+            if lead is None or lead.feed_url is None:
+                continue
+            existing = by_key.get(feed_key(lead.feed_url))
+            if existing is None:
+                lead.terms_matched = 1
+                by_key[feed_key(lead.feed_url)] = lead
+            else:
+                existing.terms_matched += 1
+                existing.curated = existing.curated or curated
+    return list(by_key.values()), max(len(batches), 1)
+
+
+async def _translate_term(
+    session: AsyncSession, term: str, language: str | None
+) -> str:
+    """Translate a search term to the edition language; falls back to the original."""
+    if not language or language == "en" or not llm_client.is_configured():
+        return term
+    system, user = prompts.discovery_translate_term(term, language)
+    try:
+        with llmtrace.context("discovery_translate", label=f"Translate '{term}'"):
+            parsed, latency = await llm_client.chat_json(system, user)
+        usage.record(
+            session,
+            kind="discovery_translate",
+            endpoint="chat",
+            model=settings.llm_model,
+            latency_ms=latency,
+            prompt_chars=len(system) + len(user),
+            completion_chars=len(str(parsed)),
+        )
+        value = str(parsed.get("term") or "").strip() if isinstance(parsed, dict) else ""
+        return value or term
+    except Exception:
+        return term
+
+
+def _parse_news_sources(text: str) -> dict[str, tuple[int, str]]:
+    """host -> (mention count, publisher name) from a news RSS result list."""
+    counts: dict[str, tuple[int, str]] = {}
+    for entry in feedparser.parse(text).entries:
+        source = entry.get("source")
+        href = source.get("href") if isinstance(source, dict) else None
+        if not isinstance(href, str):
+            continue
+        host = site_key(href)
+        if _blocked(host):
+            continue
+        n, name = counts.get(host, (0, ""))
+        counts[host] = (n + 1, name or str(source.get("title") or ""))
+    return counts
+
+
+async def _news_mentions(term: str, language: str, country: str) -> dict[str, tuple[int, str]]:
+    params = {"q": term, "hl": language, "gl": country, "ceid": f"{country}:{language}"}
+    try:
+        async with httpx.AsyncClient(
+            headers={"User-Agent": USER_AGENT}, follow_redirects=True, timeout=8.0
+        ) as client:
+            resp = await client.get(NEWS_URL, params=params)
+        if resp.status_code != 200:
+            return {}
+        return await anyio.to_thread.run_sync(_parse_news_sources, resp.text)
+    except Exception:
+        return {}
+
+
+def _merge_news(leads: list[_Lead], mentions: dict[str, tuple[int, str]]) -> list[_Lead]:
+    """Add news mentions to matching directory leads; unmatched publishers become new leads."""
+    ranked = sorted(mentions.items(), key=lambda kv: kv[1][0], reverse=True)[:MAX_NEWS_HOSTS]
+    for host, (count, name) in ranked:
+        matched = False
+        for lead in leads:
+            if site_key(lead.site_url) == host or (
+                lead.feed_url and site_key(lead.feed_url) == host
+            ):
+                lead.mentions += count
+                lead.sources.add("news")
+                matched = True
+        if not matched:
+            leads.append(
+                _Lead(site_url=f"https://{host}", title=name, mentions=count, sources={"news"})
+            )
+    return leads
+
+
+async def _suggested_leads(
+    session: AsyncSession, request: str, lang_code: str | None, country: str | None
+) -> list[_Lead]:
+    system, user = prompts.discovery_suggest_feeds(request, lang_code, country)
+    try:
+        with llmtrace.context("discovery_suggest", label=f"Feed suggestions for {request[:60]}"):
+            parsed, latency = await llm_client.chat_json(system, user)
+    except Exception:
+        return []
+    usage.record(
+        session,
+        kind="discovery_suggest",
+        endpoint="chat",
+        model=settings.llm_model,
+        latency_ms=latency,
+        prompt_chars=len(system) + len(user),
+        completion_chars=len(str(parsed)),
+    )
+    items = parsed.get("suggestions") if isinstance(parsed, dict) else None
+    leads: list[_Lead] = []
+    for item in items if isinstance(items, list) else []:
+        if not isinstance(item, dict):
+            continue
+        site = _https(str(item.get("website") or "").strip())
+        feed = _https(str(item.get("feed_url") or "").strip())
+        if not site.startswith("https://") or _blocked(urlparse(site).netloc):
+            continue
+        leads.append(
+            _Lead(
+                site_url=site,
+                feed_url=feed if feed.startswith("https://") else None,
+                title=str(item.get("name") or ""),
+                sources={"ai"},
+            )
+        )
+    return leads
+
+
+def _pre_score(lead: _Lead, max_mentions: int, term_count: int) -> float:
+    score = 1.0 if {"directory", "news"} <= lead.sources else 0.0
+    score += 1.5 * lead.mentions / max_mentions
+    score += 1.0 * lead.terms_matched / term_count
+    score += 3.0 * min(1.0, math.log10(lead.subscribers + 1) / 6)
+    return score
+
+
+async def _probe_lead(lead: _Lead) -> dict[str, Any] | None:
+    urls = [u for u in (lead.feed_url, lead.site_url) if u]
+    if len(urls) == 2 and feed_key(urls[0]) == feed_key(urls[1]):
+        urls = urls[:1]
+    for url in urls:
+        res = await _probe_url(url)
+        if res is not None:
+            return res
+    return None
+
+
+def _language_matches(lead: _Lead, res: dict[str, Any], language: str | None) -> bool:
+    if not language:
+        return True
+    declared = lead.language
+    if declared is None:
+        text = " ".join(res.get("sample_titles") or [])
+        if len(text) < 20:
+            return True
         try:
-            sys_prompt = (
-                "Translate this single news category keyword to a single-word lowercase "
-                "topic tag in the requested language without spaces, punctuation, or accents."
-            )
-            user_prompt = (
-                f"Category: {theme}\nTarget language ISO code: {lang}\n"
-                'Output JSON: {"tag": "word"}'
-            )
-            parsed, _ = await llm_client.chat_json(sys_prompt, user_prompt)
-            if isinstance(parsed, dict) and parsed.get("tag"):
-                tag = str(parsed["tag"]).strip().lower().replace(" ", "").replace("#", "")
-                if tag:
-                    return tag
-        except Exception:
-            pass
-    return t_clean
+            declared = detect(text).lower()[:2]
+        except LangDetectException:
+            return True
+    return declared == language
+
+
+async def _covers_topic(
+    session: AsyncSession, terms: list[str], res: dict[str, Any], lead: _Lead
+) -> bool:
+    if lead.curated or not terms or not llm_client.is_configured():
+        return True
+    system, user = prompts.discovery_topic_check(
+        terms,
+        str(res.get("title") or lead.title),
+        str(res.get("description") or lead.description),
+        list(res.get("sample_titles") or []),
+    )
+    try:
+        with llmtrace.context("discovery_topic_check", label=str(res.get("title"))[:80]):
+            parsed, latency = await llm_client.chat_json(system, user)
+    except Exception:
+        return True
+    usage.record(
+        session,
+        kind="discovery_topic_check",
+        endpoint="chat",
+        model=settings.llm_model,
+        latency_ms=latency,
+        prompt_chars=len(system) + len(user),
+        completion_chars=len(str(parsed)),
+    )
+    return not (isinstance(parsed, dict) and parsed.get("covers") is False)
+
+
+def _country_name(language: str | None, country: str | None) -> str | None:
+    if not country:
+        return None
+    try:
+        import babel
+
+        return str(babel.Locale(language or "en").territories.get(country)) or None
+    except Exception:
+        return None
 
 
 async def discover_feeds(
@@ -462,14 +589,19 @@ async def discover_feeds(
     excluded_urls: list[str] | None = None,
     lang_code: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Execute dual-mode feed discovery (Catalog Search or Smart Search) with live verification."""
-    themes = themes or []
-    loc_clean = location.strip()
-    q_clean = query.strip()
-    excluded_set = set(excluded_urls or [])
-    excluded_domains = {urlparse(u).netloc.lower() for u in excluded_set if urlparse(u).netloc}
+    """Find, verify and rank feeds for categories or a free-text request.
 
-    use_smart = (mode == "smart") and llm_client.is_configured()
+    `themes` (category names) and free text are exclusive: categories win when both are sent.
+    `excluded_urls` are never returned (feeds the user already follows, plus any the client
+    adds). Language and country come from `locale` (e.g. `fr_FR`).
+    """
+    themes = [t.strip() for t in (themes or []) if t.strip()]
+    text = "" if themes else (query.strip() or location.strip())
+    lang_part, _, region = (locale or "").replace("-", "_").partition("_")
+    language = lang_part.lower() or None
+    country = region.upper() or None
+    terms = themes or ([text] if text else [])
+    use_smart = mode == "smart" and llm_client.is_configured() and bool(terms)
 
     await activity.emit(
         session,
@@ -477,419 +609,107 @@ async def discover_feeds(
         action="discover_start",
         detail={
             "mode": "smart" if use_smart else "catalog",
-            "location": loc_clean,
             "themes": themes,
-            "query": q_clean,
+            "query": text,
             "locale": locale,
         },
     )
 
-    is_global = not loc_clean or loc_clean.lower() in ("global", "worldwide")
-    scope_level = "global" if is_global else "region"
-    country_code = _resolve_country_code(loc_clean)
-
-    loc_words = [w for w in re.findall(r"\w+", loc_clean.lower()) if len(w) >= 3]
-    theme_words = [w for t in themes for w in re.findall(r"\w+", t.lower()) if len(w) >= 3]
-    q_words = [w for w in re.findall(r"\w+", q_clean.lower()) if len(w) >= 2]
-
-    candidates_to_probe: list[dict[str, Any]] = []
-    seen_urls: set[str] = set(excluded_set)
-    seen_domains: set[str] = set(excluded_domains)
-
-    # Mode 1: Catalog Search (Deterministic, Directory-based)
-    if not use_smart:
-        catalog_tasks: list[asyncio.Task[list[dict[str, Any]]]] = []
-
-        if q_clean:
-            catalog_tasks.append(
-                asyncio.create_task(_search_catalog(q_clean, locale=locale, count=15))
-            )
-        if loc_clean and loc_clean.lower() not in ("global", "worldwide"):
-            catalog_tasks.append(
-                asyncio.create_task(_search_catalog(loc_clean, locale=locale, count=15))
-            )
-
-        for t in themes:
-            tag = await _translate_topic_tag(t, locale)
-            catalog_tasks.append(
-                asyncio.create_task(_search_catalog(f"#{tag}", locale=locale, count=15))
-            )
-
-        if not catalog_tasks:
-            catalog_tasks.append(
-                asyncio.create_task(_search_catalog("news", locale=locale, count=15))
-            )
-
-        catalog_results = await asyncio.gather(*catalog_tasks, return_exceptions=True)
-
-        for res in catalog_results:
-            if isinstance(res, list):
-                for item in res:
-                    cand = _extract_catalog_candidate(item)
-                    if not cand:
-                        continue
-                    u = cand["url"]
-                    dom = urlparse(u).netloc.lower()
-                    if u not in seen_urls and dom not in seen_domains:
-                        seen_urls.add(u)
-                        seen_domains.add(dom)
-                        candidates_to_probe.append(cand)
-
-        if len(candidates_to_probe) < 10:
-            try:
-                dir_urls = await _search_directory_feeds(
-                    location=loc_clean, themes=themes, query=q_clean, locale=locale
-                )
-            except TypeError:
-                dir_urls = await _search_directory_feeds(
-                    location=loc_clean, themes=themes, query=q_clean
-                )
-            for u in dir_urls:
-                dom = urlparse(u).netloc.lower()
-                if u not in seen_urls and dom not in seen_domains:
-                    seen_urls.add(u)
-                    seen_domains.add(dom)
-                    candidates_to_probe.append(
-                        {
-                            "url": u,
-                            "title": dom,
-                            "site_url": f"https://{dom}",
-                            "description": "",
-                            "subscribers": 0,
-                            "icon_url": None,
-                        }
-                    )
-
-        candidates_to_probe.sort(key=lambda c: int(c.get("subscribers") or 0), reverse=True)
-
-    # Mode 2: Smart Search (LLM-driven)
-    else:
-        candidate_urls: list[str] = []
-        suggested_domains: list[str] = []
-
-        llmtrace.context("discover_queries", label=f"Discovery queries for {themes or 'all'}")
-        sys_prompt, usr_prompt = prompts.discovery_queries(
-            loc_clean, themes, q_clean, lang_code=lang_code
-        )
-
-        try:
-            parsed_q, latency = await llm_client.chat_json(sys_prompt, usr_prompt)
-            usage.record(
-                session,
-                kind="discovery_queries",
-                endpoint="chat",
-                model=settings.llm_model,
-                latency_ms=latency,
-                prompt_chars=len(sys_prompt) + len(usr_prompt),
-                completion_chars=len(str(parsed_q)),
-            )
-            if isinstance(parsed_q, dict):
-                if parsed_q.get("scope_level") in (
-                    "city",
-                    "region",
-                    "country",
-                    "continent",
-                    "global",
-                ):
-                    scope_level = parsed_q["scope_level"]
-                for d in parsed_q.get("suggested_domains", []):
-                    if isinstance(d, str) and d.strip():
-                        suggested_domains.append(d.strip())
-                for u in parsed_q.get("candidate_feed_urls", []):
-                    if isinstance(u, str) and u.strip().startswith("http"):
-                        candidate_urls.append(u.strip())
-        except Exception:
-            pass
-
-        for u in candidate_urls:
-            dom = urlparse(u).netloc.lower()
-            if u not in seen_urls and dom not in seen_domains:
-                seen_urls.add(u)
-                seen_domains.add(dom)
-                candidates_to_probe.append(
-                    {
-                        "url": u,
-                        "title": dom,
-                        "site_url": f"https://{dom}",
-                        "description": "",
-                        "subscribers": 0,
-                        "icon_url": None,
-                    }
-                )
-
-        for d in suggested_domains:
-            target_url = d if d.startswith("http") else f"https://{d}"
-            dom = urlparse(target_url).netloc.lower()
-            if target_url not in seen_urls and dom not in seen_domains:
-                seen_urls.add(target_url)
-                seen_domains.add(dom)
-                candidates_to_probe.append(
-                    {
-                        "url": target_url,
-                        "title": dom,
-                        "site_url": f"https://{dom}",
-                        "description": "",
-                        "subscribers": 0,
-                        "icon_url": None,
-                    }
-                )
-
-        try:
-            dir_urls = await _search_directory_feeds(
-                location=loc_clean, themes=themes, query=q_clean, locale=locale
-            )
-        except TypeError:
-            dir_urls = await _search_directory_feeds(
-                location=loc_clean, themes=themes, query=q_clean
-            )
-        for u in dir_urls:
-            dom = urlparse(u).netloc.lower()
-            if u not in seen_urls and dom not in seen_domains:
-                seen_urls.add(u)
-                seen_domains.add(dom)
-                candidates_to_probe.append(
-                    {
-                        "url": u,
-                        "title": dom,
-                        "site_url": f"https://{dom}",
-                        "description": "",
-                        "subscribers": 0,
-                        "icon_url": None,
-                    }
-                )
-
-    def _target_priority(c: dict[str, Any]) -> int:
-        u_lower = c["url"].lower()
-        score = int(c.get("subscribers") or 0) // 100
-        if country_code:
-            cc = country_code.lower()
-            if u_lower.endswith(f".{cc}") or f".{cc}/" in u_lower:
-                score += 80
-        for w in q_words:
-            if w in u_lower:
-                score += 50
-        for w in theme_words:
-            if w in u_lower:
-                score += 40
-        for w in loc_words:
-            if w in u_lower:
-                score += 30
-        return score
-
+    excluded = {feed_key(u) for u in (excluded_urls or [])}
+    term_count = 1
+    leads: list[_Lead]
     if use_smart:
-        candidates_to_probe.sort(key=_target_priority, reverse=True)
-
-    # Live Verification Loop
-    sem = asyncio.Semaphore(6)
-    validated_feeds: list[dict[str, Any]] = []
-    probed_feed_urls: set[str] = set(excluded_set)
-    probed_feed_hosts: set[str] = set(excluded_domains)
-
-    async def _safe_probe(cand: dict[str, Any]) -> None:
-        async with sem:
-            try:
-                res = await _probe_url(cand["url"])
-                if res and res["url"] not in probed_feed_urls:
-                    res_domain = urlparse(res["url"]).netloc.lower()
-                    if res_domain not in probed_feed_hosts:
-                        probed_feed_urls.add(res["url"])
-                        probed_feed_hosts.add(res_domain)
-                        if cand.get("subscribers"):
-                            res["subscribers"] = cand["subscribers"]
-                        if cand.get("icon_url") and not res.get("icon_url"):
-                            res["icon_url"] = cand["icon_url"]
-                        validated_feeds.append(res)
-            except Exception:
-                pass
-
-    probe_tasks = [_safe_probe(c) for c in candidates_to_probe[:30]]
-    await asyncio.gather(*probe_tasks, return_exceptions=True)
-
-    def _loc_relevance(item: dict[str, Any]) -> int:
-        if is_global or not loc_words:
-            return 0
-        t = (item.get("title") or "").lower()
-        d = (item.get("description") or "").lower()
-        u = (item.get("url") or "").lower()
-        samples = " ".join(item.get("sample_titles") or []).lower()
-        sc = 0
-        for w in loc_words:
-            if w in t:
-                sc += 40
-            if w in u:
-                sc += 35
-            if w in samples:
-                sc += 25
-            if w in d:
-                sc += 15
-        return sc
-
-    if not use_smart:
-        validated_feeds.sort(key=lambda f: int(f.get("subscribers") or 0), reverse=True)
+        request = ", ".join(terms)
+        leads = await _suggested_leads(
+            session, request, language or lang_code, _country_name(language, country)
+        )
     else:
-
-        def _relevance_score(feed: dict[str, Any]) -> int:
-            t = (feed.get("title") or "").lower()
-            d = (feed.get("description") or "").lower()
-            u = (feed.get("url") or "").lower()
-            samples = " ".join(feed.get("sample_titles") or []).lower()
-            score = 0
-            if q_clean:
-                q_lower = q_clean.lower()
-                if q_lower in t or q_lower in u:
-                    score += 150
-                for w in q_words:
-                    if w in t:
-                        score += 60
-                    if w in u:
-                        score += 50
-                    if w in samples:
-                        score += 30
-                    if w in d:
-                        score += 20
-            for w in theme_words:
-                if w in t:
-                    score += 50
-                if w in u:
-                    score += 40
-                if w in samples:
-                    score += 30
-                if w in d:
-                    score += 20
-            if not is_global:
-                if country_code:
-                    cc = country_code.lower()
-                    if u.endswith(f".{cc}") or f".{cc}/" in u:
-                        score += 80
-                for w in loc_words:
-                    if w in t:
-                        score += 40
-                    if w in u:
-                        score += 35
-                    if w in samples:
-                        score += 25
-                    if w in d:
-                        score += 15
-            return score
-
-        validated_feeds.sort(key=_relevance_score, reverse=True)
-
-    validated_top = validated_feeds[:10]
-    final_feeds: list[dict[str, Any]] = []
-
-    if use_smart and validated_top:
-        llmtrace.context(
-            "discover_synthesis", label=f"Discovery synthesis for {len(validated_top)} feeds"
-        )
-        s_sys, s_usr = prompts.discovery_synthesis(
-            validated_top, loc_clean, scope_level, themes, q_clean, lang_code=lang_code
-        )
-        try:
-            parsed_s, s_latency = await llm_client.chat_json(s_sys, s_usr)
-            usage.record(
-                session,
-                kind="discovery_synthesis",
-                endpoint="chat",
-                model=settings.llm_model,
-                latency_ms=s_latency,
-                prompt_chars=len(s_sys) + len(s_usr),
-                completion_chars=len(str(parsed_s)),
+        leads, term_count = await _directory_leads(themes, text, language)
+        if language and country:
+            news_terms = terms or ["news"]
+            translated = await asyncio.gather(
+                *(_translate_term(session, t, language) for t in news_terms)
             )
-            val_by_url = {item["url"]: item for item in validated_top}
-            if (
-                isinstance(parsed_s, dict)
-                and "feeds" in parsed_s
-                and isinstance(parsed_s["feeds"], list)
-            ):
-                for f in parsed_s["feeds"]:
-                    if isinstance(f, dict) and f.get("url") in val_by_url:
-                        base = val_by_url[f["url"]]
-                        acc = f.get("access_level") or base.get("access_level", "free_excerpt")
-                        if acc not in ("free_full", "free_excerpt", "paywalled"):
-                            acc = base.get("access_level", "free_excerpt")
+            batches = await asyncio.gather(
+                *(_news_mentions(t, language, country) for t in translated)
+            )
+            merged: dict[str, tuple[int, str]] = {}
+            for batch in batches:
+                for host, (count, name) in batch.items():
+                    old = merged.get(host, (0, name))
+                    merged[host] = (old[0] + count, old[1] or name)
+            leads = _merge_news(leads, merged)
 
-                        geo = f.get("geographic_scope") or (
-                            "local" if _loc_relevance(base) >= 20 else "national"
-                        )
-                        if geo not in ("local", "regional", "national", "global"):
-                            geo = "local" if _loc_relevance(base) >= 20 else "national"
+    max_mentions = max([lead.mentions for lead in leads] + [1])
+    for lead in leads:
+        lead.pre_score = _pre_score(lead, max_mentions, term_count)
+    leads = sorted(leads, key=lambda ld: ld.pre_score, reverse=True)
+    leads = [
+        ld for ld in leads if not (ld.feed_url and feed_key(ld.feed_url) in excluded)
+    ][:MAX_LEADS]
 
-                        final_feeds.append(
-                            {
-                                "title": _clean_feed_title(f.get("title") or base["title"]),
-                                "url": f["url"],
-                                "site_url": base.get("site_url"),
-                                "description": f.get("description")
-                                or base.get("description")
-                                or "",
-                                "match_reason": f.get("match_reason")
-                                or f"Matches {', '.join(themes) or 'news'}",
-                                "access_level": acc,
-                                "geographic_scope": geo,
-                                "sample_articles": base.get("sample_articles") or [],
-                                "icon_url": base.get("icon_url")
-                                or (
-                                    f"{base.get('site_url', '').rstrip('/')}/favicon.ico"
-                                    if base.get("site_url")
-                                    else None
-                                ),
-                            }
-                        )
-        except Exception:
-            pass
+    found: list[tuple[float, dict[str, Any]]] = []
+    seen = set(excluded)
+    gate = asyncio.Semaphore(PROBE_CONCURRENCY)
+    now = time.time()
 
-    if not final_feeds:
-        for item in validated_top:
-            score = _loc_relevance(item)
-            if score >= 20:
-                reason = f"Local publication covering {loc_clean}"
-                geo_scope = "local"
-            elif score > 0 or scope_level == "country":
-                reason = f"National publication covering {loc_clean}"
-                geo_scope = "national"
-            elif not is_global:
-                reason = f"Publication for {loc_clean}"
-                geo_scope = "national"
-            elif themes:
-                reason = f"Coverage matching {', '.join(themes)}"
-                geo_scope = "global"
-            elif item.get("subscribers"):
-                reason = f"Popular publication ({item['subscribers']:,} subscribers)"
-                geo_scope = "global"
-            else:
-                reason = "Recommended news publication"
-                geo_scope = "global"
-
-            final_feeds.append(
+    async def check(lead: _Lead) -> None:
+        async with gate:
+            if len(found) >= TARGET_RESULTS:
+                return
+            res = await _probe_lead(lead)
+        if res is None:
+            return
+        key = feed_key(str(res["url"]))
+        if key in seen:
+            return
+        newest = res.get("newest_ts")
+        if newest is not None and now - newest > STALE_DAYS * 86400:
+            return
+        if not _language_matches(lead, res, language):
+            return
+        if not await _covers_topic(session, terms, res, lead):
+            return
+        if key in seen:
+            return
+        seen.add(key)
+        score = lead.pre_score
+        if language:
+            score += 1.0
+        if newest is not None and now - newest <= FRESH_DAYS * 86400:
+            score += 1.0
+        labels = {"directory": "Curated list", "news": "In the news", "ai": "Suggested by AI"}
+        reason = ", ".join(labels[s] for s in sorted(lead.sources))
+        if lead.subscribers:
+            reason += f" · {lead.subscribers:,} subscribers"
+        found.append(
+            (
+                score,
                 {
-                    "title": _clean_feed_title(item["title"]),
-                    "url": item["url"],
-                    "site_url": item.get("site_url"),
-                    "description": item.get("description")
-                    or f"RSS feed covering {', '.join(themes) or 'current events'}.",
+                    "title": _clean_feed_title(str(res["title"])) or lead.title,
+                    "url": res["url"],
+                    "site_url": res.get("site_url") or lead.site_url,
+                    "description": res.get("description") or lead.description,
                     "match_reason": reason,
-                    "access_level": item.get("access_level", "free_excerpt"),
-                    "geographic_scope": geo_scope,
-                    "sample_articles": item.get("sample_articles") or [],
-                    "icon_url": item.get("icon_url")
-                    or (
-                        f"{item.get('site_url', '').rstrip('/')}/favicon.ico"
-                        if item.get("site_url")
-                        else None
-                    ),
-                }
+                    "icon_url": lead.icon_url,
+                    "access_level": res.get("access_level", "free_excerpt"),
+                    "geographic_scope": "national",
+                    "sample_articles": res.get("sample_articles", []),
+                    "sources": sorted(lead.sources),
+                },
             )
+        )
 
-    if scope_level in ("city", "region"):
-        local_only = [f for f in final_feeds if f.get("geographic_scope") in ("local", "regional")]
-        if local_only:
-            final_feeds = local_only
+    await asyncio.gather(*(check(ld) for ld in leads))
+    final = [f for _, f in sorted(found, key=lambda x: x[0], reverse=True)]
 
     await activity.emit(
         session,
         component="discovery",
         action="discover_done",
-        detail={"count": len(final_feeds)},
+        detail={"count": len(final)},
     )
     await session.commit()
-    return final_feeds
+    return final
+
+

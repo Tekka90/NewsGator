@@ -10,26 +10,46 @@
     onAdded?: () => void | Promise<void>;
   } = $props();
 
+  // Category ids are the names the server maps to curated feed topics.
   const THEMES = [
-    { id: 'Tech & AI', icon: '💻', label: 'Tech & AI' },
     { id: 'General News', icon: '📰', label: 'General News' },
+    { id: 'World', icon: '🌐', label: 'World' },
     { id: 'Politics', icon: '🏛️', label: 'Politics' },
-    { id: 'Science & Nature', icon: '🔬', label: 'Science & Nature' },
-    { id: 'Academic Research', icon: '📚', label: 'Research' },
-    { id: 'Gaming & Esports', icon: '🎮', label: 'Gaming' },
-    { id: 'Business & Finance', icon: '📈', label: 'Business & Finance' },
-    { id: 'Environment & Climate', icon: '🌍', label: 'Climate & Earth' },
-    { id: 'Health & Medicine', icon: '🩺', label: 'Health' },
-    { id: 'Cybersecurity', icon: '🔒', label: 'Cybersecurity' },
-    { id: 'Culture & Arts', icon: '🎬', label: 'Culture & Arts' },
-    { id: 'Sports & Athletics', icon: '⚽', label: 'Sports' },
-    { id: 'Design & Hardware', icon: '🎨', label: 'Design & Hardware' },
-    { id: 'Local & Regional', icon: '🏙️', label: 'Local & Regional' }
+    { id: 'Finance', icon: '📈', label: 'Finance' },
+    { id: 'Technology', icon: '💻', label: 'Technology' },
+    { id: 'Science', icon: '🔬', label: 'Science' },
+    { id: 'Health', icon: '🩺', label: 'Health' },
+    { id: 'Environment', icon: '🌍', label: 'Environment' },
+    { id: 'Sports', icon: '⚽', label: 'Sports' },
+    { id: 'Culture', icon: '🎬', label: 'Culture' },
+    { id: 'Gaming', icon: '🎮', label: 'Gaming' },
+    { id: 'Food', icon: '🍽️', label: 'Food' },
+    { id: 'Travel', icon: '✈️', label: 'Travel' }
   ];
 
-  let location = $state('');
+  // Editions: language drives the result language, country the news edition.
+  const LOCALES = [
+    'en_US', 'en_GB', 'en_CA', 'en_AU', 'fr_FR', 'fr_CA', 'fr_BE', 'fr_CH', 'de_DE', 'de_AT',
+    'de_CH', 'es_ES', 'es_MX', 'es_AR', 'it_IT', 'pt_PT', 'pt_BR', 'nl_NL', 'nl_BE', 'sv_SE',
+    'da_DK', 'fi_FI', 'pl_PL', 'ja_JP', 'ko_KR'
+  ];
+  const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
+  const languageNames = new Intl.DisplayNames(['en'], { type: 'language' });
+  const LOCALE_OPTIONS = LOCALES.map((l) => {
+    const [lang, region] = l.split('_');
+    return { id: l, label: `${regionNames.of(region)} (${languageNames.of(lang)})` };
+  }).sort((x, y) => x.label.localeCompare(y.label));
+  const browserRegion = (navigator.language.split('-')[1] ?? '').toUpperCase();
+  const browserLang = navigator.language.split('-')[0].toLowerCase();
+
+  let locale = $state(
+    LOCALES.find((l) => l === `${browserLang}_${browserRegion}`) ??
+      LOCALES.find((l) => l.startsWith(browserLang + '_')) ??
+      'en_US'
+  );
   let selectedThemes = $state<string[]>([]);
   let customQuery = $state('');
+  let useAi = $state(false);
 
   let researching = $state(false);
   let researchStage = $state('Formulating search queries…');
@@ -52,6 +72,7 @@
   }
 
   function toggleTheme(themeId: string) {
+    customQuery = '';
     if (selectedThemes.includes(themeId)) {
       selectedThemes = selectedThemes.filter((t) => t !== themeId);
     } else {
@@ -91,9 +112,10 @@
 
     try {
       const resp = await api.feeds.discover({
-        location: location.trim(),
         themes: selectedThemes,
-        query: customQuery.trim(),
+        query: selectedThemes.length ? '' : customQuery.trim(),
+        mode: useAi ? 'smart' : 'catalog',
+        locale,
         excluded_urls: excluded
       });
       if (timer) clearInterval(timer);
@@ -107,19 +129,13 @@
           error = 'No additional feeds found for these criteria.';
         } else {
           results = [...results, ...newFeeds];
-          const nextSelected = new Set(selectedUrls);
-          for (const nf of newFeeds) {
-            nextSelected.add(nf.url);
-          }
-          selectedUrls = nextSelected;
           subscribeStatus = `Found ${newFeeds.length} additional feed${newFeeds.length === 1 ? '' : 's'}.`;
         }
       } else {
         results = resp.feeds;
-        // Pre-select all discovered feeds
-        selectedUrls = new Set(resp.feeds.map((f) => f.url));
+        selectedUrls = new Set();
         if (resp.feeds.length === 0) {
-          error = 'No active feeds discovered for these criteria. Try adjusting location or themes.';
+          error = 'No active feeds discovered for these criteria. Try another category, text or region.';
         }
       }
     } catch (err) {
@@ -190,9 +206,9 @@
   }
 
   function reset() {
-    location = '';
     selectedThemes = [];
     customQuery = '';
+    useAi = false;
     results = null;
     error = '';
     subscribeStatus = '';
@@ -239,30 +255,27 @@
       <!-- Input Formulation Step -->
       <form class="body" onsubmit={(e) => { e.preventDefault(); handleResearch(); }}>
         <p class="subtitle">
-          Find high-quality RSS and Atom feeds tailored to your interests and location with LLM research.
+          Find high-quality RSS and Atom feeds for a category or topic, in the language of your region.
         </p>
 
         <div class="field">
-          <label for="discovery-location">
-            <strong>Location</strong>
-            <span class="hint">(optional — defaults to worldwide)</span>
+          <label for="discovery-locale">
+            <strong>Region &amp; language</strong>
           </label>
           <div class="input-wrap">
             <span class="prefix">📍</span>
-            <input
-              id="discovery-location"
-              type="text"
-              placeholder="e.g. France, Tokyo, Silicon Valley, Nordic..."
-              bind:value={location}
-              disabled={researching}
-            />
+            <select id="discovery-locale" bind:value={locale} disabled={researching}>
+              {#each LOCALE_OPTIONS as opt (opt.id)}
+                <option value={opt.id}>{opt.label}</option>
+              {/each}
+            </select>
           </div>
         </div>
 
         <div class="field">
           <span class="label">
             <strong>Themes & Categories</strong>
-            <span class="hint">(select one or more)</span>
+            <span class="hint">(select one or more, or use Other below)</span>
           </span>
           <div class="theme-grid">
             {#each THEMES as theme (theme.id)}
@@ -283,17 +296,23 @@
 
         <div class="field">
           <label for="discovery-custom">
-            <strong>Custom Request or Focus</strong>
-            <span class="hint">(optional)</span>
+            <strong>Other</strong>
+            <span class="hint">(free text — replaces the categories)</span>
           </label>
           <input
             id="discovery-custom"
             type="text"
             placeholder="e.g. 'cycling news in France', 'AI research blogs', 'indie game dev'..."
             bind:value={customQuery}
+            oninput={() => { if (customQuery.trim()) selectedThemes = []; }}
             disabled={researching}
           />
         </div>
+
+        <label class="ai-toggle">
+          <input type="checkbox" bind:checked={useAi} disabled={researching} />
+          <span>Ask the AI for suggestions (needs an LLM configured on the server)</span>
+        </label>
 
         {#if error}
           <div class="error-banner">⚠ {error}</div>
@@ -607,7 +626,7 @@
     margin-right: 0.4rem;
   }
 
-  .input-wrap input {
+  .input-wrap select {
     border: none;
     background: transparent;
     padding: 0.6rem 0;
@@ -616,6 +635,8 @@
     font-size: 0.95rem;
     color: var(--text);
   }
+
+  .ai-toggle { display: flex; gap: 0.5rem; align-items: center; font-size: 0.9rem; color: var(--text); }
 
   input[type='text'] {
     background: var(--surface-soft);

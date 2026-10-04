@@ -146,6 +146,7 @@ class DiscoveredFeed(BaseModel):
     access_level: str = "free_full"  # "free_full" | "free_excerpt" | "paywalled"
     geographic_scope: str = "local"  # "local" | "regional" | "national" | "global"
     sample_articles: list[DiscoveredSampleArticle] = Field(default_factory=list)
+    sources: list[str] = Field(default_factory=list)  # "directory" | "news" | "ai"
 
 
 class FeedDiscoveryOut(BaseModel):

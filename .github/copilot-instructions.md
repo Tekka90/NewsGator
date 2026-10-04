@@ -36,6 +36,10 @@ the full normative spec — **read it before non-trivial changes**.
    assistance, **NEVER assume or shortcut — ASK THE USER**. All discovery, ranking,
    querying, and pipeline processing must be completely generic, domain-agnostic,
    and driven by structured LLM prompts, standard protocols, or user settings.
+   *User-approved exception:* the fixed list of 13 discovery categories mapped to the
+   feed directory's topic identifiers (`CATEGORY_TOPICS` in `services/feed_directory.py`,
+   mirrored in the Apple app and web modal) and the web modal's region/language list are
+   API identifiers, not heuristics. Free text is never mapped; it is passed through as-is.
 1. **Language**: all summaries are written in the configured `SUMMARY_LANGUAGE`
    (default English, per-user override). Never hardcode English. GUI chrome is
    English-only for now.

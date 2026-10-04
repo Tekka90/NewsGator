@@ -4,8 +4,6 @@ Language invariant: summaries/headlines are written in `SUMMARY_LANGUAGE` — th
 language name is injected into prompts, never hardcoded.
 """
 
-from typing import Any
-
 from app.core.config import settings
 
 LANGUAGE_NAMES = {
@@ -270,131 +268,54 @@ Question: {question}"""
     return system, user
 
 
-def discovery_queries(
-    location: str,
-    themes: list[str],
-    query: str,
-    lang_code: str | None = None,
-) -> tuple[str, str]:
-    """Generate search queries, candidate publication domains, and probable feed URLs.
-    Returns (system, user)."""
+
+def discovery_translate_term(term: str, lang_code: str) -> tuple[str, str]:
+    """Translate one search term into the language of a news edition. Returns (system, user)."""
     lang = summary_language_name(lang_code)
-    system = (
-        f"You are an expert news aggregator research assistant. Respond in {lang}. "
-        "Reply with ONLY a valid JSON object."
+    system = "You translate news search terms. Reply with ONLY a valid JSON object."
+    user = (
+        f"Translate this news search term into {lang}. Keep it short (1-3 words) and keep "
+        f"proper nouns unchanged.\nTerm: {term}\n"
+        'Reply with JSON: {"term": "..."}'
     )
-    themes_str = ", ".join(themes) if themes else "General News"
-    loc_str = location.strip() if location.strip() else "Global / International"
-    q_str = query.strip() if query.strip() else "None provided"
-
-    user = f"""The user wants to discover high-quality RSS/Atom feeds matching their criteria:
-- Location / Region: {loc_str}
-- Themes / Categories: {themes_str}
-- Custom request: {q_str}
-
-Analyze the geographic granularity of the request:
-- "scope_level": classify into "city", "region", "country", "continent", or "global".
-- "target_entity": the primary city or place name (e.g. "Lyon", "France", "Europe").
-
-Important search instructions:
-1. When themes or custom requests are provided (e.g. "{themes_str}"), search queries and
-suggested publications MUST combine both the theme and the location unified
-(e.g. "{themes_str} in {loc_str}"). Do NOT propose generic general newspapers if the
-user requested a specific theme like Technology or Science.
-2. If scope is "city" or "region" without themes, focus on local publications from that area.
-3. Suggest targeted web search queries to locate RSS/Atom feeds, top publication domains
-covering these topics in this region, and any known candidate feed URLs.
-
-Reply with JSON:
-{{
-  "scope_level": "city|region|country|continent|global",
-  "target_entity": "...",
-  "search_queries": ["query 1", "query 2", "query 3"],
-  "suggested_domains": ["example.com", "news-site.org"],
-  "candidate_feed_urls": ["https://example.com/rss", "https://news-site.org/feed"]
-}}"""
     return system, user
 
 
-def discovery_synthesis(
-    candidates: list[dict[str, Any]],
-    location: str,
-    scope_level: str,
-    themes: list[str],
-    query: str,
-    lang_code: str | None = None,
+def discovery_suggest_feeds(
+    request: str, lang_code: str | None, country: str | None
 ) -> tuple[str, str]:
-    """Rank, annotate, and describe discovered validated feeds with access level.
-    Returns (system, user)."""
+    """Ask for real publications covering a request. Returns (system, user)."""
     lang = summary_language_name(lang_code)
+    where = f" The reader is in {country}." if country else ""
     system = (
-        f"You curate RSS/Atom feeds for a personal news reader. Respond in {lang}. "
-        "Reply with ONLY a valid JSON object."
+        "You help a reader find news publications that have an RSS/Atom feed. "
+        "Only name publications you are confident really exist. Reply with ONLY a valid "
+        "JSON object."
     )
-    themes_str = ", ".join(themes) if themes else "General News"
-    loc_str = location.strip() if location.strip() else "Global / International"
-    q_str = query.strip() if query.strip() else "None provided"
-
-    items_text = []
-    for c in candidates:
-        samples = ", ".join(f'"{t}"' for t in c.get("sample_titles", [])[:3])
-        access_hint = c.get("access_level", "unknown")
-        items_text.append(
-            f"- URL: {c.get('url')}\n"
-            f"  Title: {c.get('title')}\n"
-            f"  Site: {c.get('site_url') or 'unknown'}\n"
-            f"  Description: {c.get('description') or 'none'}\n"
-            f"  Detected Access: {access_hint}\n"
-            f"  Recent article headlines: {samples or 'none'}"
-        )
-    joined_items = "\n\n".join(items_text)
-
-    user = f"""The user is searching for feeds with:
-- Location: {loc_str} (Scope level: {scope_level})
-- Themes: {themes_str}
-- Custom query: {q_str}
-
-Below are verified live RSS/Atom feeds that were discovered:
-{joined_items}
-
-Important instructions:
-1. THEMATIC RELEVANCE:
-When themes or a custom query are specified (e.g. "{themes_str}"), publications dedicated
-to that theme in that location must be prioritized and ranked highest. Do NOT prioritize
-generic general news or village newspapers over specialized theme publications.
-
-2. GEOGRAPHIC RELEVANCE:
-- If scope level is "city" or "region" (e.g. "{loc_str}"), candidate feeds should
-  specifically focus on or cover that area.
-  Assign "geographic_scope": "local" | "regional" | "national" | "global".
-- If scope level is "country", national publications covering that country are expected.
-- If scope level is "global" or "continent", international publications are expected.
-
-3. ACCESS LEVEL (PAYWALL VS FREE):
-Determine whether each publication requires a subscription or is freely accessible:
-- "paywalled": publisher requires a paid subscription / paywall or marked for subscribers.
-- "free_excerpt": free to access, but RSS articles only provide short excerpts/summaries.
-- "free_full": 100% free with full article text in the feed.
-
-For each feed, output:
-- "url": exact feed URL as provided
-- "title": cleaned up, recognizable publication title
-- "description": a concise 1-2 sentence description in {lang} of what this publication covers
-- "match_reason": a short explanation (1 sentence in {lang}) of why it matches criteria
-- "access_level": "free_full" | "free_excerpt" | "paywalled"
-- "geographic_scope": "local" | "regional" | "national" | "global"
+    user = f"""The reader is looking for: {request}
+They read {lang}.{where}
+List up to 10 real publications or websites that regularly publish about this, preferably in
+{lang}. For each give its name, its website home page, and its feed URL only if you are sure.
 
 Reply with JSON:
-{{
-  "feeds": [
-    {{
-      "url": "...",
-      "title": "...",
-      "description": "...",
-      "match_reason": "...",
-      "access_level": "free_full|free_excerpt|paywalled",
-      "geographic_scope": "local|regional|national|global"
-    }}
-  ]
-}}"""
+{{"suggestions": [
+  {{"name": "...", "website": "https://...", "feed_url": "https://... or empty"}}
+]}}"""
+    return system, user
+
+
+def discovery_topic_check(
+    terms: list[str], title: str, description: str, headlines: list[str]
+) -> tuple[str, str]:
+    """Does a feed cover the requested topic? Returns (system, user)."""
+    system = "You judge whether a news feed fits a topic. Reply with ONLY a valid JSON object."
+    shown = "\n".join(f"- {h}" for h in headlines[:6]) or "- (none)"
+    user = f"""Requested topic: {", ".join(terms)}
+Feed: {title}
+Description: {description or "none"}
+Recent headlines:
+{shown}
+
+Does this feed regularly publish about the requested topic? Reply with JSON: {{"covers": true}}
+or {{"covers": false}}"""
     return system, user
