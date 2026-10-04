@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     embed_base_url: str | None = None  # defaults to llm_base_url when unset
     embed_model: str = "bge-m3"
     llm_timeout_s: float = 120.0
+    # Feed discovery stops verifying leads after this long and returns what it has
+    # (keeps the request under typical reverse-proxy timeouts).
+    discovery_budget_s: float = 40.0
 
     # Live LLM interaction trace (Activity page): in-memory only, never written
     # to the DB; broadcasts truncated prompts/replies over the activity SSE stream.

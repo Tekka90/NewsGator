@@ -595,6 +595,7 @@ async def discover_feeds(
     `excluded_urls` are never returned (feeds the user already follows, plus any the client
     adds). Language and country come from `locale` (e.g. `fr_FR`).
     """
+    started = time.monotonic()
     themes = [t.strip() for t in (themes or []) if t.strip()]
     text = "" if themes else (query.strip() or location.strip())
     lang_part, _, region = (locale or "").replace("-", "_").partition("_")
@@ -700,7 +701,13 @@ async def discover_feeds(
             )
         )
 
-    await asyncio.gather(*(check(ld) for ld in leads))
+    # Verification is bounded: a slow LLM or site must not turn into a proxy 504.
+    remaining = started + settings.discovery_budget_s - time.monotonic()
+    tasks = [asyncio.create_task(check(ld)) for ld in leads]
+    _, pending = await asyncio.wait(tasks, timeout=max(1.0, remaining))
+    for task in pending:
+        task.cancel()
+    await asyncio.gather(*pending, return_exceptions=True)
     final = [f for _, f in sorted(found, key=lambda x: x[0], reverse=True)]
 
     await activity.emit(

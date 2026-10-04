@@ -234,3 +234,32 @@ async def test_directory_retries_once_on_429(monkeypatch: pytest.MonkeyPatch) ->
     feeds = await feed_directory.topic_feeds("technology", "fr")
     assert seen == [429, 200]
     assert [f["feed_id"] for f in feeds] == ["feed/https://a.fr/feed"]
+
+
+async def test_budget_returns_partial_results(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import asyncio
+
+    from app.core.config import settings
+
+    await setup_admin(client)
+    monkeypatch.setattr(settings, "discovery_budget_s", 0.2)
+
+    async def fake_topic(topic: str, language: str | None) -> list[dict[str, Any]]:
+        return [_entry("https://fast.fr/feed", "Fast"), _entry("https://slow.fr/feed", "Slow")]
+
+    async def fake_probe(url: str) -> dict[str, Any] | None:
+        if "slow" in url:
+            await asyncio.sleep(30)
+        return _probe_result(url, "x")
+
+    monkeypatch.setattr(feed_directory, "topic_feeds", fake_topic)
+    monkeypatch.setattr(discovery, "_probe_url", fake_probe)
+    start = time.monotonic()
+    resp = await client.post(
+        "/api/feeds/discover",
+        json={"mode": "catalog", "themes": ["Travel"], "locale": "fr_FR"},
+    )
+    assert time.monotonic() - start < 5
+    assert [f["url"] for f in resp.json()["feeds"]] == ["https://fast.fr/feed"]
