@@ -1,7 +1,14 @@
 """Feeds CRUD + OPML import/export. Ingestion itself is in services.ingest."""
 
+import asyncio
+import json
+import logging
+from collections.abc import AsyncIterator
+from typing import Any
+
 import anyio
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +22,7 @@ from app.api.schemas import (
     FeedOut,
     FeedPatch,
 )
-from app.core.db import get_session
+from app.core.db import get_session, new_session
 from app.models import (
     Article,
     ClusterDecision,
@@ -31,6 +38,8 @@ from app.models import (
 from app.services import activity, discovery
 from app.services.ingest import parse_opml, poll_feed, poll_feeds_background, render_opml
 from app.services.vectorstore import get_vector_store
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/feeds", tags=["feeds"], dependencies=[Depends(current_user)])
 
@@ -110,6 +119,15 @@ async def refresh_all(
     return {"feeds_polled": len(feeds), "new_articles": total}
 
 
+async def _followed_urls(session: AsyncSession, user_id: int) -> list[str]:
+    rows = await session.scalars(
+        select(Feed.url)
+        .join(UserFeed, UserFeed.feed_id == Feed.id)
+        .where(UserFeed.user_id == user_id)
+    )
+    return list(rows.all())
+
+
 @router.post("/discover")
 async def discover_feeds(
     body: FeedDiscoveryIn,
@@ -117,13 +135,7 @@ async def discover_feeds(
     session: AsyncSession = Depends(get_session),
 ) -> FeedDiscoveryOut:
     """Discover candidate feeds from curated topics, news mentions or LLM suggestions."""
-    followed = (
-        await session.scalars(
-            select(Feed.url).join(UserFeed, UserFeed.feed_id == Feed.id).where(
-                UserFeed.user_id == user.id
-            )
-        )
-    ).all()
+    followed = await _followed_urls(session, user.id)
     results = await discovery.discover_feeds(
         session,
         location=body.location,
@@ -135,6 +147,61 @@ async def discover_feeds(
         lang_code=user.summary_language,
     )
     return FeedDiscoveryOut(feeds=[DiscoveredFeed.model_validate(f) for f in results])
+
+
+@router.post("/discover/stream")
+async def discover_feeds_stream(
+    body: FeedDiscoveryIn, user: User = Depends(current_user)
+) -> StreamingResponse:
+    """Same search as `/discover`, streamed as newline-delimited JSON events:
+    `stage`, `progress`, `feed` (provisional order), then `done` (final ranked list) or
+    `error`. `ping` lines keep proxies from closing an idle connection."""
+    queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
+    user_id, lang_code = user.id, user.summary_language
+
+    async def run() -> None:
+        try:
+            async with new_session() as session:
+                followed = await _followed_urls(session, user_id)
+                results = await discovery.discover_feeds(
+                    session,
+                    location=body.location,
+                    themes=body.themes,
+                    query=body.query,
+                    mode=body.mode,
+                    locale=body.locale,
+                    excluded_urls=[*body.excluded_urls, *followed],
+                    lang_code=lang_code,
+                    emit=queue.put,
+                )
+            feeds = [DiscoveredFeed.model_validate(f).model_dump() for f in results]
+            await queue.put({"type": "done", "feeds": feeds})
+        except Exception:
+            logger.exception("feed discovery failed")
+            await queue.put({"type": "error", "message": "Discovery failed"})
+        finally:
+            await queue.put(None)
+
+    task = asyncio.create_task(run())
+
+    async def gen() -> AsyncIterator[str]:
+        try:
+            while True:
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=10)
+                except TimeoutError:
+                    event = {"type": "ping"}
+                if event is None:
+                    return
+                yield json.dumps(event) + "\n"
+        finally:
+            task.cancel()
+
+    return StreamingResponse(
+        gen(),
+        media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.post("/{feed_id}/refresh")

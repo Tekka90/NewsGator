@@ -73,6 +73,12 @@ def get_engine() -> AsyncEngine:
     return _engine
 
 
+def new_session() -> AsyncSession:
+    """A standalone session for work that outlives the request dependency (streaming)."""
+    assert _session_factory is not None, "Engine not initialized — call init_engine() first"
+    return _session_factory()
+
+
 async def get_session() -> AsyncIterator[AsyncSession]:
     """FastAPI dependency yielding a session."""
     assert _session_factory is not None, "Engine not initialized — call init_engine() first"

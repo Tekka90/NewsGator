@@ -96,6 +96,14 @@ async function req<T>(
   return res.json();
 }
 
+export type DiscoveryEvent =
+  | { type: 'stage'; stage: string }
+  | { type: 'progress'; current: number; total: number; target: string }
+  | { type: 'feed'; feed: DiscoveredFeed }
+  | { type: 'done'; feeds: DiscoveredFeed[] }
+  | { type: 'ping' }
+  | { type: 'error'; message: string };
+
 export const api = {
   setupNeeded: () => req<{ setup_needed: boolean }>('/auth/setup-needed'),
   setup: async (username: string, password: string) => {
@@ -142,6 +150,41 @@ export const api = {
       req<Feed>('/feeds', { method: 'POST', body: f }),
     discover: (params: { themes?: string[]; query?: string; mode?: 'catalog' | 'smart'; locale?: string; excluded_urls?: string[] }) =>
       req<FeedDiscoveryResult>('/feeds/discover', { method: 'POST', body: params }),
+    /** Streams a search (NDJSON); resolves with the final ranked feeds. */
+    discoverStream: async (
+      params: { themes?: string[]; query?: string; mode?: 'catalog' | 'smart'; locale?: string; excluded_urls?: string[] },
+      onEvent: (event: DiscoveryEvent) => void
+    ): Promise<DiscoveredFeed[]> => {
+      const res = await fetch(BASE + '/feeds/discover/stream', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+      });
+      if (!res.ok || !res.body) {
+        const detail = await res.json().catch(() => ({}));
+        throw new Error(detail.detail ?? `HTTP ${res.status}`);
+      }
+      const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+      let buffer = '';
+      let final: DiscoveredFeed[] | null = null;
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (value) buffer += value;
+        const lines = buffer.split('\n');
+        buffer = done ? '' : (lines.pop() ?? '');
+        for (const line of done ? lines.concat(buffer) : lines) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line) as DiscoveryEvent;
+          if (event.type === 'error') throw new Error(event.message);
+          if (event.type === 'done') final = event.feeds;
+          onEvent(event);
+        }
+        if (done) break;
+      }
+      if (!final) throw new Error('Discovery ended unexpectedly');
+      return final;
+    },
     update: (id: number, patch: Partial<Feed>) =>
       req<Feed>(`/feeds/${id}`, { method: 'PATCH', body: patch }),
     remove: (id: number) => req<void>(`/feeds/${id}`, { method: 'DELETE' }),

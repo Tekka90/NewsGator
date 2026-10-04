@@ -17,6 +17,7 @@ import concurrent.futures
 import math
 import re
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urljoin, urlparse
@@ -290,10 +291,15 @@ MAX_LEADS = 60
 TARGET_RESULTS = 30
 PROBE_CONCURRENCY = 6
 MAX_NEWS_HOSTS = 25
+# The news source is a fallback: only used when the directory gives fewer leads than this.
+MIN_DIRECTORY_LEADS = 10
 STALE_DAYS = 180
 FRESH_DAYS = 30
 BLOCKED_HOSTS = ("google.", "youtube.", "facebook.", "twitter.", "duckduckgo.", "bing.", "yahoo.")
 NEWS_URL = "https://news.google.com/rss/search"
+
+
+Emitter = Callable[[dict[str, Any]], Awaitable[None]]
 
 
 @dataclass
@@ -393,9 +399,7 @@ async def _directory_leads(
     return list(by_key.values()), max(len(batches), 1)
 
 
-async def _translate_term(
-    session: AsyncSession, term: str, language: str | None
-) -> str:
+async def _translate_term(session: AsyncSession, term: str, language: str | None) -> str:
     """Translate a search term to the edition language; falls back to the original."""
     if not language or language == "en" or not llm_client.is_configured():
         return term
@@ -542,7 +546,8 @@ def _language_matches(lead: _Lead, res: dict[str, Any], language: str | None) ->
 async def _covers_topic(
     session: AsyncSession, terms: list[str], res: dict[str, Any], lead: _Lead
 ) -> bool:
-    if lead.curated or not terms or not llm_client.is_configured():
+    # Only suggestions invented by the model need checking; catalog leads matched at the source.
+    if "ai" not in lead.sources or not terms or not llm_client.is_configured():
         return True
     system, user = prompts.discovery_topic_check(
         terms,
@@ -588,13 +593,20 @@ async def discover_feeds(
     locale: str | None = None,
     excluded_urls: list[str] | None = None,
     lang_code: str | None = None,
+    emit: Emitter | None = None,
 ) -> list[dict[str, Any]]:
     """Find, verify and rank feeds for categories or a free-text request.
 
     `themes` (category names) and free text are exclusive: categories win when both are sent.
     `excluded_urls` are never returned (feeds the user already follows, plus any the client
-    adds). Language and country come from `locale` (e.g. `fr_FR`).
+    adds). Language and country come from `locale` (e.g. `fr_FR`). `emit` receives live
+    `stage`, `progress` and `feed` events while the search runs.
     """
+
+    async def notify(event: dict[str, Any]) -> None:
+        if emit is not None:
+            await emit(event)
+
     started = time.monotonic()
     themes = [t.strip() for t in (themes or []) if t.strip()]
     text = "" if themes else (query.strip() or location.strip())
@@ -618,6 +630,7 @@ async def discover_feeds(
 
     excluded = {feed_key(u) for u in (excluded_urls or [])}
     term_count = 1
+    await notify({"type": "stage", "stage": "Searching feed sources…"})
     leads: list[_Lead]
     if use_smart:
         request = ", ".join(terms)
@@ -626,7 +639,8 @@ async def discover_feeds(
         )
     else:
         leads, term_count = await _directory_leads(themes, text, language)
-        if language and country:
+        usable = [ld for ld in leads if not (ld.feed_url and feed_key(ld.feed_url) in excluded)]
+        if language and country and len(usable) < MIN_DIRECTORY_LEADS:
             news_terms = terms or ["news"]
             translated = await asyncio.gather(
                 *(_translate_term(session, t, language) for t in news_terms)
@@ -645,11 +659,13 @@ async def discover_feeds(
     for lead in leads:
         lead.pre_score = _pre_score(lead, max_mentions, term_count)
     leads = sorted(leads, key=lambda ld: ld.pre_score, reverse=True)
-    leads = [
-        ld for ld in leads if not (ld.feed_url and feed_key(ld.feed_url) in excluded)
-    ][:MAX_LEADS]
+    leads = [ld for ld in leads if not (ld.feed_url and feed_key(ld.feed_url) in excluded)][
+        :MAX_LEADS
+    ]
 
+    await notify({"type": "stage", "stage": "Verifying sources…"})
     found: list[tuple[float, dict[str, Any]]] = []
+    processed = 0
     seen = set(excluded)
     gate = asyncio.Semaphore(PROBE_CONCURRENCY)
     now = time.time()
@@ -659,6 +675,16 @@ async def discover_feeds(
             if len(found) >= TARGET_RESULTS:
                 return
             res = await _probe_lead(lead)
+        nonlocal processed
+        processed += 1
+        await notify(
+            {
+                "type": "progress",
+                "current": processed,
+                "total": len(leads),
+                "target": lead.title or site_key(lead.site_url),
+            }
+        )
         if res is None:
             return
         key = feed_key(str(res["url"]))
@@ -683,23 +709,20 @@ async def discover_feeds(
         reason = ", ".join(labels[s] for s in sorted(lead.sources))
         if lead.subscribers:
             reason += f" · {lead.subscribers:,} subscribers"
-        found.append(
-            (
-                score,
-                {
-                    "title": _clean_feed_title(str(res["title"])) or lead.title,
-                    "url": res["url"],
-                    "site_url": res.get("site_url") or lead.site_url,
-                    "description": res.get("description") or lead.description,
-                    "match_reason": reason,
-                    "icon_url": lead.icon_url,
-                    "access_level": res.get("access_level", "free_excerpt"),
-                    "geographic_scope": "national",
-                    "sample_articles": res.get("sample_articles", []),
-                    "sources": sorted(lead.sources),
-                },
-            )
-        )
+        feed = {
+            "title": _clean_feed_title(str(res["title"])) or lead.title,
+            "url": res["url"],
+            "site_url": res.get("site_url") or lead.site_url,
+            "description": res.get("description") or lead.description,
+            "match_reason": reason,
+            "icon_url": lead.icon_url,
+            "access_level": res.get("access_level", "free_excerpt"),
+            "geographic_scope": "national",
+            "sample_articles": res.get("sample_articles", []),
+            "sources": sorted(lead.sources),
+        }
+        found.append((score, feed))
+        await notify({"type": "feed", "feed": feed})
 
     # Verification is bounded: a slow LLM or site must not turn into a proxy 504.
     remaining = started + settings.discovery_budget_s - time.monotonic()
@@ -718,5 +741,3 @@ async def discover_feeds(
     )
     await session.commit()
     return final
-
-

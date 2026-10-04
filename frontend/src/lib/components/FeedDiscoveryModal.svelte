@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { api, faviconUrl } from '$lib/api';
+  import { api, faviconUrl, type DiscoveryEvent } from '$lib/api';
   import type { DiscoveredFeed } from '$lib/types';
 
   let {
@@ -53,6 +53,8 @@
 
   let researching = $state(false);
   let researchStage = $state('Formulating search queries…');
+  let progressCurrent = $state(0);
+  let progressTotal = $state(0);
   let error = $state('');
   let results = $state<DiscoveredFeed[] | null>(null);
   let selectedUrls = $state<Set<string>>(new Set());
@@ -88,43 +90,46 @@
       selectedUrls = new Set();
     }
 
-    let timer: ReturnType<typeof setInterval> | null = null;
-    const stages = [
-      { at: 2500, label: 'Searching regional web sources…' },
-      { at: 6500, label: 'Probing candidate feeds…' },
-      { at: 11000, label: 'Detecting paywalls & access…' },
-      { at: 16000, label: 'Synthesizing recommendations…' }
-    ];
-    const startTime = Date.now();
-    timer = setInterval(() => {
-      const elapsed = Date.now() - startTime;
-      for (let i = stages.length - 1; i >= 0; i--) {
-        if (elapsed >= stages[i].at) {
-          researchStage = stages[i].label;
-          break;
-        }
+    progressCurrent = 0;
+    progressTotal = 0;
+    const known = new Set(excluded);
+    const onEvent = (event: DiscoveryEvent) => {
+      if (event.type === 'stage') researchStage = event.stage;
+      else if (event.type === 'progress') {
+        progressCurrent = event.current;
+        progressTotal = event.total;
+        researchStage = `Verifying ${event.current} of ${event.total}: ${event.target}…`;
+      } else if (event.type === 'feed' && !known.has(event.feed.url)) {
+        known.add(event.feed.url);
+        results = [...(results ?? []), event.feed];
       }
-    }, 400);
+    };
 
     try {
-      const resp = await api.feeds.discover({
-        themes: selectedThemes,
-        query: selectedThemes.length ? '' : customQuery.trim(),
-        mode: useAi ? 'smart' : 'catalog',
-        locale,
-        excluded_urls: excluded
-      });
-      if (timer) clearInterval(timer);
+      const feeds = await api.feeds.discoverStream(
+        {
+          themes: selectedThemes,
+          query: selectedThemes.length ? '' : customQuery.trim(),
+          mode: useAi ? 'smart' : 'catalog',
+          locale,
+          excluded_urls: excluded
+        },
+        onEvent
+      );
+      const resp = { feeds };
       researchStage = 'Complete!';
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      progressCurrent = progressTotal;
 
-      if (proposeMore && results) {
-        const existingUrls = new Set(results.map((f) => f.url));
-        const newFeeds = resp.feeds.filter((f) => !existingUrls.has(f.url));
+      if (proposeMore) {
+        // Streamed arrivals are provisional: keep what was shown, then add the ranked list's new feeds.
+        const shown = new Set(excluded);
+        const current = results ?? [];
+        const kept = current.filter((f) => shown.has(f.url));
+        const newFeeds = resp.feeds.filter((f) => !shown.has(f.url));
+        results = [...kept, ...newFeeds];
         if (newFeeds.length === 0) {
           error = 'No additional feeds found for these criteria.';
         } else {
-          results = [...results, ...newFeeds];
           subscribeStatus = `Found ${newFeeds.length} additional feed${newFeeds.length === 1 ? '' : 's'}.`;
         }
       } else {
@@ -135,7 +140,6 @@
         }
       }
     } catch (err) {
-      if (timer) clearInterval(timer);
       error = err instanceof Error ? err.message : 'Discovery research failed';
     } finally {
       researching = false;
@@ -319,8 +323,11 @@
             <div class="progress-labels">
               <span class="stage-text">✨ {researchStage}</span>
             </div>
-            <div class="progress-track indeterminate">
-              <div class="progress-fill"></div>
+            <div class="progress-track" class:indeterminate={progressTotal === 0}>
+              <div
+                class="progress-fill"
+                style={progressTotal > 0 ? `width: ${(progressCurrent / progressTotal) * 100}%` : ''}
+              ></div>
             </div>
           </div>
         {/if}
@@ -346,8 +353,11 @@
             <div class="progress-labels">
               <span class="stage-text">✨ {researchStage}</span>
             </div>
-            <div class="progress-track indeterminate">
-              <div class="progress-fill"></div>
+            <div class="progress-track" class:indeterminate={progressTotal === 0}>
+              <div
+                class="progress-fill"
+                style={progressTotal > 0 ? `width: ${(progressCurrent / progressTotal) * 100}%` : ''}
+              ></div>
             </div>
           </div>
         {/if}
@@ -749,6 +759,13 @@
     background: var(--border, rgba(0, 0, 0, 0.1));
     border-radius: 999px;
     overflow: hidden;
+  }
+
+  .progress-track:not(.indeterminate) .progress-fill {
+    height: 100%;
+    background: var(--gator-forest, #146b3a);
+    border-radius: 999px;
+    transition: width 0.2s ease;
   }
 
   .progress-track.indeterminate .progress-fill {

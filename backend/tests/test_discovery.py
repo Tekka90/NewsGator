@@ -263,3 +263,68 @@ async def test_budget_returns_partial_results(
     )
     assert time.monotonic() - start < 5
     assert [f["url"] for f in resp.json()["feeds"]] == ["https://fast.fr/feed"]
+
+
+async def test_stream_emits_events_and_final_list(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+
+    await setup_admin(client)
+
+    async def fake_topic(topic: str, language: str | None) -> list[dict[str, Any]]:
+        return [_entry("https://a.fr/feed", "A"), _entry("https://b.fr/feed", "B", subs=5)]
+
+    async def fake_probe(url: str) -> dict[str, Any] | None:
+        return _probe_result(url, "x")
+
+    monkeypatch.setattr(feed_directory, "topic_feeds", fake_topic)
+    monkeypatch.setattr(discovery, "_probe_url", fake_probe)
+    resp = await client.post(
+        "/api/feeds/discover/stream",
+        json={"mode": "catalog", "themes": ["Travel"], "locale": "fr_FR"},
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/x-ndjson")
+    events = [json.loads(line) for line in resp.text.splitlines() if line.strip()]
+    kinds = [e["type"] for e in events]
+    assert kinds[0] == "stage" and kinds[-1] == "done"
+    assert kinds.count("progress") == 2 and kinds.count("feed") == 2
+    assert [f["url"] for f in events[-1]["feeds"]] == ["https://a.fr/feed", "https://b.fr/feed"]
+
+
+async def test_news_is_only_a_fallback(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await setup_admin(client)
+    asked: list[str] = []
+
+    async def news(term: str, language: str, country: str) -> dict[str, tuple[int, str]]:
+        asked.append(term)
+        return {}
+
+    async def probe(url: str) -> dict[str, Any] | None:
+        return _probe_result(url, "x")
+
+    monkeypatch.setattr(discovery, "_news_mentions", news)
+    monkeypatch.setattr(discovery, "_probe_url", probe)
+
+    async def many(topic: str, language: str | None) -> list[dict[str, Any]]:
+        return [_entry(f"https://s{i}.fr/feed", f"S{i}") for i in range(12)]
+
+    monkeypatch.setattr(feed_directory, "topic_feeds", many)
+    await client.post(
+        "/api/feeds/discover",
+        json={"mode": "catalog", "themes": ["Travel"], "locale": "fr_FR"},
+    )
+    assert asked == []
+
+    async def few(topic: str, language: str | None) -> list[dict[str, Any]]:
+        return [_entry("https://s1.fr/feed", "S1")]
+
+    monkeypatch.setattr(feed_directory, "topic_feeds", few)
+    await client.post(
+        "/api/feeds/discover",
+        json={"mode": "catalog", "themes": ["Travel"], "locale": "fr_FR"},
+    )
+    assert asked == ["Travel"]
