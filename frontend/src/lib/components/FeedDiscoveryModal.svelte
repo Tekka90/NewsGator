@@ -37,7 +37,9 @@
   const languageNames = new Intl.DisplayNames(['en'], { type: 'language' });
   const LOCALE_OPTIONS = LOCALES.map((l) => {
     const [lang, region] = l.split('_');
-    return { id: l, label: `${regionNames.of(region)} (${languageNames.of(lang)})` };
+    const name = regionNames.of(region) ?? region;
+    const shared = LOCALES.filter((x) => x.endsWith('_' + region)).length > 1;
+    return { id: l, label: shared ? `${name} (${languageNames.of(lang)})` : name };
   }).sort((x, y) => x.label.localeCompare(y.label));
   const browserRegion = (navigator.language.split('-')[1] ?? '').toUpperCase();
   const browserLang = navigator.language.split('-')[0].toLowerCase();
@@ -136,7 +138,7 @@
         results = resp.feeds;
         selectedUrls = new Set();
         if (resp.feeds.length === 0) {
-          error = 'No active feeds discovered for these criteria. Try another category, text or region.';
+          error = 'No active feeds discovered for these criteria. Try another category, text or country.';
         }
       }
     } catch (err) {
@@ -255,12 +257,12 @@
       <!-- Input Formulation Step -->
       <form class="body" onsubmit={(e) => { e.preventDefault(); handleResearch(); }}>
         <p class="subtitle">
-          Find high-quality RSS and Atom feeds for a category or topic, in the language of your region.
+          Find high-quality RSS and Atom feeds for a category or topic, for your country.
         </p>
 
         <div class="field">
           <label for="discovery-locale">
-            <strong>Region &amp; language</strong>
+            <strong>Country</strong>
           </label>
           <div class="input-wrap">
             <span class="prefix">📍</span>
