@@ -203,6 +203,8 @@ class ReaderAccountIn(BaseModel):
     username: str = Field(default="", max_length=256)
     password: str = Field(default="", max_length=512)
     auth_token: str | None = None
+    initial_import_count: int = Field(default=200, ge=1, le=5000)
+    backfill_days: int | None = Field(default=None, ge=0, le=3650)
 
 
 class ReaderAccountPatch(BaseModel):
@@ -212,6 +214,8 @@ class ReaderAccountPatch(BaseModel):
     password: str | None = Field(default=None, max_length=512)
     auth_token: str | None = None
     is_enabled: bool | None = None
+    initial_import_count: int | None = Field(default=None, ge=1, le=5000)
+    backfill_days: int | None = Field(default=None, ge=0, le=3650)
 
 
 class ReaderAccountOut(BaseModel):
@@ -221,6 +225,8 @@ class ReaderAccountOut(BaseModel):
     api_base_url: str
     username: str
     is_enabled: bool
+    initial_import_count: int
+    backfill_days: int | None
     virtual_feed_id: int | None
     last_checked_at: datetime | None
     last_error: str | None

@@ -284,6 +284,8 @@ export const api = {
       password?: string;
       auth_token?: string;
       is_enabled?: boolean;
+      initial_import_count?: number;
+      backfill_days?: number | null;
     }) => req<ReaderAccount>('/reader-accounts', { method: 'POST', body: a }),
     update: (id: number, patch: Partial<Omit<ReaderAccount, 'id' | 'user_id' | 'virtual_feed_id' | 'last_checked_at' | 'last_error' | 'created_at'>> & { password?: string; auth_token?: string }) =>
       req<ReaderAccount>(`/reader-accounts/${id}`, { method: 'PATCH', body: patch }),

@@ -174,6 +174,10 @@ export interface ReaderAccount {
   api_base_url: string;
   username: string;
   is_enabled: boolean;
+  /** Newest articles fetched per sync (10-500). */
+  initial_import_count: number;
+  /** Import window in days; null follows the server default, 0 imports everything. */
+  backfill_days: number | null;
   virtual_feed_id: number | null;
   last_checked_at: string | null;
   last_error: string | null;

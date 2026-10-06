@@ -87,6 +87,9 @@
   let editReaderUsername = $state('');
   let editReaderPassword = $state('');
   let readerSaving = $state(false);
+  let readerArticles = $state(200);
+  let readerBackfill = $state<string>('');
+  let editReaderBackfill = $state<string>('');
 
   async function loadReaderAccounts() {
     try {
@@ -211,7 +214,9 @@
         api_base_url: readerBaseUrl.trim(),
         username: readerUsername.trim(),
         password: readerPassword || undefined,
-        is_enabled: true
+        is_enabled: true,
+        initial_import_count: Number(readerArticles),
+        backfill_days: readerBackfill === '' ? null : Number(readerBackfill)
       });
       readerTitle = '';
       readerPassword = '';
@@ -230,6 +235,7 @@
     editReaderBaseUrl = a.api_base_url;
     editReaderUsername = a.username;
     editReaderPassword = '';
+    editReaderBackfill = a.backfill_days === null ? '' : String(a.backfill_days);
   }
 
   async function saveReaderAccount(e: SubmitEvent) {
@@ -241,6 +247,7 @@
         title: editReaderTitle.trim() || undefined,
         api_base_url: editReaderBaseUrl.trim(),
         username: editReaderUsername.trim(),
+        backfill_days: editReaderBackfill === '' ? null : Number(editReaderBackfill),
         ...(editReaderPassword ? { password: editReaderPassword } : {})
       });
       readerEditingId = null;
@@ -704,7 +711,7 @@
   <h2>RSS Reader Accounts</h2>
   <p class="hint">
     Connect an external RSS reader service (Google Reader API standard: Inoreader, FreshRSS, Miniflux, The Old Reader, BazQux).
-    Articles are ingested into a single virtual feed with original publisher URLs, favicons, and origin titles, and read state syncs bidirectionally.
+    Articles are ingested into a single virtual feed with original publisher URLs, favicons, and origin titles, and read state syncs bidirectionally. Each sync fetches the newest articles first, up to the chosen number, and stops at articles already imported. The login is tested when you add the account; if it fails, the server probes common endpoints (for example one ending in /api/greader.php) and suggests the right address.
   </p>
   {#if readerError}<p class="bad">{readerError}</p>{/if}
   <form class="add" onsubmit={addReaderAccount}>
@@ -717,6 +724,16 @@
       placeholder="Password / API token"
       required
     />
+    <label class="hint">
+      Articles to retrieve on first sync (1–5000, default 200). Only unread articles are
+      retrieved: anything already read in the source app is ignored. Later syncs fetch all new
+      unread articles.
+      <input bind:value={readerArticles} type="number" min="1" max="5000" />
+    </label>
+    <label class="hint">
+      Import window in days (blank = server default, 0 = everything)
+      <input bind:value={readerBackfill} type="number" min="0" max="3650" placeholder="server default" />
+    </label>
     <button type="submit" disabled={readerAdding}>{readerAdding ? 'Adding…' : 'Add account'}</button>
   </form>
   {#each readerAccounts as a (a.id)}
@@ -731,6 +748,10 @@
             type="password"
             placeholder="new password / token (blank = keep current)"
           />
+          <label class="hint">
+            Import window in days (blank = server default, 0 = everything)
+            <input bind:value={editReaderBackfill} type="number" min="0" max="3650" placeholder="server default" />
+          </label>
           <button type="submit" disabled={readerSaving}>{readerSaving ? 'Saving…' : 'Save'}</button>
           <button type="button" onclick={() => (readerEditingId = null)}>Cancel</button>
         </form>

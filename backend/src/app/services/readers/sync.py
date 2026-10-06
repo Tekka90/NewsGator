@@ -8,16 +8,18 @@ and synchronizing read states bidirectionally.
 import asyncio
 import logging
 import time
-from datetime import UTC, datetime
+from collections.abc import AsyncIterator
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.models import Article, Feed, ReaderAccount, Story, StoryState, UserFeed
 from app.services import activity
 from app.services.fulltext import fetch_full_text_batch
 from app.services.process import enqueue_article
-from app.services.readers.greader import GReaderClient
+from app.services.readers.greader import GReaderClient, GReaderItem
 
 logger = logging.getLogger(__name__)
 
@@ -86,49 +88,107 @@ async def poll_reader_account(session: AsyncSession, account: ReaderAccount) -> 
         end_poll(account.id)
 
 
-async def _poll_reader_account_inner(
-    session: AsyncSession, account: ReaderAccount
-) -> dict[str, int]:
-    feed = await ensure_virtual_feed(session, account)
-    client = GReaderClient(
-        api_base_url=account.api_base_url,
-        username=account.username,
-        password=account.password,
-        auth_token=account.auth_token,
-    )
+READER_PAGE_SIZE = 100
+# Used only when a service reports no ingestion times and the checkpoint falls back to our own
+# clock, which may differ from the service's.
+CLOCK_SKEW_MARGIN_S = 3600
 
-    await activity.emit(
-        session,
-        "reader",
-        "reader_poll_start",
-        {
-            "account_id": account.id,
-            "provider": account.provider,
-            "title": account.title or feed.title,
-        },
-    )
-    await session.commit()
 
-    try:
-        items, new_continuation = await client.fetch_stream(
-            continuation=account.sync_cursor,
-            limit=50,
+def _reader_cutoff(account: ReaderAccount) -> datetime | None:
+    """Oldest publication date to import; no own window follows the global one."""
+    days = settings.feed_backfill_days if account.backfill_days is None else account.backfill_days
+    return datetime.now(UTC) - timedelta(days=days) if days > 0 else None
+
+
+def _crawl_ts(item: GReaderItem) -> int | None:
+    return int(item.crawled_at.timestamp()) if item.crawled_at is not None else None
+
+
+async def establish_reader_checkpoint(client: GReaderClient, account: ReaderAccount) -> None:
+    """Set the starting watermark without importing anything.
+
+    Walks the unread stream newest-first until ``initial_import_count`` items were seen and
+    records the oldest ingestion time among them. Older unread items are left behind; the
+    normal incremental sync then imports everything from that point on.
+    """
+    started = int(datetime.now(UTC).timestamp())
+    wanted = max(1, account.initial_import_count)
+    seen = 0
+    oldest: int | None = None
+    continuation: str | None = None
+    while seen < wanted:
+        page, next_continuation = await client.fetch_stream(
+            continuation=continuation,
+            limit=min(READER_PAGE_SIZE, wanted - seen),
+            exclude_read=True,
         )
-        if client.auth_token != account.auth_token:
-            account.auth_token = client.auth_token
-    except Exception as exc:
-        account.last_error = str(exc)[:500]
-        account.last_checked_at = datetime.now(UTC)
-        await activity.emit(
-            session,
-            "reader",
-            "reader_poll_failed",
-            {"account_id": account.id, "error": account.last_error},
-            level="error",
-        )
-        await session.commit()
-        raise
+        if not page:
+            break
+        for item in page:
+            seen += 1
+            ts = _crawl_ts(item)
+            if ts is not None:
+                oldest = ts if oldest is None else min(oldest, ts)
+        if next_continuation is None or next_continuation == continuation:
+            break
+        continuation = next_continuation
+    # No unread items (or no ingestion times): start from now, tolerating clock skew.
+    account.sync_checkpoint = oldest if oldest is not None else started - CLOCK_SKEW_MARGIN_S
+    account.sync_cursor = None
 
+
+async def _unread_pages(
+    client: GReaderClient, checkpoint: int
+) -> AsyncIterator[list[GReaderItem]]:
+    """Yield unread items oldest-first in pages, starting at ``checkpoint`` (inclusive)."""
+    oldest_ts = checkpoint
+    first = True
+    while True:
+        page, continuation = await client.fetch_stream(
+            limit=READER_PAGE_SIZE, exclude_read=True, oldest_ts=oldest_ts, oldest_first=True
+        )
+        if not page:
+            return
+        stamps = [ts for ts in map(_crawl_ts, page) if ts is not None]
+        if first and len(stamps) > 1 and stamps[0] > stamps[-1]:
+            # The service ignored ``r=o`` and answers newest-first: collect everything and
+            # replay it oldest-first so the checkpoint can still advance page by page.
+            logger.warning("Reader service ignored oldest-first ordering; collecting all pages")
+            everything = list(page)
+            seen_tokens: set[str] = set()
+            while continuation and continuation not in seen_tokens:
+                seen_tokens.add(continuation)
+                more, continuation = await client.fetch_stream(
+                    continuation=continuation,
+                    limit=READER_PAGE_SIZE,
+                    exclude_read=True,
+                    oldest_ts=oldest_ts,
+                )
+                everything.extend(more)
+            everything.sort(key=lambda i: _crawl_ts(i) or 0)
+            for start in range(0, len(everything), READER_PAGE_SIZE):
+                yield everything[start : start + READER_PAGE_SIZE]
+            return
+        first = False
+        yield page
+        if not stamps:
+            return  # cannot page without ingestion times
+        newest = max(stamps)
+        if newest > oldest_ts:
+            oldest_ts = newest
+        elif len(page) < READER_PAGE_SIZE:
+            return  # only the boundary item again: caught up
+        else:
+            oldest_ts += 1  # a full page sharing one second; step past it (dedupe covers overlap)
+
+
+async def _ingest_items(
+    session: AsyncSession, account: ReaderAccount, feed: Feed, items: list[GReaderItem]
+) -> tuple[int, int, list[int], list[int]]:
+    """Store new items and apply inbound read state.
+
+    Returns (new_articles, read_synced, fulltext_pending, llm_handoff).
+    """
     new_articles = 0
     read_synced = 0
     fulltext_pending: list[int] = []
@@ -177,13 +237,13 @@ async def _poll_reader_account_inner(
                             read_synced += 1
             continue
 
-        # New article to ingest
         article = Article(
             feed_id=feed.id,
             guid=item.id,
             url=item.url,
             title=item.title,
             raw_content=item.raw_content,
+            image_url=item.image_url,
             published_at=item.published_at,
             origin_feed_title=item.origin_feed_title,
             processing_state="fetched",
@@ -199,11 +259,93 @@ async def _poll_reader_account_inner(
 
         new_articles += 1
 
-    if new_continuation:
-        account.sync_cursor = new_continuation
+    return new_articles, read_synced, fulltext_pending, llm_handoff
+
+
+async def _process_page(feed_id: int, fulltext_pending: list[int], llm_handoff: list[int]) -> None:
+    """Fulltext fetch and LLM handoff for one stored page, run while the next page loads."""
+    ready = list(llm_handoff)
+    if fulltext_pending:
+        ready.extend(await fetch_full_text_batch(feed_id, fulltext_pending))
+    for article_id in ready:
+        enqueue_article(article_id)
+
+
+async def _poll_reader_account_inner(
+    session: AsyncSession, account: ReaderAccount
+) -> dict[str, int]:
+    feed = await ensure_virtual_feed(session, account)
+    client = GReaderClient(
+        api_base_url=account.api_base_url,
+        username=account.username,
+        password=account.password,
+        auth_token=account.auth_token,
+    )
+
+    await activity.emit(
+        session,
+        "reader",
+        "reader_poll_start",
+        {
+            "account_id": account.id,
+            "provider": account.provider,
+            "title": account.title or feed.title,
+        },
+    )
+    await session.commit()
+
+    new_articles = 0
+    read_synced = 0
+    background: list[asyncio.Task[None]] = []
+    try:
+        if account.sync_checkpoint is None:
+            await establish_reader_checkpoint(client, account)
+            await session.commit()
+        checkpoint = account.sync_checkpoint or 0
+        cutoff = _reader_cutoff(account)
+        if cutoff is not None:
+            checkpoint = max(checkpoint, int(cutoff.timestamp()))
+        started = int(datetime.now(UTC).timestamp())
+        async for page in _unread_pages(client, checkpoint):
+            fresh = [
+                item
+                for item in page
+                if cutoff is None or item.published_at is None or item.published_at >= cutoff
+            ]
+            new, synced, pending, handoff = await _ingest_items(session, account, feed, fresh)
+            new_articles += new
+            read_synced += synced
+            stamps = [ts for ts in map(_crawl_ts, page) if ts is not None]
+            # The checkpoint moves only with the page that was just stored.
+            if stamps:
+                account.sync_checkpoint = max(account.sync_checkpoint or 0, max(stamps))
+            else:
+                account.sync_checkpoint = max(
+                    account.sync_checkpoint or 0, started - CLOCK_SKEW_MARGIN_S
+                )
+            if client.auth_token != account.auth_token:
+                account.auth_token = client.auth_token
+            await session.commit()
+            background.append(asyncio.create_task(_process_page(feed.id, pending, handoff)))
+    except Exception as exc:
+        await session.rollback()
+        account.last_error = str(exc)[:500]
+        account.last_checked_at = datetime.now(UTC)
+        await activity.emit(
+            session,
+            "reader",
+            "reader_poll_failed",
+            {"account_id": account.id, "error": account.last_error},
+            level="error",
+        )
+        await session.commit()
+        if background:
+            await asyncio.gather(*background, return_exceptions=True)
+        raise
+
+    account.sync_cursor = None
     account.last_checked_at = datetime.now(UTC)
     account.last_error = None
-
     await activity.emit(
         session,
         "reader",
@@ -216,14 +358,8 @@ async def _poll_reader_account_inner(
         },
     )
     await session.commit()
-
-    # Fulltext fetch & LLM handoff (executed in small per-article transactions)
-    if fulltext_pending:
-        ready_for_llm = await fetch_full_text_batch(feed.id, fulltext_pending)
-        llm_handoff.extend(ready_for_llm)
-
-    for article_id in llm_handoff:
-        enqueue_article(article_id)
+    if background:
+        await asyncio.gather(*background)
 
     return {"new_articles": new_articles, "read_synced": read_synced}
 

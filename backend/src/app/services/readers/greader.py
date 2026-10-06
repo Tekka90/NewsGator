@@ -4,6 +4,7 @@ Supports Google Reader API (/reader/api/0) compatible RSS readers:
 Inoreader, FreshRSS, Miniflux, The Old Reader, BazQux, etc.
 """
 
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -11,7 +12,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from app.services.ingest import canonicalize_url
+from app.services.ingest import canonicalize_url, inline_image_from_html
 
 USER_AGENT = "NewsGator/0.1 (+self-hosted feed reader)"
 
@@ -24,6 +25,25 @@ class GReaderAuthError(GReaderError):
     """Authentication or authorization failure."""
 
 
+def html_to_text(html: str) -> str:
+    """Plain text of a feed item's HTML body (fallback text when full-text fetch fails)."""
+    if "<" not in html:
+        return html.strip()
+    from lxml import html as lxml_html
+
+    try:
+        doc = lxml_html.fromstring(html)
+    except (ValueError, lxml_html.etree.ParserError):
+        return re.sub(r"<[^>]+>", " ", html).strip()
+    for bad in doc.xpath("//script|//style"):
+        bad.drop_tree()
+    for el in doc.iter("br", "p", "div", "li", "h1", "h2", "h3", "h4", "h5", "h6"):
+        el.tail = "\n" + (el.tail or "")
+    text = doc.text_content().replace("\xa0", " ")
+    text = re.sub(r"[ \t]+", " ", text)
+    return re.sub(r"\n\s*\n+", "\n\n", text).strip()
+
+
 @dataclass
 class GReaderItem:
     id: str
@@ -33,6 +53,9 @@ class GReaderItem:
     published_at: datetime | None
     origin_feed_title: str | None
     is_read: bool
+    # When the reader service ingested the item; the reliable incremental-sync key
+    crawled_at: datetime | None = None
+    image_url: str | None = None
 
 
 async def _http_request(
@@ -163,6 +186,8 @@ class GReaderClient:
         continuation: str | None = None,
         limit: int = 50,
         exclude_read: bool = False,
+        oldest_ts: int | None = None,
+        oldest_first: bool = False,
     ) -> tuple[list[GReaderItem], str | None]:
         """Fetch reading list entries. Returns (items, new_continuation_token)."""
         if not self.auth_token and (self.username and self.password):
@@ -179,6 +204,11 @@ class GReaderClient:
             params["c"] = continuation
         if exclude_read:
             params["xt"] = "user/-/state/com.google/read"
+        if oldest_first:
+            params["r"] = "o"
+        if oldest_ts is not None:
+            # "ot": only items the service ingested at or after this epoch second
+            params["ot"] = str(oldest_ts)
 
         status_code, content, _ = await _http_request(
             "GET", stream_url, headers=self._auth_headers(), params=params
@@ -239,6 +269,14 @@ class GReaderClient:
                 except (ValueError, TypeError, OverflowError):
                     pass
 
+            crawled_at: datetime | None = None
+            if raw.get("crawlTimeMsec"):
+                try:
+                    crawl_s = float(raw["crawlTimeMsec"]) / 1000.0
+                    crawled_at = datetime.fromtimestamp(crawl_s, tz=UTC)
+                except (ValueError, TypeError, OverflowError):
+                    pass
+
             # Origin title (sub-feed display name, e.g. "Ars Technica")
             origin = raw.get("origin", {})
             origin_title = origin.get("title") if isinstance(origin, dict) else None
@@ -258,15 +296,31 @@ class GReaderClient:
             elif isinstance(raw.get("summary"), dict) and raw["summary"].get("content"):
                 content_val = str(raw["summary"]["content"])
 
+            # Lead image: an image enclosure, else the first real <img> in the body
+            image_url: str | None = None
+            enclosures = raw.get("enclosure")
+            for enc in enclosures if isinstance(enclosures, list) else []:
+                if (
+                    isinstance(enc, dict)
+                    and enc.get("href")
+                    and str(enc.get("type", "")).startswith("image/")
+                ):
+                    image_url = str(enc["href"])
+                    break
+            if image_url is None:
+                image_url = inline_image_from_html(content_val, publisher_url)
+
             items.append(
                 GReaderItem(
                     id=item_id,
                     title=str(raw.get("title", "")),
                     url=publisher_url,
-                    raw_content=content_val,
+                    raw_content=html_to_text(content_val),
                     published_at=published_at,
                     origin_feed_title=origin_title,
                     is_read=is_read,
+                    crawled_at=crawled_at,
+                    image_url=image_url,
                 )
             )
 

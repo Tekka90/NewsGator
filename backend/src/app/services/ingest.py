@@ -162,19 +162,14 @@ _PLACEHOLDER_RE = re.compile(
 )
 
 
-def _inline_image(entry: feedparser.FeedParserDict) -> str | None:
-    """First real <img src> in the entry's HTML content/summary.
+def inline_image_from_html(html: str, base: str = "") -> str | None:
+    """First real <img src> in HTML.
 
     Skips data: URIs, 1x1 tracking pixels, emoji/smiley sprites, and lazy-load
     placeholders (e.g. PlayStation Blog ships src="placeholder.svg" with the
     real URL in data-src — which feedparser's sanitizer strips — so the entry
     counts as image-less and fulltext's og:image recovery takes over).
     """
-    html = ""
-    if entry.get("content"):
-        html = str(entry.content[0].get("value", ""))
-    elif entry.get("summary"):
-        html = str(entry.summary)
     for match in _IMG_SRC_RE.finditer(html):
         src, tag = match.group(1), match.group(0)
         if src.startswith(("data:", "//feedsportal.com", "//feedburner.com")):
@@ -187,9 +182,18 @@ def _inline_image(entry: feedparser.FeedParserDict) -> str | None:
             return "https:" + src
         if src.startswith(("http://", "https://")):
             return src
-        base = str(entry.get("link", ""))
         return urljoin(base, src) if base else None
     return None
+
+
+def _inline_image(entry: feedparser.FeedParserDict) -> str | None:
+    """First real <img src> in the entry's HTML content/summary."""
+    html = ""
+    if entry.get("content"):
+        html = str(entry.content[0].get("value", ""))
+    elif entry.get("summary"):
+        html = str(entry.summary)
+    return inline_image_from_html(html, str(entry.get("link", "")))
 
 
 def effective_interval_min(feed: Feed) -> int:

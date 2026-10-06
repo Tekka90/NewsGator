@@ -355,6 +355,12 @@ class ReaderAccount(Base):
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     virtual_feed_id: Mapped[int | None] = mapped_column(ForeignKey("feed.id"), nullable=True)
     sync_cursor: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    # Unread articles to import on the first sync (later syncs are unbounded)
+    initial_import_count: Mapped[int] = mapped_column(Integer, default=200, server_default="200")
+    # Epoch seconds of the newest item ingested by the service; NULL until the first sync
+    sync_checkpoint: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Import window in days; NULL = follow settings.feed_backfill_days, 0 = everything
+    backfill_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
     last_checked_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)

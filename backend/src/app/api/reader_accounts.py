@@ -4,6 +4,7 @@ Scoped to the CURRENT user: every user connects their own reader account.
 Passwords and API keys are write-only — accepted on create/patch, never returned.
 """
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -14,8 +15,13 @@ from app.api.schemas import ReaderAccountIn, ReaderAccountOut, ReaderAccountPatc
 from app.core.db import get_session
 from app.models import ReaderAccount, User
 from app.services import activity
-from app.services.readers.greader import GReaderClient
-from app.services.readers.sync import ensure_virtual_feed, poll_reader_account
+from app.services.readers.diagnose import diagnose_login
+from app.services.readers.greader import GReaderClient, GReaderError
+from app.services.readers.sync import (
+    ensure_virtual_feed,
+    establish_reader_checkpoint,
+    poll_reader_account,
+)
 
 router = APIRouter(
     prefix="/reader-accounts", tags=["readers"], dependencies=[Depends(current_user)]
@@ -48,6 +54,21 @@ async def create_account(
     session: AsyncSession = Depends(get_session),
     user: User = Depends(current_user),
 ) -> ReaderAccountOut:
+    # Verify the server and credentials before anything is stored.
+    probe = GReaderClient(
+        api_base_url=body.api_base_url.strip(),
+        username=body.username.strip(),
+        password=body.password,
+        auth_token=body.auth_token.strip() if body.auth_token else None,
+    )
+    try:
+        await probe.authenticate()
+    except (GReaderError, httpx.HTTPError) as exc:
+        hint = await diagnose_login(
+            body.api_base_url, body.username.strip(), body.password, str(exc) or type(exc).__name__
+        )
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, hint) from exc
+
     account = ReaderAccount(
         user_id=user.id,
         provider=body.provider,
@@ -56,7 +77,14 @@ async def create_account(
         username=body.username.strip(),
         password=body.password.strip(),
         auth_token=body.auth_token.strip() if body.auth_token else None,
+        initial_import_count=body.initial_import_count,
+        backfill_days=body.backfill_days,
     )
+    # Starting watermark only: nothing is imported until the first poll.
+    try:
+        await establish_reader_checkpoint(probe, account)
+    except (GReaderError, httpx.HTTPError) as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc) or type(exc).__name__) from exc
     session.add(account)
     await session.flush()
 
@@ -88,7 +116,8 @@ async def update_account(
 ) -> ReaderAccountOut:
     account = await _own_account(session, account_id, user)
     for field, value in body.model_dump(exclude_unset=True).items():
-        if value is not None:
+        # backfill_days may be cleared to follow the server default again
+        if value is not None or field == "backfill_days":
             setattr(account, field, value.strip() if isinstance(value, str) else value)
     await session.commit()
     await session.refresh(account)
@@ -139,7 +168,15 @@ async def test_account(
             await session.commit()
         return ReaderTestOut(ok=True, items_accessible=res.get("items_accessible", 0))
     except Exception as exc:
-        return ReaderTestOut(ok=False, error=str(exc))
+        error = str(exc)
+        if isinstance(exc, (GReaderError, httpx.HTTPError)):
+            error = await diagnose_login(
+                account.api_base_url,
+                account.username,
+                account.password,
+                error or type(exc).__name__,
+            )
+        return ReaderTestOut(ok=False, error=error)
 
 
 class ReaderPollOut(BaseModel):

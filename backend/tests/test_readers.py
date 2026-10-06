@@ -1,13 +1,15 @@
+
 """Tests for third-party RSS reader API integration (SPEC §9, Google Reader API standard)."""
 
 import json
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, patch
 from urllib.parse import parse_qs
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from tests.conftest import setup_admin
 
@@ -141,6 +143,55 @@ async def test_greader_client_login_and_stream() -> None:
         assert item1.id in call.get("i", [])
 
 
+def test_html_to_text_strips_tags_and_keeps_line_breaks() -> None:
+    from app.services.readers.greader import html_to_text
+
+    out = html_to_text("<p>Hello &amp; <b>world</b></p><script>x()</script><p>Second</p>")
+    assert out == "Hello & world\nSecond"
+    assert html_to_text("plain text") == "plain text"
+
+
+def test_inline_image_extraction_skips_placeholders_and_pixels() -> None:
+    from app.services.ingest import inline_image_from_html
+
+    html = (
+        '<img src="data:image/gif;base64,AAA"><img src="https://x.test/p.gif" width="1">'
+        '<img src="/img/lead.jpg"><img src="https://x.test/second.jpg">'
+    )
+    assert inline_image_from_html(html, "https://x.test/post") == "https://x.test/img/lead.jpg"
+    assert inline_image_from_html("<p>no image</p>") is None
+
+
+@pytest.mark.anyio
+async def test_reader_items_carry_a_lead_image() -> None:
+    body = {
+        "items": [
+            {"id": "a", "title": "A", "canonical": [{"href": "https://p.test/a"}],
+             "enclosure": [{"href": "https://cdn.test/a.jpg", "type": "image/jpeg"}],
+             "summary": {"content": '<img src="https://cdn.test/other.jpg">'}},
+            {"id": "b", "title": "B", "canonical": [{"href": "https://p.test/b"}],
+             "enclosure": [{"href": "https://cdn.test/a.mp3", "type": "audio/mpeg"}],
+             "summary": {"content": '<p><img src="https://cdn.test/b.jpg"></p>'}},
+            {"id": "c", "title": "C", "canonical": [{"href": "https://p.test/c"}],
+             "summary": {"content": "text"}},
+        ]
+    }
+
+    async def fake(*args: Any, **kwargs: Any) -> tuple[int, bytes, dict[str, str]]:
+        return 200, json.dumps(body).encode(), {}
+
+    client = GReaderClient(
+        api_base_url="https://reader.example.com", username="u", password="p", auth_token="t"
+    )
+    with patch("app.services.readers.greader._http_request", side_effect=fake):
+        items, _ = await client.fetch_stream()
+    assert [i.image_url for i in items] == [
+        "https://cdn.test/a.jpg",
+        "https://cdn.test/b.jpg",
+        None,
+    ]
+
+
 # --- Integration & Sync Engine Tests ---
 
 
@@ -161,6 +212,7 @@ async def test_reader_account_poll_and_virtual_feed(
             username="alice",
             password="dummy_password",
             is_enabled=True,
+            backfill_days=0,
         )
         session.add(account)
         await session.commit()
@@ -191,7 +243,7 @@ async def test_reader_account_poll_and_virtual_feed(
             acc = await session.get(ReaderAccount, account_id)
             assert acc is not None
             assert acc.virtual_feed_id is not None
-            assert acc.sync_cursor == "next_cursor_123"
+            assert acc.sync_cursor is None
             assert acc.auth_token == "fake_auth_token_xyz"
 
             # Check virtual feed
@@ -239,6 +291,7 @@ async def test_inbound_read_sync_updated_status(
             username="alice",
             password="dummy_password",
             is_enabled=True,
+            backfill_days=0,
             virtual_feed_id=feed.id,
         )
         session.add(account)
@@ -365,6 +418,7 @@ async def test_outbound_read_state_push(
             username="alice",
             password="dummy_password",
             is_enabled=True,
+            backfill_days=0,
             virtual_feed_id=feed.id,
         )
         session.add(account)
@@ -469,3 +523,200 @@ async def test_reader_accounts_api_crud(client: AsyncClient) -> None:
         res = await client.get("/api/reader-accounts")
         assert res.status_code == 200
         assert not any(a["id"] == account_id for a in res.json())
+
+
+class _PagedService:
+    """Unread stream honouring ``xt``, ``ot`` (inclusive) and ``r=o`` like a Google Reader API."""
+
+    def __init__(self, honor_order: bool = True) -> None:
+        self.now = int(datetime.now(UTC).timestamp())
+        self.store: list[tuple[int, int]] = [(i, self.now - 1000 + i) for i in range(1, 41)]
+        self.requests: list[dict[str, Any]] = []
+        self.honor_order = honor_order
+        self.fail_after: int | None = None
+
+    def add(self, count: int, base: int) -> None:
+        self.store.extend((base + i, self.now + base + i) for i in range(count))
+
+    async def call(
+        self,
+        method: str,
+        url: str,
+        headers: dict[str, str] | None = None,
+        params: dict[str, Any] | None = None,
+        data: Any = None,
+        request_timeout: float = 30.0,
+    ) -> tuple[int, bytes, dict[str, str]]:
+        del method, headers, data, request_timeout
+        if url.endswith("/accounts/ClientLogin"):
+            return 200, b"Auth=tok\n", {}
+        assert params is not None
+        self.requests.append(dict(params))
+        if self.fail_after is not None and len(self.requests) > self.fail_after:
+            return 500, b"boom", {}
+        assert params.get("xt") == "user/-/state/com.google/read"
+        oldest = int(params.get("ot", 0))
+        ascending = self.honor_order and params.get("r") == "o"
+        rows = sorted(
+            (r for r in self.store if r[1] >= oldest), key=lambda r: r[1], reverse=not ascending
+        )
+        offset = int(params.get("c", 0))
+        count = int(params["n"])
+        chunk = rows[offset : offset + count]
+        body: dict[str, Any] = {
+            "items": [
+                {
+                    "id": f"tag:fixture/{i}",
+                    "title": f"Item {i}",
+                    "canonical": [{"href": f"https://publisher.example.com/{i}"}],
+                    "summary": {"content": "x"},
+                    "published": 1,
+                    "crawlTimeMsec": str(ts * 1000),
+                    "categories": [],
+                }
+                for i, ts in chunk
+            ]
+        }
+        if offset + count < len(rows):
+            body["continuation"] = str(offset + count)
+        return 200, json.dumps(body).encode(), {}
+
+
+async def _paged_account(db_session: async_sessionmaker[AsyncSession], count: int) -> int:
+    async with db_session() as session:
+        user = User(username="pager", password_hash="hash", is_admin=False)
+        session.add(user)
+        await session.flush()
+        account = ReaderAccount(
+            user_id=user.id,
+            provider="greader",
+            api_base_url="https://reader.example.com",
+            username="alice",
+            password="pw",
+            initial_import_count=count,
+            backfill_days=0,
+        )
+        session.add(account)
+        await session.commit()
+        return account.id
+
+
+async def _poll(db_session: async_sessionmaker[AsyncSession], account_id: int) -> int:
+    async with db_session() as session:
+        acc = await session.get(ReaderAccount, account_id)
+        assert acc is not None
+        return (await poll_reader_account(session, acc))["new_articles"]
+
+
+_PATCHES = (
+    "app.services.readers.sync.fetch_full_text_batch",
+    "app.services.readers.sync.enqueue_article",
+)
+
+
+@pytest.mark.anyio
+async def test_watermark_start_then_unbounded_oldest_first_pages(
+    db_session: async_sessionmaker[AsyncSession],
+) -> None:
+    service = _PagedService()
+    account_id = await _paged_account(db_session, 10)
+    with (
+        patch("app.services.readers.greader._http_request", side_effect=service.call),
+        patch(_PATCHES[0], new=AsyncMock(return_value=[])),
+        patch(_PATCHES[1]),
+    ):
+        # Setup walks newest-first for the watermark only; the import starts from it.
+        assert await _poll(db_session, account_id) == 10
+        assert "ot" not in service.requests[0] and "r" not in service.requests[0]
+        assert service.requests[-2]["r"] == "o"
+
+        service.add(3, 100)
+        assert await _poll(db_session, account_id) == 3
+
+        service.requests.clear()
+        service.add(250, 200)
+        assert await _poll(db_session, account_id) == 250  # no cap, 100 per page
+        assert all(r["n"] == "100" and r["r"] == "o" for r in service.requests)
+        assert len(service.requests) >= 3
+
+    async with db_session() as session:
+        acc = await session.get(ReaderAccount, account_id)
+        assert acc is not None
+        assert acc.sync_checkpoint == service.now + 200 + 249
+        total = await session.scalar(select(func.count(Article.id)))
+        assert total == 263
+
+
+@pytest.mark.anyio
+async def test_checkpoint_advances_per_page_and_resumes_after_failure(
+    db_session: async_sessionmaker[AsyncSession],
+) -> None:
+    service = _PagedService()
+    account_id = await _paged_account(db_session, 1)
+    with (
+        patch("app.services.readers.greader._http_request", side_effect=service.call),
+        patch(_PATCHES[0], new=AsyncMock(return_value=[])),
+        patch(_PATCHES[1]),
+    ):
+        assert await _poll(db_session, account_id) == 1
+        service.add(250, 200)
+        service.requests.clear()
+        service.fail_after = 1  # first page succeeds, second one fails
+        with pytest.raises(Exception, match="HTTP 500"):
+            await _poll(db_session, account_id)
+        async with db_session() as session:
+            acc = await session.get(ReaderAccount, account_id)
+            assert acc is not None
+            assert acc.sync_checkpoint == service.now + 200 + 98  # end of page 1
+        service.fail_after = None
+        assert await _poll(db_session, account_id) == 151  # resumes; nothing lost or repeated
+
+
+@pytest.mark.anyio
+async def test_service_ignoring_oldest_first_is_still_imported_completely(
+    db_session: async_sessionmaker[AsyncSession],
+) -> None:
+    service = _PagedService(honor_order=False)
+    account_id = await _paged_account(db_session, 5)
+    with (
+        patch("app.services.readers.greader._http_request", side_effect=service.call),
+        patch(_PATCHES[0], new=AsyncMock(return_value=[])),
+        patch(_PATCHES[1]),
+    ):
+        assert await _poll(db_session, account_id) == 5
+        service.add(230, 200)
+        assert await _poll(db_session, account_id) == 230
+
+
+@pytest.mark.anyio
+async def test_create_rejects_failed_login_with_diagnosis(client: AsyncClient) -> None:
+    await setup_admin(client)
+
+    async def fake(
+        method: str,
+        url: str,
+        headers: dict[str, str] | None = None,
+        params: dict[str, Any] | None = None,
+        data: Any = None,
+        request_timeout: float = 30.0,
+    ) -> tuple[int, bytes, dict[str, str]]:
+        del method, headers, params, data, request_timeout
+        if url == "https://rss.example.com/api/greader.php/accounts/ClientLogin":
+            return 200, b"Auth=tok\n", {}
+        if url.endswith("/accounts/ClientLogin"):
+            return 404, b"nope", {}
+        return 200, b"<html>Powered by FreshRSS</html>", {}
+
+    with patch("app.services.readers.greader._http_request", side_effect=fake):
+        res = await client.post(
+            "/api/reader-accounts",
+            json={
+                "api_base_url": "https://rss.example.com/api",
+                "username": "u",
+                "password": "p",
+            },
+        )
+        assert res.status_code == 400
+        assert "https://rss.example.com/api/greader.php" in res.json()["detail"]
+        assert "FreshRSS" in res.json()["detail"]
+        assert (await client.get("/api/reader-accounts")).json() == []
