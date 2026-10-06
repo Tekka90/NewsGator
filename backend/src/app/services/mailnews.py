@@ -29,7 +29,6 @@ network I/O (same writer-lock discipline as ingest.py).
 import asyncio
 import imaplib
 import re
-import socket
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -370,23 +369,10 @@ IMAP_TIMEOUT_S = 30.0
 
 
 class _TimeoutIMAP4(imaplib.IMAP4):
-    """IMAP4 whose every socket op uses IMAP_TIMEOUT_S.
-
-    `file` is a read-only property in imaplib — never assign it. For plain
-    sockets makefile() only does a dup() (no buffering issue), so we simply
-    skip creating it here.
-    """
+    """IMAP4 whose every socket op uses IMAP_TIMEOUT_S."""
 
     def __init__(self, host: str, port: int):
-        # IMAP4.__init__ passes timeout through to open() — hand ours in,
-        # otherwise it would pass None (= infinite, the bug we're fixing).
         super().__init__(host, port, timeout=IMAP_TIMEOUT_S)
-
-    def open(
-        self, host: str = "", port: int = 143, timeout: float | None = IMAP_TIMEOUT_S
-    ) -> None:
-        self.host, self.port = host, port
-        self.sock = socket.create_connection((host, port), timeout=timeout)
 
 
 class _TimeoutIMAP4SSL(imaplib.IMAP4_SSL):
@@ -403,6 +389,18 @@ def _imap_connect(host: str, port: int, use_ssl: bool) -> imaplib.IMAP4:
     return _TimeoutIMAP4(host, port)
 
 
+def _imap_login(imap: imaplib.IMAP4, username: str, password: str) -> None:
+    """LOGIN only carries ASCII (imaplib encodes it as such); anything else goes
+    through SASL PLAIN, which is UTF-8 by definition (RFC 4616)."""
+    if "\0" in username or "\0" in password:
+        raise ValueError("credentials must not contain NUL characters")
+    if username.isascii() and password.isascii():
+        imap.login(username, password)
+        return
+    initial = b"\0" + username.encode() + b"\0" + password.encode()
+    imap.authenticate("PLAIN", lambda _challenge: initial)
+
+
 def _uid_search_new(imap: imaplib.IMAP4, last_uid: int, limit: int) -> list[int]:
     """UIDs strictly above the watermark, ascending, capped."""
     typ, data = imap.uid("SEARCH", None, "ALL")  # type: ignore[arg-type]
@@ -417,7 +415,7 @@ def _search_new_uids(account: MailAccount) -> list[int]:
     is what the 'Poll now' endpoint waits on."""
     imap = _imap_connect(account.host, account.port, account.use_ssl)
     try:
-        imap.login(account.username, account.password)
+        _imap_login(imap, account.username, account.password)
         imap.select(f'"{account.folder}"', readonly=True)
         return _uid_search_new(imap, account.last_uid, settings.mail_max_messages_per_poll)
     finally:
@@ -434,7 +432,7 @@ def _fetch_raw_by_uid(account: MailAccount, uids: list[int]) -> list[tuple[int, 
         return []
     imap = _imap_connect(account.host, account.port, account.use_ssl)
     try:
-        imap.login(account.username, account.password)
+        _imap_login(imap, account.username, account.password)
         imap.select(f'"{account.folder}"', readonly=True)
         out: list[tuple[int, bytes]] = []
         for uid in uids:
@@ -468,7 +466,7 @@ async def test_account(account: MailAccount) -> ProbeResult:
 def _probe_account(account: MailAccount) -> None:
     imap = _imap_connect(account.host, account.port, account.use_ssl)
     try:
-        imap.login(account.username, account.password)
+        _imap_login(imap, account.username, account.password)
         typ, _ = imap.select(f'"{account.folder}"', readonly=True)
         if typ != "OK":
             raise RuntimeError(f"folder not found: {account.folder}")

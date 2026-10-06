@@ -772,3 +772,81 @@ def test_poll_lock_expires_after_timeout(monkeypatch: pytest.MonkeyPatch) -> Non
     assert mailnews.try_begin_poll(999) is True
     mailnews.end_poll(999)
 
+
+
+# --- IMAP credentials over a real socket ---------------------------------------
+
+
+class _AuthServer:
+    """Tiny IMAP server speaking just enough for login: records how credentials arrived."""
+
+    def __init__(self) -> None:
+        import socket
+        import threading
+
+        self.sock = socket.socket()
+        self.sock.bind(("127.0.0.1", 0))
+        self.sock.listen(1)
+        self.port: int = self.sock.getsockname()[1]
+        self.seen: list[tuple[str, str, str]] = []  # (mechanism, username, password)
+        self.thread = threading.Thread(target=self._serve, daemon=True)
+        self.thread.start()
+
+    def _serve(self) -> None:
+        import base64
+
+        conn, _ = self.sock.accept()
+        with conn, conn.makefile("rb") as reader:
+            conn.sendall(b"* OK ready\r\n")
+            while line := reader.readline():
+                tag, _, rest = line.decode("utf-8").strip().partition(" ")
+                cmd, _, args = rest.partition(" ")
+                if cmd.upper() == "CAPABILITY":
+                    conn.sendall(f"* CAPABILITY IMAP4rev1 AUTH=PLAIN\r\n{tag} OK done\r\n".encode())
+                elif cmd.upper() == "LOGIN":
+                    import shlex
+
+                    user, password = shlex.split(args.replace("\\", "\\\\"))
+                    self.seen.append(("LOGIN", user, password))
+                    conn.sendall(f"{tag} OK logged in\r\n".encode())
+                elif cmd.upper() == "AUTHENTICATE":
+                    conn.sendall(b"+ \r\n")
+                    blob = base64.b64decode(reader.readline().strip())
+                    _, user, password = (part.decode("utf-8") for part in blob.split(b"\0"))
+                    self.seen.append(("PLAIN", user, password))
+                    conn.sendall(f"{tag} OK authenticated\r\n".encode())
+                elif cmd.upper() == "LOGOUT":
+                    conn.sendall(f"* BYE\r\n{tag} OK bye\r\n".encode())
+                    return
+                else:
+                    conn.sendall(f"{tag} OK\r\n".encode())
+
+    def close(self) -> None:
+        self.sock.close()
+
+
+@pytest.mark.parametrize(
+    ("username", "password", "mechanism"),
+    [
+        ("reader@example.test", "plain-ascii", "LOGIN"),
+        ("reader@example.test", "p&ss+w=rd;#%25 x", "LOGIN"),
+        ("reader@example.test", "pässwörd-é-日本", "PLAIN"),
+        ("rédacteur@example.test", "ascii-pass", "PLAIN"),
+    ],
+)
+def test_imap_login_handles_complex_credentials(
+    username: str, password: str, mechanism: str
+) -> None:
+    server = _AuthServer()
+    try:
+        imap = mailnews._imap_connect("127.0.0.1", server.port, False)
+        mailnews._imap_login(imap, username, password)
+        imap.logout()
+    finally:
+        server.close()
+    assert server.seen == [(mechanism, username, password)]
+
+
+def test_imap_login_rejects_nul_characters() -> None:
+    with pytest.raises(ValueError):
+        mailnews._imap_login(None, "user", "pa\0ss")  # type: ignore[arg-type]
