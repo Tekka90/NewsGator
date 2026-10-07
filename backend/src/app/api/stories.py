@@ -493,6 +493,52 @@ async def widget_snapshot(
     )
 
 
+class StoryCountsOut(BaseModel):
+    """Counts behind the story-list filter pills (all / unread / updated / saved)."""
+
+    all: int
+    unread: int
+    updated: int
+    saved: int
+
+
+@router.get("/counts")
+async def story_counts(
+    category: str | None = None,
+    feed: int | None = None,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> StoryCountsOut:
+    """Filter-pill counts for the user's visible stories — no story payloads loaded."""
+    user_feed_ids = await _user_feed_ids(session, user)
+    if not user_feed_ids or (feed is not None and feed not in user_feed_ids):
+        return StoryCountsOut(all=0, unread=0, updated=0, saved=0)
+    visible = select(Article.story_id).where(
+        Article.feed_id.in_([feed] if feed is not None else user_feed_ids),
+        Article.story_id.is_not(None),
+    )
+    query = select(Story.id, Story.version).where(Story.id.in_(visible))
+    if category:
+        query = query.where(Story.category == category)
+    rows = (await session.execute(query)).all()
+    states = {
+        s.story_id: s
+        for s in (
+            await session.scalars(select(StoryState).where(StoryState.user_id == user.id))
+        ).all()
+    }
+    counts = StoryCountsOut(all=len(rows), unread=0, updated=0, saved=0)
+    for story_id, version in rows:
+        state = states.get(story_id)
+        if not (state and state.is_read):
+            counts.unread += 1
+        elif state.read_at_version < version:
+            counts.updated += 1
+        if state is not None and state.saved_at is not None:
+            counts.saved += 1
+    return counts
+
+
 class FacetCount(BaseModel):
     key: str
     count: int

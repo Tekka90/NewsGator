@@ -546,6 +546,12 @@ articles/revisions/vectors). Web GUI: a gold star toggle in story rows/detail, a
 Saved filter pill, and swipe-down save on the mobile deck. Legacy stamps: 0019 top
 entry keyed on `("story_state", "saved_at")`.
 
+Story-list payload diet (2026-10-07): the web Stories page used to fetch the full
+`GET /api/stories` list twice (once filtered, once `filter=all`) just to compute the
+filter-pill counts. It now calls `GET /api/stories/counts` (`{all, unread, updated,
+saved}`, optional `category`/`feed`; selects only `Story.id/version`, no summaries) —
+one list request instead of two. No schema change.
+
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,
   `workers/`); routers depend on `get_session` and `current_user`/`admin_user` deps.

@@ -322,6 +322,15 @@ export const api = {
     },
     // feeds with at least one story — story-list filter options (all users)
     feedOptions: () => req<FeedOption[]>('/stories/feed-options'),
+    // filter-pill counts without loading story payloads
+    counts: (category?: string, feedId?: number) => {
+      const params = new URLSearchParams();
+      if (category) params.set('category', category);
+      if (feedId) params.set('feed', String(feedId));
+      return req<{ all: number; unread: number; updated: number; saved: number }>(
+        `/stories/counts?${params}`
+      );
+    },
     detail: (id: number) => req<StoryDetail>(`/stories/${id}`),
     // proximity-ranked merge candidates (centroid cosine, best-first)
     similar: (id: number) => req<SimilarStory[]>(`/stories/${id}/similar`),

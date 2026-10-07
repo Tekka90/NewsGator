@@ -183,19 +183,12 @@
 
   async function load() {
     loading = true;
-    const [fetchedStories, allStories] = await Promise.all([
+    const [fetchedStories, counts] = await Promise.all([
       api.stories.list(filter, category || undefined, sort, order, feedId || undefined),
-      api.stories.list('all', category || undefined, sort, order, feedId || undefined).catch(() => [] as StoryListItem[])
+      api.stories.counts(category || undefined, feedId || undefined).catch(() => null)
     ]);
     stories = fetchedStories;
-    if (allStories.length > 0 || fetchedStories.length === 0) {
-      filterCounts = {
-        all: allStories.length,
-        unread: allStories.filter((s) => !s.is_read).length,
-        updated: allStories.filter((s) => s.updated_since_read).length,
-        saved: allStories.filter((s) => s.saved).length,
-      };
-    }
+    if (counts && (counts.all > 0 || fetchedStories.length === 0)) filterCounts = counts;
     index = 0;
     dx = 0;
     dy = 0;
