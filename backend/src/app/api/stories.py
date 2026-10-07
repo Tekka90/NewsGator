@@ -310,14 +310,12 @@ def _order_stories(
     """Order stories by publication date, last update or source count."""
     ordered = list(selected)
     if sort == "published":
-        # article publication date; unknown dates always last regardless of order
-        def published_of(story: Story) -> datetime | None:
-            return stats.get(story.id, (0, None))[1]
+        # article publication date; undated stories use last_updated_at, as the GUI displays
+        def published_of(story: Story) -> datetime:
+            first = stats.get(story.id, (0, None))[1]
+            return first if first is not None else story.last_updated_at
 
-        ordered.sort(key=lambda s: (published_of(s) is not None, published_of(s)), reverse=True)
-        if not reverse:
-            known = [s for s in ordered if published_of(s) is not None]
-            ordered = known[::-1] + [s for s in ordered if published_of(s) is None]
+        ordered.sort(key=published_of, reverse=reverse)
     elif sort == "sources":
         ordered.sort(
             key=lambda s: (

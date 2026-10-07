@@ -5,8 +5,8 @@ events and persists article state immediately.
 """
 
 import asyncio
+import calendar
 import re
-import time
 from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
@@ -119,10 +119,10 @@ def _entry_published(entry: feedparser.FeedParserDict) -> datetime | None:
                 dt = parsedate_to_datetime(raw)
                 return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
             except (TypeError, ValueError):
-                continue
+                pass  # ISO 8601 (Atom) — fall through to feedparser's parsed struct
         struct = entry.get(f"{key}_parsed")
         if struct:
-            return datetime.fromtimestamp(time.mktime(struct), tz=UTC)
+            return datetime.fromtimestamp(calendar.timegm(struct), tz=UTC)
     return None
 
 

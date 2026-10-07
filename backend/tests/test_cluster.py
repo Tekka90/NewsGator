@@ -527,9 +527,9 @@ async def test_stories_list_sort(client: AsyncClient, db_session) -> None:
             assert story is not None
             ids[t] = story.id
 
-    # Default ordering (no params): article publication date, oldest first
+    # Default ordering: publication date (undated: last update), oldest first
     r = await client.get("/api/stories")
-    assert [i["id"] for i in r.json()] == [ids["S1"], ids["S2"], ids["S3"]]
+    assert [i["id"] for i in r.json()] == [ids["S1"], ids["S3"], ids["S2"]]
 
     r = await client.get("/api/stories?sort=updated&order=desc")
     assert [i["id"] for i in r.json()] == [ids["S1"], ids["S3"], ids["S2"]]
@@ -537,9 +537,9 @@ async def test_stories_list_sort(client: AsyncClient, db_session) -> None:
     assert [i["id"] for i in r.json()] == [ids["S2"], ids["S3"], ids["S1"]]
 
     r = await client.get("/api/stories?sort=published&order=desc")
-    assert [i["id"] for i in r.json()] == [ids["S2"], ids["S1"], ids["S3"]]
+    assert [i["id"] for i in r.json()] == [ids["S2"], ids["S3"], ids["S1"]]
     r = await client.get("/api/stories?sort=published&order=asc")
-    assert [i["id"] for i in r.json()] == [ids["S1"], ids["S2"], ids["S3"]]
+    assert [i["id"] for i in r.json()] == [ids["S1"], ids["S3"], ids["S2"]]
 
     r = await client.get("/api/stories?sort=sources&order=desc")
     assert [i["id"] for i in r.json()] == [ids["S2"], ids["S1"], ids["S3"]]
