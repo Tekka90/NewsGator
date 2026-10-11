@@ -489,6 +489,9 @@ footer {
 .langs { font-size: 14px; margin-top: 18px; color: var(--muted); }
 .langs a { margin-right: 10px; }
 .langs .current { font-weight: 600; margin-right: 10px; }
+.btn.store { padding: 0; border: 0; background: none; box-shadow: none; border-radius: 10px; }
+.btn.store img { display: block; height: 52px; width: auto; }
+.avail { margin-top: 18px; color: var(--forest-dark); font-weight: 600; }
 </style>
 <link rel="alternate" hreflang="en" href="https://www.newsgator.app/index.html" />
 <link rel="alternate" hreflang="fr" href="https://www.newsgator.app/index-fr.html" />
@@ -501,6 +504,7 @@ footer {
 <link rel="alternate" hreflang="zh-Hans" href="https://www.newsgator.app/index-zh-hans.html" />
 <link rel="alternate" hreflang="zh-Hant" href="https://www.newsgator.app/index-zh-hant.html" />
 <link rel="alternate" hreflang="x-default" href="https://www.newsgator.app/index.html" />
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "NewsGator", "operatingSystem": "iOS, iPadOS, macOS", "applicationCategory": "NewsApplication", "downloadUrl": "https://apps.apple.com/app/newsgator-news-aggregator/id6816198546", "installUrl": "https://apps.apple.com/app/newsgator-news-aggregator/id6816198546", "url": "https://www.newsgator.app/", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}}</script>
 </head>
 <body>
 <nav class="site-nav" id="site-nav">
@@ -532,9 +536,10 @@ footer {
             并在你想深入阅读时带你回到 <strong>原始发布者</strong>。
           </p>
           <p class="note">两种引擎：由 Apple Intelligence 驱动的原生 Apple 应用，或你自己的自托管 NewsGator 服务器。</p>
+          <p class="avail">现已登陆 iPhone、iPad 和 Mac。</p>
           <div class="actions">
-            <a class="btn primary" href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">查看自托管服务器</a>
-            <a class="btn secondary" href="https://testflight.apple.com/join/VzV818na" target="_blank" rel="noopener noreferrer">加入 TestFlight 测试</a>
+            <a class="btn store" href="https://apps.apple.com/app/newsgator-news-aggregator/id6816198546" target="_blank" rel="noopener noreferrer" aria-label="在 App Store 下载"><img src="assets/badges/app-store-zh-hans.svg" alt="在 App Store 下载" height="52" /></a>
+            <a class="btn secondary" href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">查看自托管服务器</a>
           </div>
         </div>
 
@@ -748,8 +753,8 @@ footer {
       <h2>更少重复噪音，更多有效信号。</h2>
       <p class="sub">NewsGator 帮你判断什么值得读，然后退到幕后。无广告、无第三方追踪器、无分析统计。</p>
       <div class="actions" style="justify-content:center;">
-        <a class="btn primary" href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">服务器仓库</a>
-        <a class="btn secondary" href="https://testflight.apple.com/join/VzV818na" target="_blank" rel="noopener noreferrer">加入 TestFlight 测试</a>
+        <a class="btn store" href="https://apps.apple.com/app/newsgator-news-aggregator/id6816198546" target="_blank" rel="noopener noreferrer" aria-label="在 App Store 下载"><img src="assets/badges/app-store-zh-hans.svg" alt="在 App Store 下载" height="52" /></a>
+        <a class="btn secondary" href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">服务器仓库</a>
       </div>
     </div>
   </section>

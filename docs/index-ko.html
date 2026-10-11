@@ -490,6 +490,9 @@ footer {
 .langs { font-size: 14px; margin-top: 18px; color: var(--muted); }
 .langs a { margin-right: 10px; }
 .langs .current { font-weight: 600; margin-right: 10px; }
+.btn.store { padding: 0; border: 0; background: none; box-shadow: none; border-radius: 10px; }
+.btn.store img { display: block; height: 52px; width: auto; }
+.avail { margin-top: 18px; color: var(--forest-dark); font-weight: 600; }
 </style>
 <link rel="alternate" hreflang="en" href="https://www.newsgator.app/index.html" />
 <link rel="alternate" hreflang="fr" href="https://www.newsgator.app/index-fr.html" />
@@ -502,6 +505,7 @@ footer {
 <link rel="alternate" hreflang="zh-Hans" href="https://www.newsgator.app/index-zh-hans.html" />
 <link rel="alternate" hreflang="zh-Hant" href="https://www.newsgator.app/index-zh-hant.html" />
 <link rel="alternate" hreflang="x-default" href="https://www.newsgator.app/index.html" />
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "NewsGator", "operatingSystem": "iOS, iPadOS, macOS", "applicationCategory": "NewsApplication", "downloadUrl": "https://apps.apple.com/app/newsgator-news-aggregator/id6816198546", "installUrl": "https://apps.apple.com/app/newsgator-news-aggregator/id6816198546", "url": "https://www.newsgator.app/", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}}</script>
 </head>
 <body>
 <nav class="site-nav" id="site-nav">
@@ -533,9 +537,10 @@ footer {
             더 읽고 싶을 때는 <strong>원문 발행처</strong>로 보내드립니다.
           </p>
           <p class="note">두 가지 엔진: Apple Intelligence로 구동되는 네이티브 Apple 앱, 또는 직접 호스팅하는 NewsGator 서버.</p>
+          <p class="avail">iPhone, iPad, Mac에서 지금 만나보세요.</p>
           <div class="actions">
-            <a class="btn primary" href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">셀프 호스팅 서버 보기</a>
-            <a class="btn secondary" href="https://testflight.apple.com/join/VzV818na" target="_blank" rel="noopener noreferrer">TestFlight 베타 참여하기</a>
+            <a class="btn store" href="https://apps.apple.com/app/newsgator-news-aggregator/id6816198546" target="_blank" rel="noopener noreferrer" aria-label="App Store에서 다운로드"><img src="assets/badges/app-store-ko.svg" alt="App Store에서 다운로드" height="52" /></a>
+            <a class="btn secondary" href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">셀프 호스팅 서버 보기</a>
           </div>
         </div>
 
@@ -749,8 +754,8 @@ footer {
       <h2>중복 잡음은 줄이고, 핵심은 더 많이.</h2>
       <p class="sub">NewsGator는 무엇을 읽을 가치가 있는지 빠르게 판단하도록 돕고, 그다음에는 조용히 물러납니다. 광고도, 타사 추적기도, 분석도 없습니다.</p>
       <div class="actions" style="justify-content:center;">
-        <a class="btn primary" href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">서버 저장소</a>
-        <a class="btn secondary" href="https://testflight.apple.com/join/VzV818na" target="_blank" rel="noopener noreferrer">TestFlight 베타 참여하기</a>
+        <a class="btn store" href="https://apps.apple.com/app/newsgator-news-aggregator/id6816198546" target="_blank" rel="noopener noreferrer" aria-label="App Store에서 다운로드"><img src="assets/badges/app-store-ko.svg" alt="App Store에서 다운로드" height="52" /></a>
+        <a class="btn secondary" href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">서버 저장소</a>
       </div>
     </div>
   </section>

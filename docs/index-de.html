@@ -489,6 +489,9 @@ footer {
 .langs { font-size: 14px; margin-top: 18px; color: var(--muted); }
 .langs a { margin-right: 10px; }
 .langs .current { font-weight: 600; margin-right: 10px; }
+.btn.store { padding: 0; border: 0; background: none; box-shadow: none; border-radius: 10px; }
+.btn.store img { display: block; height: 52px; width: auto; }
+.avail { margin-top: 18px; color: var(--forest-dark); font-weight: 600; }
 </style>
 <link rel="alternate" hreflang="en" href="https://www.newsgator.app/index.html" />
 <link rel="alternate" hreflang="fr" href="https://www.newsgator.app/index-fr.html" />
@@ -501,6 +504,7 @@ footer {
 <link rel="alternate" hreflang="zh-Hans" href="https://www.newsgator.app/index-zh-hans.html" />
 <link rel="alternate" hreflang="zh-Hant" href="https://www.newsgator.app/index-zh-hant.html" />
 <link rel="alternate" hreflang="x-default" href="https://www.newsgator.app/index.html" />
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "NewsGator", "operatingSystem": "iOS, iPadOS, macOS", "applicationCategory": "NewsApplication", "downloadUrl": "https://apps.apple.com/app/newsgator-news-aggregator/id6816198546", "installUrl": "https://apps.apple.com/app/newsgator-news-aggregator/id6816198546", "url": "https://www.newsgator.app/", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}}</script>
 </head>
 <body>
 <nav class="site-nav" id="site-nav">
@@ -532,9 +536,10 @@ footer {
             und führt Sie zum <strong>ursprünglichen Verlag</strong> zurück, wenn Sie mehr lesen möchten.
           </p>
           <p class="note">Zwei starke Betriebsmodi: native Apple-Apps mit Apple Intelligence oder Ihr eigener selbst gehosteter NewsGator-Server.</p>
+          <p class="avail">Jetzt für iPhone, iPad und Mac erhältlich.</p>
           <div class="actions">
-            <a class="btn primary" href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">Zum selbst gehosteten Server</a>
-            <a class="btn secondary" href="https://testflight.apple.com/join/VzV818na" target="_blank" rel="noopener noreferrer">TestFlight-Beta beitreten</a>
+            <a class="btn store" href="https://apps.apple.com/app/newsgator-news-aggregator/id6816198546" target="_blank" rel="noopener noreferrer" aria-label="Im App Store laden"><img src="assets/badges/app-store-de.svg" alt="Im App Store laden" height="52" /></a>
+            <a class="btn secondary" href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">Zum selbst gehosteten Server</a>
           </div>
         </div>
 
@@ -748,8 +753,8 @@ footer {
       <h2>Weniger doppelte Unruhe. Mehr Signal.</h2>
       <p class="sub">NewsGator hilft Ihnen zu entscheiden, was lesenswert ist, und tritt dann in den Hintergrund. Keine Werbung, keine Tracker von Drittanbietern, keine Analysedaten.</p>
       <div class="actions" style="justify-content:center;">
-        <a class="btn primary" href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">Server-Repository</a>
-        <a class="btn secondary" href="https://testflight.apple.com/join/VzV818na" target="_blank" rel="noopener noreferrer">TestFlight-Beta beitreten</a>
+        <a class="btn store" href="https://apps.apple.com/app/newsgator-news-aggregator/id6816198546" target="_blank" rel="noopener noreferrer" aria-label="Im App Store laden"><img src="assets/badges/app-store-de.svg" alt="Im App Store laden" height="52" /></a>
+        <a class="btn secondary" href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">Server-Repository</a>
       </div>
     </div>
   </section>
