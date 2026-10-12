@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/state';
-  import { api, faviconUrl } from '$lib/api';
+  import { api, faviconUrl, imageSrc } from '$lib/api';
   import ReadeckIcon from '$lib/components/ReadeckIcon.svelte';
   import ShareButton from '$lib/components/ShareButton.svelte';
   import StoryPicker from '$lib/components/StoryPicker.svelte';
@@ -167,7 +167,7 @@
     </div>
     <h1>{story.title}</h1>
     {#if story.image_url}
-      <img class="lead" src={story.image_url} alt="" loading="lazy" />
+      <img class="lead" src={imageSrc(story.image_url)} alt="" loading="lazy" />
     {/if}
     {#if story.summary}
       <details class="summary-details">

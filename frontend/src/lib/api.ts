@@ -32,6 +32,12 @@ export function getToken(): string {
   return typeof localStorage === 'undefined' ? '' : (localStorage.getItem(TOKEN_KEY) ?? '');
 }
 
+/** Feeds still publish http:// image links, which browsers block as mixed
+ * content on an https page; load them over https instead. */
+export function imageSrc(url: string): string {
+  return url.replace(/^http:\/\//i, 'https://');
+}
+
 /** Favicon proxy URL for a source host. <img> can't send Authorization
  * headers, so the session token goes in the query string when present. */
 export function faviconUrl(host: string): string {

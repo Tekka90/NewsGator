@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/state';
-  import { api, faviconUrl } from '$lib/api';
+  import { api, faviconUrl, imageSrc } from '$lib/api';
   import { currentUser } from '$lib/stores';
   import ReadeckIcon from '$lib/components/ReadeckIcon.svelte';
   import ShareButton from '$lib/components/ShareButton.svelte';
@@ -233,7 +233,7 @@
   function preload(story: StoryListItem | undefined) {
     if (story?.image_url) {
       const img = new Image();
-      img.src = story.image_url;
+      img.src = imageSrc(story.image_url);
     }
   }
 
@@ -598,7 +598,7 @@
           <img
             class="hero"
             class:heroloading={!heroLoaded}
-            src={current.image_url}
+            src={imageSrc(current.image_url)}
             alt=""
             onload={() => (heroLoaded = true)}
             onerror={() => (heroLoaded = true)}
@@ -682,7 +682,7 @@
       <a class="storylink" href="/stories/{story.id}">
         <div class="body">
           {#if story.image_url}
-            <img class="thumb" src={story.image_url} alt="" loading="lazy" />
+            <img class="thumb" src={imageSrc(story.image_url)} alt="" loading="lazy" />
           {/if}
           <div>
             <h2>{story.title}</h2>
