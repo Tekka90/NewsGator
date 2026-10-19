@@ -403,7 +403,11 @@
         { key: 'feed_disable_after_days', label: 'Disable feed after N days of failures' },
         { key: 'feed_backfill_days', label: 'First-poll backfill window (days, 0 = all)' },
         { key: 'reader_poll_minutes', label: 'Reader accounts poll interval (minutes)' },
-        { key: 'summary_language', label: 'Summary language (global default)' }
+        { key: 'summary_language', label: 'Summary language (global default)' },
+        { key: 'summary_min_sentences', label: 'Story summary min sentences (1-12)' },
+        { key: 'summary_max_sentences', label: 'Story summary max sentences (1-12)' },
+        { key: 'headline_min_words', label: 'Headline min words (0 = no minimum, max 40)' },
+        { key: 'headline_max_words', label: 'Headline max words (1-40)' }
       ]
     }
   ];

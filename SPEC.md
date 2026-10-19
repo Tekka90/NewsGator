@@ -101,7 +101,7 @@ erDiagram
     FEED {
         int id PK
         string url           "RSS URL, pseudo-URL newsletter:{sender} for mail feeds, or reader:{provider}:{account_id} for reader_api feeds"
-        string kind          "rss|mail|reader_api — mail and reader_api feeds are not RSS-polled"
+        string kind          "rss|mail|reader_api|saved — only rss feeds are polled; saved = per-user pseudo-feed (url saved:{user_id}) holding links shared from other apps"
         string sender_email  "mail feeds only: the newsletter From: address"
         string title
         int poll_interval_min
@@ -374,6 +374,7 @@ v1 is **data-first, no online learning**:
 | `GET /stories/counts?category=&feed=` | filter-pill counts `{all, unread, updated, saved}` for the user's visible stories (optional category/feed scope) — lets the GUI avoid fetching the full list just to count |
 | `GET /stories/feed-options` | feeds subscribed by the current user that have at least one article in a story (`[{id, title, kind, url, sender_email}]`) — options for the story-list feed filter |
 | `GET /stories/{id}` | story detail: merged summary + source articles + revision history (404 if user is not subscribed to any member feeds) |
+| `POST /stories/import-url` | body `{url}` (http/https only, else 422): turns a link shared from another app into an article of the caller's "Shared with NewsGator" feed (`kind = 'saved'`, pseudo-URL `saved:{user_id}`, never polled, created on first use and subscribed to automatically) and enqueues it in the normal pipeline. Returns `201 {article_id, feed_id, already_known, story_id}`; a URL (tracking params stripped) already present in the user's feeds is not duplicated (`already_known: true`) |
 | `POST /stories/{id}/read` | sets `read_at_version = story.version` (per user) and pushes read state to connected third-party reader APIs for any member articles from reader feeds |
 | `POST /stories/{id}/unread` | marks story unread and pushes unread state to connected third-party reader APIs for any member articles from reader feeds |
 | `GET /stories/{id}/diff?from={version}` | what changed |
@@ -381,13 +382,14 @@ v1 is **data-first, no online learning**:
 | `POST /feeds/import-opml` | bulk-import feeds into the user's subscriptions from an OPML file; new feeds are polled immediately in the background |
 | `GET /feeds/export-opml` | export the user's subscribed RSS-kind feeds as an OPML 2.0 subscription list; mail feeds are excluded |
 | `POST /feeds/{id}/refresh`, `POST /feeds/refresh` | force-poll one/all of the user's subscribed RSS feeds now, bypassing the adaptive schedule; mail feeds are rejected |
+| `POST /feeds/probe` | body `{url}`: finds the RSS/Atom feed advertised by the site of a web page (`<link rel="alternate">`, common feed paths) using the discovery prober. Returns `{feed, already_followed, feeds: [{title, url, site_url, …, already_followed}]}` (`feeds` lists the feeds the page or its site declares, then up to 20 in all of the site's other feeds from Feedsearch (sections of the article's path first); `feed` is the first one, `null` when none) so clients can offer "subscribe to this feed" on stories created from shared links |
 | `POST /feeds/discover` | Feed discovery, aligned with the Apple standalone pipeline. Body: `themes` (13 category names) **or** free-text `query` (exclusive; categories win), `mode` (`catalog` \| `smart`), `locale` (`fr_FR`: language filters results, country selects the news edition), `excluded_urls`. Leads come from the directory's curated topic lists (keyword search only as fallback), Google News publisher mentions (**only as a fallback**, when the directory yields fewer than 10 usable leads), and in `smart` mode LLM-suggested publications; each is verified live (parses, ≤180 days old, language match; the LLM topic check applies only to `smart`-mode suggestions). Feeds the user already follows and duplicates (normalized URL) are never returned. Each result carries `sources` (`directory`/`news`/`ai`) |
 | `POST /feeds/discover/stream` | Same body and search as `/feeds/discover`, streamed as `application/x-ndjson`: `stage`, `progress` (`current`, `total`, `target`), `feed` (provisional arrival order), then `done` (`feeds`, the final ranking) or `error`; `ping` lines keep the connection alive. The search is time-bounded by `DISCOVERY_BUDGET_S`. | admin/user |
 | `GET/POST /mail-accounts`, `PATCH/DELETE /mail-accounts/{id}` | per-user IMAP accounts for newsletter ingestion (any user, own accounts only — 404 across users). Folder is mandatory; the password is write-only (never returned, replace via PATCH). Deleting an account keeps the mail feeds/articles it produced |
 | `POST /mail-accounts/{id}/test`, `POST /mail-accounts/{id}/poll` | probe IMAP login + folder existence (returns ok/errors, never the password), or poll the account immediately (202 + message count; **409 when a poll is already running** for that account) |
 | `GET/POST /reader-accounts`, `PATCH/DELETE /reader-accounts/{id}` | per-user third-party RSS reader API accounts (Google Reader API compatible: Inoreader, FreshRSS, Miniflux, The Old Reader, BazQux; own accounts only). All articles from an account are grouped into one virtual feed. Password/token is write-only (never returned) |
 | `POST /reader-accounts/{id}/test`, `POST /reader-accounts/{id}/poll` | probe reader API authentication + stream access, or poll the account immediately (202 + article count; 409 if poll currently in progress) |
-| `GET/PATCH /settings` | global: retention days, freeze window, thresholds, vector backend (admin). Precedence: **env var > DB override > code default**; env-set keys are reported in `env_locked`, shown read-only in the GUI, and rejected by PATCH |
+| `GET/PATCH /settings` | global: retention days, freeze window, thresholds, vector backend, story summary/headline length (`summary_min_sentences`/`summary_max_sentences` 1–12, default 3/5; `headline_min_words` 0–40 where 0 = no minimum, `headline_max_words` 1–40, default 0/12; min ≤ max, else 400) (admin). Precedence: **env var > DB override > code default**; env-set keys are reported in `env_locked`, shown read-only in the GUI, and rejected by PATCH |
 | `POST /settings/test-llm`, `POST /settings/test-qdrant`, `POST /settings/test-readeck` | connection probes for the external services (admin); return `ok` + errors without leaking secrets |
 | `POST /stories/{id}/merge` / `POST /articles/{id}/move` | manual override when clustering is wrong (important for trust) |
 | `GET /stories/{id}/similar`, `GET /stories/articles/{id}/similar-stories` | ranked merge/move candidates for the story-detail pickers: ANN over story centroids then exact cosine re-rank, `[{id, title, similarity}]` best-first, self/current story excluded; stories/articles without vectors fall back to unscored recency order (`similarity: null`). Read-only probes — no activity events |
@@ -726,8 +728,9 @@ Everything above is normative; this section is just a quick-reference recap.
 - **Categories**: seeded taxonomy, fully admin-customizable in the GUI.
 - **Feeds**: adaptive polling, conditional GETs, exponential backoff on errors,
   auto-disable after 7 consecutive days of failure (configurable), manual re-enable.
-  Two kinds: `rss` (HTTP-polled) and `mail` (newsletter ingestion from per-user
-  IMAP folders — senders become feeds, links become articles, §9).
+  Three kinds: `rss` (HTTP-polled), `mail` (newsletter ingestion from per-user
+  IMAP folders — senders become feeds, links become articles, §9) and `saved`
+  (links the user shares from other apps; never polled).
 - **Newsletters**: per-user IMAP accounts with a mandatory folder, read-only
   UID-watermark polling, code-first link extraction + one LLM refinement call per
   message; human-written intros preferred over LLM summaries for new stories.

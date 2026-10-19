@@ -154,3 +154,77 @@ async def test_removing_override_restores_runtime_startup_value(
     assert "retention_days" not in response.json()["overridden"]
     assert response.json()["values"]["retention_days"] == _STARTUP_VALUES["retention_days"]
     assert settings.retention_days == _STARTUP_VALUES["retention_days"]
+
+
+async def test_length_settings_defaults_and_validation(
+    client: AsyncClient, monkeypatch
+) -> None:
+    for key in (
+        "summary_min_sentences", "summary_max_sentences",
+        "headline_min_words", "headline_max_words",
+    ):
+        monkeypatch.delenv(key.upper(), raising=False)
+        monkeypatch.setattr(settings, key, getattr(settings, key))
+    await setup_admin(client)
+    values = (await client.get("/api/settings")).json()["values"]
+    assert values["summary_min_sentences"] == 3
+    assert values["summary_max_sentences"] == 5
+    assert values["headline_min_words"] == 0
+    assert values["headline_max_words"] == 12
+
+    ok = await client.patch(
+        "/api/settings",
+        json={"values": {"summary_min_sentences": 2, "summary_max_sentences": 8}},
+    )
+    assert ok.status_code == 200
+    assert settings.summary_max_sentences == 8
+
+    for bad in (
+        {"summary_min_sentences": 0},
+        {"summary_max_sentences": 13},
+        {"summary_min_sentences": 9},  # above stored max (8)
+        {"headline_max_words": 41},
+        {"headline_min_words": 13},  # above default max (12)
+        {"headline_min_words": 5, "headline_max_words": 4},
+        {"headline_max_words": "abc"},
+    ):
+        r = await client.patch("/api/settings", json={"values": bad})
+        assert r.status_code == 400, bad
+
+    # Resetting max below stored min is refused too
+    await client.patch("/api/settings", json={"values": {"summary_min_sentences": 6}})
+    r = await client.patch("/api/settings", json={"values": {"summary_max_sentences": 4}})
+    assert r.status_code == 400
+    # Reset to defaults works
+    r = await client.patch(
+        "/api/settings",
+        json={"values": {"summary_min_sentences": None, "summary_max_sentences": None}},
+    )
+    assert r.status_code == 200
+    assert r.json()["values"]["summary_min_sentences"] == 3
+
+
+async def test_length_settings_env_locked(client: AsyncClient, monkeypatch) -> None:
+    await setup_admin(client)
+    monkeypatch.setenv("HEADLINE_MAX_WORDS", "10")
+    body = (await client.get("/api/settings")).json()
+    assert "headline_max_words" in body["env_locked"]
+    r = await client.patch("/api/settings", json={"values": {"headline_max_words": 11}})
+    assert r.status_code == 400
+
+
+def test_story_prompts_use_length_settings(monkeypatch) -> None:
+    from app.services import prompts
+
+    _, merge = prompts.merge_story_summary("a", "b", lang_code="en")
+    _, head = prompts.story_headline(["a"], lang_code="en")
+    assert "(3-5 sentences)" in merge and "(max 12 words)" in merge
+    assert "(max 12 words)" in head
+    monkeypatch.setattr(settings, "summary_min_sentences", 6)
+    monkeypatch.setattr(settings, "summary_max_sentences", 12)
+    monkeypatch.setattr(settings, "headline_min_words", 6)
+    monkeypatch.setattr(settings, "headline_max_words", 12)
+    _, merge = prompts.merge_story_summary("a", "b", lang_code="en")
+    _, head = prompts.story_headline(["a"], lang_code="en")
+    assert "(6-12 sentences)" in merge and "(6-12 words)" in merge
+    assert "(6-12 words)" in head

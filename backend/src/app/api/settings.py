@@ -32,6 +32,10 @@ OVERRIDABLE = {
     "llm_trace_enabled": bool,
     "llm_trace_max_chars": int,
     "summary_language": str,
+    "summary_min_sentences": int,
+    "summary_max_sentences": int,
+    "headline_min_words": int,
+    "headline_max_words": int,
     "vector_backend": str,
     "qdrant_url": str,
     "qdrant_api_key": str,
@@ -62,6 +66,19 @@ OVERRIDABLE = {
     "category_suggestion_window_days": int,
 }
 
+# key -> (min, max) allowed values
+_RANGES = {
+    "summary_min_sentences": (1, 12),
+    "summary_max_sentences": (1, 12),
+    "headline_min_words": (0, 40),
+    "headline_max_words": (1, 40),
+}
+# (min key, max key): min must not exceed max
+_PAIRS = [
+    ("summary_min_sentences", "summary_max_sentences"),
+    ("headline_min_words", "headline_max_words"),
+]
+
 _BOOLEAN = TypeAdapter(bool)
 _STARTUP_VALUES = {key: getattr(env_settings, key) for key in OVERRIDABLE}
 
@@ -70,6 +87,31 @@ def _cast_setting(key: str, value: object) -> object:
     cast = OVERRIDABLE[key]
     # DB/environment values are strings: bool("False") would enable the option.
     return _BOOLEAN.validate_python(value) if cast is bool else cast(value)
+
+
+def _validate_lengths(stored: dict[str, str], patch: dict[str, object]) -> str | None:
+    """Range + min<=max check on the effective values after applying the patch.
+    Returns an error message, or None when valid."""
+    effective: dict[str, int] = {}
+    for key in _RANGES:
+        raw: object
+        if key in patch:
+            raw = patch[key]
+            if raw is None or raw == "":
+                raw = _STARTUP_VALUES[key]  # reset to the default
+        else:
+            raw = _env_raw(key) or stored.get(key) or _STARTUP_VALUES[key]
+        try:
+            effective[key] = int(raw)  # type: ignore[call-overload]
+        except (TypeError, ValueError):
+            return f"Invalid value for {key}: {raw!r}"
+    for key, (low, high) in _RANGES.items():
+        if key in patch and not low <= effective[key] <= high:
+            return f"{key} must be between {low} and {high}"
+    for lo_key, hi_key in _PAIRS:
+        if effective[lo_key] > effective[hi_key]:
+            return f"{lo_key} must not exceed {hi_key}"
+    return None
 
 
 def _env_raw(key: str) -> str | None:
@@ -114,6 +156,10 @@ async def patch_settings(
     body: SettingsPatch, session: AsyncSession = Depends(get_session)
 ) -> SettingsOut:
     reset_keys = []
+    if any(k in _RANGES for k in body.values):
+        error = _validate_lengths(await _load_overrides(session), body.values)
+        if error:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, error)
     for key, value in body.values.items():
         if key not in OVERRIDABLE:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unknown setting: {key}")

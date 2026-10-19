@@ -51,6 +51,14 @@ class Settings(BaseSettings):
     # Language policy (SPEC §1): summaries/embeddings in this language; GUI English-only
     summary_language: str = "en"
 
+    # Story-level length guidance used in the merge/headline prompts (the per-article
+    # summary and chat prompts keep their own fixed lengths). headline_min_words = 0
+    # means no minimum is mentioned in the prompt.
+    summary_min_sentences: int = 3
+    summary_max_sentences: int = 5
+    headline_min_words: int = 0
+    headline_max_words: int = 12
+
     # Sharing: languages offered when sharing a story (comma-separated ISO 639-1
     # codes, filtered to the known list in prompts.LANGUAGE_NAMES). Translation
     # is done on demand by the LLM; "as is" sharing never calls the LLM.

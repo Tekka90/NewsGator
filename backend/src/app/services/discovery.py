@@ -285,6 +285,113 @@ async def _probe_url(url: str) -> dict[str, Any] | None:
     return None
 
 
+async def probe_page_feed(url: str) -> dict[str, Any] | None:
+    """Feed metadata (`url`, `title`, `site_url`, …) advertised by the site of `url`, or None."""
+    try:
+        async with asyncio.timeout(25):
+            found = await _probe_url(url)
+            parsed = urlparse(url)
+            if found is None and parsed.netloc and parsed.path not in ("", "/"):
+                # Article pages often omit the feed link that the home page declares.
+                found = await _probe_url(f"{parsed.scheme}://{parsed.netloc}/")
+            return found
+    except TimeoutError:
+        return None
+
+
+async def _page_feed_links(page_url: str) -> list[str]:
+    """Every feed URL a page declares with `<link rel="alternate">`, in document order."""
+    try:
+        async with httpx.AsyncClient(
+            headers={"User-Agent": USER_AGENT}, follow_redirects=True, timeout=6.0
+        ) as client:
+            resp = await client.get(page_url)
+        if resp.status_code != 200 or "html" not in resp.headers.get("content-type", "").lower():
+            return []
+        tree = lxml_html.fromstring(resp.text)
+        hrefs = tree.xpath(
+            '//link[contains(@rel, "alternate") and ('
+            '@type="application/rss+xml" or @type="application/atom+xml" or '
+            '@type="application/feed+json")]/@href'
+        )
+    except Exception:
+        return []
+    return list(dict.fromkeys(urljoin(str(resp.url), h) for h in hrefs))
+
+
+async def _feedsearch_feeds(site_url: str, limit: int = 40) -> list[dict[str, Any]]:
+    """Feeds Feedsearch knows on a site, best score first (shaped like `_parse_feed_sync`)."""
+    host = urlparse(site_url).netloc
+    if not host:
+        return []
+    try:
+        async with httpx.AsyncClient(headers={"User-Agent": USER_AGENT}, timeout=10.0) as client:
+            resp = await client.get(
+                "https://feedsearch.dev/api/v1/search", params={"url": host, "info": "true"}
+            )
+        data = resp.json() if resp.status_code == 200 else []
+    except Exception:
+        return []
+    rows = [
+        f for f in (data if isinstance(data, list) else [])
+        if isinstance(f, dict) and isinstance(f.get("url"), str)
+    ]
+    rows.sort(key=lambda f: -(f.get("score") or 0))
+    return [
+        {
+            "title": _clean_feed_title(str(f.get("title") or "")) or host,
+            "url": f["url"],
+            "site_url": f.get("site_url") or f"{urlparse(site_url).scheme}://{host}",
+            "description": str(f.get("description") or ""),
+        }
+        for f in rows[:limit]
+    ]
+
+
+def _path_affinity(feed_url: str, page_url: str) -> int:
+    """Leading path segments a feed shares with the page (`/politik/…` for a politics article)."""
+    feed = [s for s in urlparse(feed_url).path.split("/") if s][:-1]
+    page = [s for s in urlparse(page_url).path.split("/") if s]
+    shared = 0
+    for a, b in zip(feed, page, strict=False):
+        if a != b:
+            break
+        shared += 1
+    return shared
+
+
+MAX_PROBED_FEEDS = 20
+
+
+async def probe_page_feeds(url: str, limit: int = 8) -> list[dict[str, Any]]:
+    """Feeds advertised by `url` (or its site), then the site's other feeds known to Feedsearch."""
+    try:
+        async with asyncio.timeout(25):
+            parsed = urlparse(url)
+            pages = [url]
+            if parsed.netloc and parsed.path not in ("", "/"):
+                pages.append(f"{parsed.scheme}://{parsed.netloc}/")
+            found: list[dict[str, Any]] = []
+            for page in pages:
+                links = (await _page_feed_links(page))[:limit]
+                results = await asyncio.gather(
+                    *(anyio.to_thread.run_sync(_parse_feed_sync, link, False) for link in links)
+                )
+                found = list({r["url"]: r for r in results if r}.values())
+                if found:
+                    break
+            known = {feed_key(f["url"]) for f in found}
+            extra = [f for f in await _feedsearch_feeds(url) if feed_key(f["url"]) not in known]
+            extra.sort(key=lambda f: -_path_affinity(f["url"], url))
+            found.extend(extra[:MAX_PROBED_FEEDS - len(found)])
+            if found:
+                return found
+            single = await probe_page_feed(url)
+            return [single] if single else []
+    except TimeoutError:
+        return []
+
+
 # --- discovery pipeline ---------------------------------------------------------------
 
 MAX_LEADS = 60

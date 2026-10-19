@@ -61,6 +61,15 @@ Article text:
     return system, user
 
 
+def _headline_words() -> str:
+    low, high = settings.headline_min_words, settings.headline_max_words
+    return f"{low}-{high} words" if low > 0 else f"max {high} words"
+
+
+def _summary_sentences() -> str:
+    return f"{settings.summary_min_sentences}-{settings.summary_max_sentences} sentences"
+
+
 def story_headline(article_summaries: list[str], lang_code: str | None = None) -> tuple[str, str]:
     """Generate a short story headline from member article summaries."""
     lang = summary_language_name(lang_code)
@@ -72,7 +81,7 @@ def story_headline(article_summaries: list[str], lang_code: str | None = None) -
 
 {joined}
 
-Write one short headline (max 12 words) in {lang} capturing the story.
+Write one short headline ({_headline_words()}) in {lang} capturing the story.
 
 Reply with JSON: {{"headline": "..."}}"""
     return system, user
@@ -104,9 +113,9 @@ def merge_story_summary(
         "Reply with ONLY a valid JSON object."
     )
     user = f"""Merge the new information into the existing story summary. Keep it concise
-(3-5 sentences), factual, in {lang}. Drop redundant wording.
+({_summary_sentences()}), factual, in {lang}. Drop redundant wording.
 
-Also write one short headline (max 12 words) in {lang} capturing the updated story.
+Also write one short headline ({_headline_words()}) in {lang} capturing the updated story.
 
 Existing story summary:
 {old_summary}

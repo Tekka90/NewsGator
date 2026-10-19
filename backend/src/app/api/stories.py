@@ -26,7 +26,7 @@ from app.models import (
     User,
     UserFeed,
 )
-from app.services import activity, process
+from app.services import activity, process, saved_links
 from app.services.fulltext import fetch_full_text
 from app.services.vectorstore import cosine_similarity, get_vector_store
 
@@ -44,6 +44,8 @@ class StoryListItem(BaseModel):
     source_count: int
     # distinct hosts of member article URLs (≤5) — for source favicons in the GUI
     source_hosts: list[str]
+    # URL of the link the user shared into NewsGator (saved feed), if the story has one
+    shared_link_url: str | None = None
     # earliest article publication date in the story (None if unknown)
     published_at: datetime | None
     last_updated_at: datetime
@@ -169,6 +171,21 @@ def _source_hosts(rows: Iterable[tuple[int | None, str]]) -> dict[int, list[str]
 _ID_CHUNK = 500
 
 
+async def _shared_links(session: AsyncSession, story_ids: list[int]) -> dict[int, str]:
+    """story_id → URL of the article the user shared into NewsGator (feed kind ``saved``)."""
+    links: dict[int, str] = {}
+    for chunk in _chunked(story_ids):
+        rows = await session.execute(
+            select(Article.story_id, Article.url)
+            .join(Feed, Feed.id == Article.feed_id)
+            .where(Article.story_id.in_(chunk), Feed.kind == "saved")
+        )
+        for story_id, url in rows.all():
+            if story_id is not None:
+                links.setdefault(story_id, url)
+    return links
+
+
 def _chunked(ids: list[int]) -> Iterable[list[int]]:
     for start in range(0, len(ids), _ID_CHUNK):
         yield ids[start : start + _ID_CHUNK]
@@ -254,6 +271,7 @@ async def _story_items(
     page_ids = [s.id for s in page]
 
     hosts = _source_hosts(await _article_urls(session, page_ids))
+    shared = await _shared_links(session, page_ids)
     user_lang = user.summary_language or settings.summary_language
     from app.services.translation import batch_get_translations
 
@@ -287,6 +305,7 @@ async def _story_items(
                 is_frozen=story.is_frozen,
                 source_count=source_count,
                 source_hosts=hosts.get(story.id, []),
+                shared_link_url=shared.get(story.id),
                 published_at=published_at,
                 last_updated_at=story.last_updated_at,
                 is_read=is_read,
@@ -949,6 +968,36 @@ async def reprocess_article(
         content_status=article.content_status,
         content_warning=article.content_warning,
         requeued=requeued,
+    )
+
+
+class ImportUrlIn(BaseModel):
+    url: str
+
+
+class ImportUrlOut(BaseModel):
+    article_id: int
+    feed_id: int
+    already_known: bool
+    story_id: int | None
+
+
+@router.post("/import-url", status_code=status.HTTP_201_CREATED)
+async def import_shared_url(
+    body: ImportUrlIn,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> ImportUrlOut:
+    """Turn a URL shared from another app into an article of the user's "Shared with NewsGator"
+    feed; it is then processed and clustered like any other article."""
+    article, already_known = await saved_links.import_url(session, user, body.url)
+    if not already_known:
+        process.enqueue_article(article.id)
+    return ImportUrlOut(
+        article_id=article.id,
+        feed_id=article.feed_id,
+        already_known=already_known,
+        story_id=article.story_id,
     )
 
 

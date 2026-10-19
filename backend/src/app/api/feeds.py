@@ -35,7 +35,7 @@ from app.models import (
     User,
     UserFeed,
 )
-from app.services import activity, discovery
+from app.services import activity, discovery, saved_links
 from app.services.ingest import parse_opml, poll_feed, poll_feeds_background, render_opml
 from app.services.vectorstore import get_vector_store
 
@@ -147,6 +147,52 @@ async def discover_feeds(
         lang_code=user.summary_language,
     )
     return FeedDiscoveryOut(feeds=[DiscoveredFeed.model_validate(f) for f in results])
+
+
+class FeedProbeIn(BaseModel):
+    url: str
+
+
+class ProbedFeed(DiscoveredFeed):
+    already_followed: bool = False
+
+
+class FeedProbeOut(BaseModel):
+    feed: DiscoveredFeed | None  # the first of `feeds`, kept for older clients
+    already_followed: bool
+    feeds: list[ProbedFeed] = []
+
+
+@router.post("/probe")
+async def probe_page_feed(
+    body: FeedProbeIn,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> FeedProbeOut:
+    """Find the RSS/Atom feeds advertised by the site of a web page (`<link rel="alternate">`,
+    common feed paths), so the user can subscribe to one of them."""
+    url = saved_links.validate_shared_url(body.url)
+    found = await discovery.probe_page_feeds(url)
+    if not found:
+        return FeedProbeOut(feed=None, already_followed=False)
+    followed = {discovery.feed_key(u) for u in await _followed_urls(session, user.id)}
+    feeds = [
+        ProbedFeed(
+            title=f["title"],
+            url=f["url"],
+            site_url=f["site_url"],
+            description=f["description"],
+            access_level=f.get("access_level", "free_full"),
+            already_followed=discovery.feed_key(f["url"]) in followed,
+        )
+        for f in found
+    ]
+    first = feeds[0]
+    return FeedProbeOut(
+        feed=DiscoveredFeed.model_validate(first.model_dump(exclude={"already_followed"})),
+        already_followed=first.already_followed,
+        feeds=feeds,
+    )
 
 
 @router.post("/discover/stream")

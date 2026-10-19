@@ -312,7 +312,7 @@ async def fetch_full_text(session: AsyncSession, article: Article, feed: Feed) -
         # dates (URL paths, copyright years) would make stories sort randomly,
         # so in any doubt the email date stays. RSS entries keep their
         # feedparser date regardless — it is authoritative.
-        if feed.kind == "mail":
+        if feed.kind in ("mail", "saved"):
             page_date = _explicit_page_date(html)
             if page_date is not None and page_date != article.published_at:
                 article.published_at = page_date

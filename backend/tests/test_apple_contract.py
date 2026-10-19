@@ -130,7 +130,8 @@ def test_story_list_detail_revision_and_feed_options(live: httpx.Client) -> None
     assert stories[0] == {
         "id": 1, "title": "Apple contract RSS story", "summary": "Updated RSS facts.",
         "category": "Tech", "image_url": None, "version": 2, "is_frozen": False,
-        "source_count": 1, "source_hosts": ["127.0.0.1"], "published_at": STAMP,
+        "source_count": 1, "source_hosts": ["127.0.0.1"], "shared_link_url": None,
+        "published_at": STAMP,
         "last_updated_at": STAMP, "is_read": True, "updated_since_read": True,
         "saved": False, "saved_at": None,
         "readeck_bookmark_id": None,
