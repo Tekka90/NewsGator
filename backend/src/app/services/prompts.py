@@ -32,18 +32,44 @@ def summary_language_name(lang_code: str | None = None) -> str:
     return LANGUAGE_NAMES.get(code, code)
 
 
+MEDIA_KIND_VIDEO = "video"
+
+# Applied only when the source is a video (media_kind == "video"): the text is an automatic
+# spoken transcript, so the summary/headline must not echo the (often clickbait) video title.
+VIDEO_GUIDANCE = (
+    "The source is an automatic spoken transcript of a video, possibly noisy, in the "
+    "speaker's language. Ignore greetings, sponsor reads, subscribe/like requests and "
+    "channel promotion. Write a neutral, factual summary of what is actually said. Do not "
+    "reuse or imitate the original video title; no clickbait, no questions."
+)
+VIDEO_HEADLINE_GUIDANCE = (
+    "These summaries come from a video transcript. Write a neutral, factual headline of "
+    "what is actually said; do not reuse or imitate the original video title; no clickbait "
+    "and no questions."
+)
+
+
 def summarize_article(
-    title: str, text: str, taxonomy: list[str], lang_code: str | None = None
+    title: str,
+    text: str,
+    taxonomy: list[str],
+    lang_code: str | None = None,
+    media_kind: str | None = None,
 ) -> tuple[str, str]:
-    """Per-article summary + category. Returns (system, user)."""
+    """Per-article summary + category. Returns (system, user).
+
+    The text is sent whole: the caller (process.summarize_article) condenses anything that
+    does not fit the model context (services/llm_budget.py) before calling this.
+    """
     lang = summary_language_name(lang_code)
+    guidance = f"\n{VIDEO_GUIDANCE}\n" if media_kind == MEDIA_KIND_VIDEO else ""
     categories = ", ".join(taxonomy)
     system = (
         f"You are a news summarizer for a personal news reader. Always write in {lang}. "
         "Reply with ONLY a valid JSON object."
     )
     user = f"""Summarize the following news article in {lang} (2-4 sentences, factual, no opinion).
-
+{guidance}
 Also assign exactly one category from this list: {categories}
 
 If — and only if — none of the listed categories fit this article well, also
@@ -57,7 +83,7 @@ Reply with JSON: {{"summary": "...", "category": "...", "suggested_category": ".
 Article title: {title}
 
 Article text:
-{text[:8000]}"""
+{text}"""
     return system, user
 
 
@@ -70,9 +96,29 @@ def _summary_sentences() -> str:
     return f"{settings.summary_min_sentences}-{settings.summary_max_sentences} sentences"
 
 
-def story_headline(article_summaries: list[str], lang_code: str | None = None) -> tuple[str, str]:
+def condense_chunk(text: str, max_words: int) -> tuple[str, str]:
+    """Map step of the long-text map-reduce: extract the facts of one chunk."""
+    system = (
+        "You extract facts from a part of a longer text for a personal news reader. "
+        "Reply with ONLY a valid JSON object."
+    )
+    user = f"""Extract every fact, name, figure and claim from the text below, keeping their
+order. No opinion, no commentary, no introduction. Write in the same language as the text,
+in at most {max_words} words.
+
+Reply with JSON: {{"digest": "..."}}
+
+Text:
+{text}"""
+    return system, user
+
+
+def story_headline(
+    article_summaries: list[str], lang_code: str | None = None, media_kind: str | None = None
+) -> tuple[str, str]:
     """Generate a short story headline from member article summaries."""
     lang = summary_language_name(lang_code)
+    guidance = f"\n{VIDEO_HEADLINE_GUIDANCE}\n" if media_kind == MEDIA_KIND_VIDEO else ""
     joined = "\n\n".join(f"- {s}" for s in article_summaries[:10])
     system = (
         f"You write short, factual news headlines in {lang}. Reply with ONLY a valid JSON object."
@@ -80,7 +126,7 @@ def story_headline(article_summaries: list[str], lang_code: str | None = None) -
     user = f"""These summaries describe the same news story:
 
 {joined}
-
+{guidance}
 Write one short headline ({_headline_words()}) in {lang} capturing the story.
 
 Reply with JSON: {{"headline": "..."}}"""

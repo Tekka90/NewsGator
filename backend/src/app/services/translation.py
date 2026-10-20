@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.db import get_session
 from app.models import Article, Story, StoryTranslation, User, UserFeed
-from app.services import activity, llm_client, llmtrace, prompts, usage
+from app.services import activity, llm_budget, llm_client, llmtrace, prompts, usage
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +37,9 @@ async def _translate_llm(
 ) -> tuple[dict[str, Any], int]:
     """Low-level LLM call seam (module-level for test monkeypatching)."""
     system, user = prompts.translate_story_text(title, summary, target_lang_name)
+    # Summaries are short; the output mirrors the input, so both must fit the context.
+    if len(user) > llm_budget.input_budget_chars(system) // 2:
+        raise llm_client.LLMError("story text exceeds the model context budget")
     with llmtrace.context(
         "story_translate", label=f"{title[:80]} → {target_lang_name}"
     ):

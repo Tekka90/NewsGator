@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.db import get_session
 from app.models import Article, Feed
-from app.services import activity
+from app.services import activity, youtube
 
 # Coarse markers — good enough to route to the next fallback (SPEC §9)
 PAYWALL_MARKERS = (
@@ -290,8 +290,102 @@ def _archive_url(url: str) -> str:
     return f"https://archive.is/newest/{quote(url, safe='')}"
 
 
+async def _fetch_video_text(session: AsyncSession, article: Article, video_id: str) -> None:
+    """YouTube video: the paragraphed transcript is the article text (YOUTUBE_PLAN 3.5-3.8).
+
+    Shorts are dropped (state `clustered`, no story); live/upcoming videos and transient
+    failures stay in `fetched` for the backlog sweep; unplayable videos and videos without
+    captions fall back to the RSS description with a visible warning.
+    """
+    payload: dict[str, object] = {"article_id": article.id, "video_id": video_id}
+    try:
+        result = await youtube.fetch_video(video_id)
+    except youtube.YouTubeError as exc:
+        await activity.emit(
+            session,
+            "fulltext",
+            "fulltext_fetch",
+            {**payload, "path": "youtube_error", "error_code": exc.code.value,
+             "reason": exc.message[:300]},
+            level="error" if exc.code is youtube.ErrorCode.PARSE_FAILED else "warn",
+        )
+        await session.commit()  # stays 'fetched': retried by the backlog sweep
+        return
+
+    outcome, info = result.outcome, result.info
+    if outcome in (youtube.Outcome.LIVE, youtube.Outcome.UPCOMING):
+        await activity.emit(
+            session,
+            "fulltext",
+            "fulltext_fetch",
+            {**payload, "path": "youtube_pending", "outcome": outcome.value,
+             "reason": result.reason},
+        )
+        await session.commit()
+        return
+    if outcome is youtube.Outcome.SHORT:
+        article.processing_state = "clustered"  # dropped: never summarised, never in a story
+        article.content_status = "skipped"
+        article.content_warning = "Skipped: short-form video"
+        await activity.emit(
+            session,
+            "fulltext",
+            "fulltext_fetch",
+            {**payload, "path": "youtube_skipped", "outcome": "short",
+             "reason": "skipped: short", "length_seconds": info.length_seconds},
+        )
+        await session.commit()
+        return
+
+    if info.title and (not article.title or article.title == urlparse(article.url).hostname):
+        article.title = info.title[:1024]
+    if article.image_url is None:
+        article.image_url = youtube.thumbnail_url(video_id)
+
+    reason: str | None = None
+    if outcome is youtube.Outcome.TRANSCRIPT:
+        text = result.text
+        path = "youtube_transcript"
+        article.content_status = "full"
+        article.content_warning = None
+    else:
+        reason = result.reason
+        text = result.text or article.raw_content
+        article.content_status = "partial"
+        if outcome is youtube.Outcome.UNPLAYABLE:
+            path = "youtube_unavailable"
+            text = article.raw_content
+            article.content_warning = f"Video unavailable: {result.reason}"
+        else:
+            path = "youtube_description"
+            article.content_warning = "No captions available; summary based on the description"
+    article.full_text = text
+    article.processing_state = "fulltext"
+    await activity.emit(
+        session,
+        "fulltext",
+        "fulltext_fetch",
+        {
+            **payload,
+            "path": path,
+            "chars": len(text or ""),
+            "reason": reason,
+            "language": result.track.language_code if result.track else None,
+            "caption_kind": (
+                "auto" if result.track and result.track.is_auto else "manual"
+            ) if result.track else None,
+        },
+        level="info" if outcome is youtube.Outcome.TRANSCRIPT else "warn",
+    )
+    await session.commit()
+
+
 async def fetch_full_text(session: AsyncSession, article: Article, feed: Feed) -> None:
     """Run the fetch chain for one article; persist outcome immediately."""
+    video_id = youtube.parse_video_id(article.url)
+    if video_id:
+        await _fetch_video_text(session, article, video_id)
+        return
     cookies = _parse_cookies(feed.auth_cookies)
     path = "rss_only"
     text: str | None = None

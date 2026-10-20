@@ -35,7 +35,7 @@ from app.models import (
     User,
     UserFeed,
 )
-from app.services import activity, discovery, saved_links
+from app.services import activity, discovery, saved_links, youtube
 from app.services.ingest import parse_opml, poll_feed, poll_feeds_background, render_opml
 from app.services.vectorstore import get_vector_store
 
@@ -171,7 +171,8 @@ async def probe_page_feed(
 ) -> FeedProbeOut:
     """Find the RSS/Atom feeds advertised by the site of a web page (`<link rel="alternate">`,
     common feed paths), so the user can subscribe to one of them."""
-    url = saved_links.validate_shared_url(body.url)
+    raw = body.url.strip()
+    url = raw if youtube.is_channel_input(raw) else saved_links.validate_shared_url(raw)
     found = await discovery.probe_page_feeds(url)
     if not found:
         return FeedProbeOut(feed=None, already_followed=False)
@@ -275,13 +276,29 @@ async def refresh_feed(
     return RefreshResult(new_articles=await poll_feed(session, feed))
 
 
+async def _resolve_youtube_feed_url(raw: str) -> str:
+    """Channel/video URL, `@handle` or `UC…` id → the channel's RSS URL (422 when unresolvable)."""
+    try:
+        return (await youtube.resolve_channel(raw)).feed_url
+    except youtube.YouTubeError as exc:
+        code = (
+            status.HTTP_422_UNPROCESSABLE_ENTITY
+            if exc.code is youtube.ErrorCode.UNAVAILABLE
+            else status.HTTP_502_BAD_GATEWAY
+        )
+        detail = f"Could not resolve the YouTube channel ({exc.code.value})"
+        raise HTTPException(code, detail) from exc
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_feed(
     body: FeedIn,
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ) -> FeedOut:
-    url = str(body.url)
+    url = body.url
+    if youtube.is_channel_input(url):
+        url = await _resolve_youtube_feed_url(url)
     exists = await session.scalar(select(Feed).where(Feed.url == url))
     if exists is not None:
         uf = await session.scalar(
@@ -491,19 +508,10 @@ class OpmlResult(BaseModel):
     feeds: list[FeedOut]
 
 
-@router.post("/import-opml", status_code=status.HTTP_201_CREATED)
-async def import_opml(
-    file: UploadFile,
-    user: User = Depends(current_user),
-    session: AsyncSession = Depends(get_session),
-) -> OpmlResult:
-    """Bulk-import feeds from an OPML subscription export for current user."""
-    content = await file.read()
-    try:
-        entries = await anyio.to_thread.run_sync(parse_opml, content)
-    except Exception:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not a valid OPML file") from None
-
+async def _subscribe_entries(
+    session: AsyncSession, user: User, entries: list[tuple[str, str]]
+) -> tuple[list[Feed], int, int]:
+    """Subscribe `user` to (title, url) entries. Returns (added, skipped, invalid)."""
     all_feeds = {f.url: f for f in (await session.scalars(select(Feed))).all()}
     user_feed_ids = set(
         (await session.scalars(select(UserFeed.feed_id).where(UserFeed.user_id == user.id))).all()
@@ -538,9 +546,69 @@ async def import_opml(
         await session.refresh(f)
     if new_feed_ids:
         poll_feeds_background(new_feed_ids)
+    return added, skipped, invalid
+
+
+@router.post("/import-opml", status_code=status.HTTP_201_CREATED)
+async def import_opml(
+    file: UploadFile,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> OpmlResult:
+    """Bulk-import feeds from an OPML subscription export for current user."""
+    content = await file.read()
+    try:
+        entries = await anyio.to_thread.run_sync(parse_opml, content)
+    except Exception:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not a valid OPML file") from None
+
+    added, skipped, invalid = await _subscribe_entries(session, user, entries)
     return OpmlResult(
         added=len(added),
         skipped_existing=skipped,
         invalid=invalid,
+        feeds=[FeedOut.model_validate(f) for f in added],
+    )
+
+
+class SubscriptionsResult(BaseModel):
+    added: int
+    skipped: int
+    invalid: int
+    feeds: list[FeedOut]
+
+
+@router.post("/import-subscriptions", status_code=status.HTTP_201_CREATED)
+async def import_subscriptions(
+    file: UploadFile,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> SubscriptionsResult:
+    """Import a Google Takeout `subscriptions.csv` or an OPML file (auto-detected)."""
+    content = await file.read()
+    text = content.decode("utf-8-sig", errors="replace").lstrip()
+    invalid_rows = 0
+    try:
+        if text.startswith("<"):
+            entries = await anyio.to_thread.run_sync(parse_opml, content)
+        else:
+            rows = youtube.parse_takeout_csv(content)
+            entries, invalid_rows = rows.feeds, rows.invalid
+    except Exception:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "Not a valid subscriptions.csv or OPML file"
+        ) from None
+    added, skipped, invalid = await _subscribe_entries(session, user, list(entries))
+    await activity.emit(
+        session,
+        "ingest",
+        "subscriptions_imported",
+        {"added": len(added), "skipped": skipped, "invalid": invalid + invalid_rows},
+    )
+    await session.commit()
+    return SubscriptionsResult(
+        added=len(added),
+        skipped=skipped,
+        invalid=invalid + invalid_rows,
         feeds=[FeedOut.model_validate(f) for f in added],
     )

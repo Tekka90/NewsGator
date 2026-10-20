@@ -220,6 +220,26 @@ export const api = {
         feeds: Feed[];
       }>;
     },
+    importSubscriptions: async (file: File) => {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/feeds/import-subscriptions', {
+        method: 'POST',
+        credentials: 'include',
+        headers: authHeaders(),
+        body: form
+      });
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        throw new Error(detail.detail ?? `HTTP ${res.status}`);
+      }
+      return res.json() as Promise<{
+        added: number;
+        skipped: number;
+        invalid: number;
+        feeds: Feed[];
+      }>;
+    },
     exportOpml: async () => {
       const res = await fetch('/api/feeds/export-opml', {
         credentials: 'include',

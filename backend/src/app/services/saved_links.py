@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Article, Feed, User, UserFeed, utcnow
-from app.services import activity
+from app.services import activity, youtube
 from app.services.ingest import canonicalize_url
 
 SAVED_FEED_PREFIX = "saved:"
@@ -59,12 +59,26 @@ async def import_url(session: AsyncSession, user: User, raw_url: str) -> tuple[A
     )
     if existing is not None:
         return existing, True
+    title = urlparse(url).hostname or url
+    image_url: str | None = None
+    channel: str | None = None
+    video_id = youtube.parse_video_id(url)
+    if video_id:
+        # Title/channel/thumbnail up front so the video isn't titled "youtube.com" while it
+        # processes. oEmbed failure is non-fatal.
+        oembed = await youtube.fetch_oembed(url)
+        if oembed is not None:
+            title, channel = oembed.title[:1024], oembed.author_name or None
+            image_url = oembed.thumbnail_url
+        image_url = image_url or youtube.thumbnail_url(video_id)
     feed = await get_or_create_saved_feed(session, user)
     article = Article(
         feed_id=feed.id,
         guid=url,
         url=url,
-        title=urlparse(url).hostname or url,
+        title=title,
+        image_url=image_url,
+        origin_feed_title=channel,
         published_at=utcnow(),
         processing_state="fetched",
     )

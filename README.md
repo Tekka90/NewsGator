@@ -48,7 +48,7 @@ philosophy behind it, and how it feels to use.
   LLM interaction trace (see each prompt and its reply as it happens), and LLM
   token-usage metrics per day/stage/model/feed with a price playground.
 - **Quality-of-life** — PWA (installable, works on iOS), dark mode, mobile swipe
-  deck, OPML import/export, categories, favicons (feed icons included — with homepage `<link rel=icon>`
+  deck, OPML import/export, YouTube channels as feeds (transcripts summarised; Takeout `subscriptions.csv` import), categories, favicons (feed icons included — with homepage `<link rel=icon>`
   and parent-domain fallback for newsletter sender domains), story sharing with
   on-demand translation, your Stories re-exposed as an RSS feed
   (`GET /api/feed.xml`), optional Readeck integration.

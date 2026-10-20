@@ -624,3 +624,10 @@ Notes on the current code:
   (gitignored; serve via `python -m http.server 8899 --directory demo_assets`),
   run the backend with `DATABASE_URL=sqlite+aiosqlite:///<abs path>/demo.db`
   (absolute — the DB lands in the process cwd otherwise) and `ENVIRONMENT=test`.
+
+YouTube + context budgeting (backend done): `services/youtube.py` is the only YouTube-aware
+module (URL rules, innertube player, captions → paragraphs, filtering, oEmbed, channel
+resolution, Takeout CSV). `services/llm_budget.py` + `services/condense.py` replace the old
+`text[:8000]` truncation with map-reduce condensation sized by `LLM_CONTEXT_TOKENS`.
+`POST /feeds/import-subscriptions` imports Takeout CSV or OPML. Shared vectors for the Swift
+side: `backend/tests/fixtures/youtube_vectors.json`. Tests: `tests/test_youtube.py`.

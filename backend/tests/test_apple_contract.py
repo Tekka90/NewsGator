@@ -135,13 +135,14 @@ def test_story_list_detail_revision_and_feed_options(live: httpx.Client) -> None
         "last_updated_at": STAMP, "is_read": True, "updated_since_read": True,
         "saved": False, "saved_at": None,
         "readeck_bookmark_id": None,
+        "video_id": None, "media_kind": None,
     }
     detail = live.get("/api/stories/1").json()
     assert set(detail) == {
         "id", "title", "summary", "category", "image_url", "version", "is_frozen",
         "first_seen_at", "last_updated_at", "published_at", "is_read",
         "updated_since_read", "saved", "saved_at", "articles", "revisions",
-        "readeck_bookmark_id",
+        "readeck_bookmark_id", "video_id", "media_kind",
     }
     assert detail["revisions"] == [
         {"version": 1, "summary": "Original RSS facts.", "created_at": STAMP},
@@ -153,6 +154,7 @@ def test_story_list_detail_revision_and_feed_options(live: httpx.Client) -> None
         "content_status": "full", "content_warning": None, "published_at": STAMP,
         "origin_feed_title": None,
         "feed_id": 1, "feed_title": "Apple RSS", "feed_url": f"{live.base_url}fixture/rss",
+        "video_id": None, "media_kind": None,
     }]
     options = live.get("/api/stories/feed-options").json()
     assert options == [

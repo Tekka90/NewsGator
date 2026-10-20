@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     embed_base_url: str | None = None  # defaults to llm_base_url when unset
     embed_model: str = "bge-m3"
     llm_timeout_s: float = 120.0
+    # Usable context window (tokens) of LLM_MODEL. Article text beyond what fits
+    # (minus reserved output + prompt) is condensed map-reduce style before
+    # summarising (services/llm_budget.py). Minimum 2048.
+    llm_context_tokens: int = 32768
     # Feed discovery stops verifying leads after this long and returns what it has
     # (keeps the request under typical reverse-proxy timeouts).
     discovery_budget_s: float = 40.0

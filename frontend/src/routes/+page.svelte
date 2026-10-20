@@ -3,6 +3,7 @@
   import { page } from '$app/state';
   import { api, faviconUrl, imageSrc } from '$lib/api';
   import { currentUser } from '$lib/stores';
+  import YouTubePlayer from '$lib/components/YouTubePlayer.svelte';
   import ReadeckIcon from '$lib/components/ReadeckIcon.svelte';
   import ShareButton from '$lib/components/ShareButton.svelte';
   import type { Category, FeedOption, StoryListItem } from '$lib/types';
@@ -307,13 +308,14 @@
   // --- swipe deck handlers ---
   // Horizontal drag navigates cards; vertical stays native scroll (touch-action: pan-y).
   function onPointerDown(e: PointerEvent) {
+    if ((e.target as Element | null)?.closest('[data-no-swipe]')) return;
     dragging = true;
     axisLock = null;
     dragStartX = e.clientX;
     dragStartY = e.clientY;
     startScrollY = window.scrollY ?? document.documentElement.scrollTop ?? 0;
     swipeDownAllowed =
-      (e.target as Element | null)?.closest('a, button, input, select, textarea, .decksummary') ===
+      (e.target as Element | null)?.closest('a, button, input, select, textarea, .decksummary, [data-no-swipe]') ===
       null;
   }
 
@@ -565,6 +567,7 @@
         <span class="chip">{current.category}</span>
         {#if !current.is_read}<span class="dot" title="Unread story"></span>{/if}
         {#if current.updated_since_read}<span class="badge updated">UPDATED</span>{/if}
+        {#if current.media_kind === 'video'}<span class="badge video">▶ YouTube</span>{/if}
         {#if current.is_frozen}<span class="badge frozen">archived</span>{/if}
         <span class="spacer"></span>
         <button
@@ -593,7 +596,11 @@
         <ShareButton storyId={current.id} iconOnly buttonClass="readbtn" />
         <span class="age">{ago(current.published_at ?? current.last_updated_at)}</span>
       </div>
-      {#if current.image_url}
+      {#if current.video_id}
+        {#key current.id}
+          <div class="deckvideo"><YouTubePlayer videoId={current.video_id} title={current.title} /></div>
+        {/key}
+      {:else if current.image_url}
         {#key current.id}
           <img
             class="hero"
@@ -644,6 +651,7 @@
         <span class="chip">{story.category}</span>
         {#if !story.is_read}<span class="dot" title="Unread story"></span>{/if}
         {#if story.updated_since_read}<span class="badge updated">UPDATED</span>{/if}
+        {#if story.media_kind === 'video'}<span class="badge video">▶ YouTube</span>{/if}
         {#if story.is_frozen}<span class="badge frozen">archived</span>{/if}
         <span class="spacer"></span>
         <button
@@ -710,6 +718,7 @@
 {/if}
 
 <style>
+  .deckvideo { margin: 0.5rem 0; }
   /* Sticky header: the title + filter bar stay put while stories scroll behind.
      top: --nav-h (measured in the layout) keeps it tucked right under the nav.
      z-index 20: above story cards, below the share menu (31) / sheet (40) and

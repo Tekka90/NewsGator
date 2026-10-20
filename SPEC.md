@@ -379,6 +379,7 @@ v1 is **data-first, no online learning**:
 | `POST /stories/{id}/unread` | marks story unread and pushes unread state to connected third-party reader APIs for any member articles from reader feeds |
 | `GET /stories/{id}/diff?from={version}` | what changed |
 | `CRUD /feeds` | feed management (any authenticated user); `GET /feeds` reports feeds subscribed by the user with `story_count` / `unread_story_count` per feed (unread is per the requesting user) and `email_count` (mail feeds only). Adding an existing feed subscribes the user to it; adding a new feed registers it globally and **kicks an immediate background poll**. Deleting unsubscribes the user, and cascades deletion of the feed and orphaned articles only if no other subscribers remain |
+| `POST /feeds/import-subscriptions` | multipart `file`: a Google Takeout YouTube `subscriptions.csv` (BOM/CRLF/quoted titles tolerated) or an OPML file, auto-detected → `201 {added, skipped, invalid, feeds[]}`; rows become `https://www.youtube.com/feeds/videos.xml?channel_id=UC…` feeds, polled in the background; `400` if neither format |
 | `POST /feeds/import-opml` | bulk-import feeds into the user's subscriptions from an OPML file; new feeds are polled immediately in the background |
 | `GET /feeds/export-opml` | export the user's subscribed RSS-kind feeds as an OPML 2.0 subscription list; mail feeds are excluded |
 | `POST /feeds/{id}/refresh`, `POST /feeds/refresh` | force-poll one/all of the user's subscribed RSS feeds now, bypassing the adaptive schedule; mail feeds are rejected |
@@ -503,6 +504,22 @@ LLM", …) in near real time.
   target language injected ("Summarize the following article in French…").
 - Calls needed: `chat.completions` (summarize, headline, novelty check, pairwise confirm,
   category) and `embeddings`.
+- **Context budget**: `LLM_CONTEXT_TOKENS` (default 32768, setting `llm_context_tokens`, 2048–4 000 000)
+  is the model's usable window. Article text is never truncated: when `(window − 2000 reserved
+  output − fixed prompt tokens) × 3 chars` is exceeded, `services/condense.py` summarises
+  paragraph-aligned chunks map-reduce style (≤16 LLM calls per article incl. the final one; last
+  resort: even sampling across the text). Events `condense_start|done|error`; usage kind
+  `condense`. Mail clean/extract, chat RAG context and story translation are budgeted too.
+- **YouTube** (`services/youtube.py`, the only module that knows YouTube): channels are plain RSS
+  feeds (`/feeds/videos.xml?channel_id=UC…`, no new feed kind). Fulltext for a video URL = the
+  caption transcript in paragraphs (original-language track, manual before auto), fetched via
+  the innertube ANDROID player (fallback: `youtube-transcript-api`). Shorts (≤60 s or
+  `/shorts/<id>` 200) are dropped (`processing_state=clustered`, `content_status=skipped`);
+  live/upcoming stay `fetched` for the sweep; no captions → description (`partial`); unplayable →
+  RSS content (`partial`). Story/article DTOs carry optional `video_id` / `media_kind="video"`.
+  `POST /feeds` and `/feeds/probe` accept channel URLs, `@handle`, `UC…` ids and video URLs
+  (resolved to the RSS URL; `422` if unresolvable). Shared YouTube links are canonicalised to
+  `watch?v=<id>` and get title/channel/thumbnail from oEmbed (non-fatal on failure).
 - All prompts request **structured JSON output**; validate + retry once on parse failure.
 - Every LLM call is idempotent-ish and stored (article.summary, story.summary), so
   pipeline steps are resumable after failure — store per-article `processing_state`

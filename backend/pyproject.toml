@@ -7,6 +7,7 @@ dependencies = [
     "fastapi>=0.115",
     "python-multipart>=0.0.12",  # form/file uploads (OPML import)
     "uvicorn[standard]>=0.30",
+    "youtube-transcript-api>=1.0",  # transcript fallback (services/youtube.py)
     "sqlalchemy>=2.0",
     "alembic>=1.13",
     "pydantic>=2.7",

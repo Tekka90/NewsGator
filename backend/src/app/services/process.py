@@ -20,7 +20,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.db import get_session
 from app.models import Article, Category, Feed
-from app.services import activity, category_suggestions, llm_client, llmtrace, prompts, usage
+from app.services import (
+    activity,
+    category_suggestions,
+    condense,
+    llm_client,
+    llmtrace,
+    prompts,
+    usage,
+    youtube,
+)
 from app.services.vectorstore import get_vector_store
 
 logger = logging.getLogger(__name__)
@@ -190,14 +199,20 @@ async def summarize_article(session: AsyncSession, article: Article) -> bool:
     taxonomy = (await session.scalars(select(Category.name).order_by(Category.name))).all()
     article_lang = article.language if article.language else settings.summary_language
 
+    media_kind = youtube.media_kind_for_link(article.url)
     await activity.emit(session, "llm", "summarize_start", {"article_id": article.id})
     try:
+        system, fixed_user = prompts.summarize_article(
+            article.title, "", list(taxonomy), lang_code=article_lang, media_kind=media_kind
+        )
+        # Text over the model budget is condensed map-reduce style (never truncated)
+        text = await condense.fit_text(session, article, text, system, fixed_user)
         system, user = prompts.summarize_article(
-            article.title, text, list(taxonomy), lang_code=article_lang
+            article.title, text, list(taxonomy), lang_code=article_lang, media_kind=media_kind
         )
         with llmtrace.context("summarize", label=article.title, article_id=article.id):
             result, latency_ms = await llm_client.chat_json(system, user)
-    except llm_client.LLMError as exc:
+    except (llm_client.LLMError, condense.CondenseError) as exc:
         await activity.emit(
             session,
             "llm",

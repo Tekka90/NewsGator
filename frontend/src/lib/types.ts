@@ -231,6 +231,8 @@ export interface StoryListItem {
   saved: boolean;
   saved_at: string | null;
   readeck_bookmark_id: string | null;
+  video_id: string | null;
+  media_kind: 'video' | null;
 }
 
 /** Merge/move candidate from the proximity-ranked endpoints
@@ -275,6 +277,8 @@ export interface StoryArticle {
   feed_id: number;
   feed_title: string;
   feed_url: string;
+  video_id: string | null;
+  media_kind: 'video' | null;
 }
 
 export interface StoryRevision {

@@ -15,6 +15,9 @@
   --gator-surface: #FFFFFF;
   --gator-line: #E3E7E1;
   --gator-soft: #EFF5EE;
+  --video-red: #C4302B;
+  --video-badge-bg: #FDECEB;
+  --video-player-bg: #0B0F0D;
   --gator-shadow: 0 14px 40px rgba(11, 61, 42, 0.08);
   --gator-shadow-card: 0 3px 14px rgba(24, 33, 29, 0.04);
 
@@ -98,3 +101,5 @@
     --gator-shadow-card: 0 3px 14px rgba(0, 0, 0, 0.25);
   }
 }
+
+.badge.video { background: var(--video-badge-bg); color: var(--video-red); }

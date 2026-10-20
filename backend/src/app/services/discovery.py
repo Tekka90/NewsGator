@@ -31,7 +31,7 @@ from lxml import html as lxml_html
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.services import activity, feed_directory, llm_client, llmtrace, prompts, usage
+from app.services import activity, feed_directory, llm_client, llmtrace, prompts, usage, youtube
 
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -106,7 +106,8 @@ def _parse_feed_sync(url: str, html_paywalled: bool = False) -> dict[str, Any] |
     """Blocking feedparser validation called via anyio.to_thread."""
     try:
         parsed_u = urlparse(url)
-        if any(
+        # youtube. stays blocked as a search-result host; only a channel's own RSS feed passes
+        if not youtube.is_channel_feed_url(url) and any(
             x in parsed_u.netloc.lower()
             for x in ("google.", "duckduckgo.", "bing.", "yahoo.", "youtube.")
         ):
@@ -363,8 +364,27 @@ def _path_affinity(feed_url: str, page_url: str) -> int:
 MAX_PROBED_FEEDS = 20
 
 
+async def _probe_youtube_channel(raw: str) -> list[dict[str, Any]]:
+    """Channel resolution for the add-feed flow: the one place the `youtube.` block is lifted."""
+    try:
+        channel = await youtube.resolve_channel(raw)
+    except youtube.YouTubeError:
+        return []
+    return [
+        {
+            "title": channel.title or "YouTube channel",
+            "url": channel.feed_url,
+            "site_url": channel.site_url,
+            "description": "",
+            "access_level": "free_full",
+        }
+    ]
+
+
 async def probe_page_feeds(url: str, limit: int = 8) -> list[dict[str, Any]]:
     """Feeds advertised by `url` (or its site), then the site's other feeds known to Feedsearch."""
+    if youtube.is_channel_input(url):
+        return await _probe_youtube_channel(url)
     try:
         async with asyncio.timeout(25):
             parsed = urlparse(url)

@@ -26,7 +26,7 @@ from app.models import (
     User,
     UserFeed,
 )
-from app.services import activity, process, saved_links
+from app.services import activity, process, saved_links, youtube
 from app.services.fulltext import fetch_full_text
 from app.services.vectorstore import cosine_similarity, get_vector_store
 
@@ -54,6 +54,9 @@ class StoryListItem(BaseModel):
     saved: bool
     saved_at: datetime | None
     readeck_bookmark_id: str | None
+    # YouTube video among the story's sources (derived from article links, not stored)
+    video_id: str | None = None
+    media_kind: str | None = None  # "video" or absent
 
 
 class ArticleOut(BaseModel):
@@ -70,6 +73,8 @@ class ArticleOut(BaseModel):
     feed_id: int
     feed_title: str
     feed_url: str
+    video_id: str | None = None
+    media_kind: str | None = None  # "video" when the link is a YouTube video, else absent
 
     model_config = {"from_attributes": True}
 
@@ -100,6 +105,8 @@ class StoryDetail(BaseModel):
     articles: list[ArticleOut]
     revisions: list[RevisionOut]
     readeck_bookmark_id: str | None
+    video_id: str | None = None
+    media_kind: str | None = None
 
 
 def _article_out(a: Article) -> ArticleOut:
@@ -117,7 +124,18 @@ def _article_out(a: Article) -> ArticleOut:
         feed_id=a.feed_id,
         feed_title=a.feed.title,
         feed_url=a.feed.url,
+        video_id=youtube.video_id_for_link(a.url),
+        media_kind=youtube.media_kind_for_link(a.url),
     )
+
+
+def _story_video_id(links: Iterable[str]) -> str | None:
+    """First YouTube video id among a story's article links."""
+    for link in links:
+        video_id = youtube.video_id_for_link(link)
+        if video_id:
+            return video_id
+    return None
 
 
 def _flags(state: StoryState | None, story: Story) -> tuple[bool, bool]:
@@ -270,7 +288,12 @@ async def _story_items(
     """Build list items (hosts, translations, flags) for the given stories."""
     page_ids = [s.id for s in page]
 
-    hosts = _source_hosts(await _article_urls(session, page_ids))
+    article_urls = await _article_urls(session, page_ids)
+    hosts = _source_hosts(article_urls)
+    links_by_story: dict[int, list[str]] = {}
+    for story_id, url in article_urls:
+        if story_id is not None:
+            links_by_story.setdefault(story_id, []).append(url)
     shared = await _shared_links(session, page_ids)
     user_lang = user.summary_language or settings.summary_language
     from app.services.translation import batch_get_translations
@@ -294,6 +317,7 @@ async def _story_items(
                 from app.services.translation import enqueue_story_translation
 
                 enqueue_story_translation(story.id, [user_lang])
+        video_id = _story_video_id(links_by_story.get(story.id, []))
         out.append(
             StoryListItem(
                 id=story.id,
@@ -313,6 +337,8 @@ async def _story_items(
                 saved=is_saved,
                 saved_at=saved_at,
                 readeck_bookmark_id=story.readeck_bookmark_id,
+                video_id=video_id,
+                media_kind="video" if video_id else None,
             )
         )
     return out
@@ -710,6 +736,7 @@ async def story_detail(
             session, story, user_lang
         )
 
+    detail_video_id = _story_video_id(a.url for a in articles)
     return StoryDetail(
         id=story.id,
         title=detail_title,
@@ -731,6 +758,8 @@ async def story_detail(
         articles=[_article_out(a) for a in articles],
         revisions=[RevisionOut.model_validate(r) for r in revisions],
         readeck_bookmark_id=story.readeck_bookmark_id,
+        video_id=detail_video_id,
+        media_kind="video" if detail_video_id else None,
     )
 
 

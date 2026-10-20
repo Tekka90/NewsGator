@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.db import get_session
 from app.models import Article, Feed
-from app.services import activity
+from app.services import activity, youtube
 from app.services.fulltext import fetch_full_text
 
 TRACKING_PARAMS_PREFIXES = ("utm_",)
@@ -74,7 +74,14 @@ def render_opml(feeds: list[Feed]) -> str:
 
 
 def canonicalize_url(url: str) -> str:
-    """Strip tracking params and normalize — used for cross-feed dedupe (SPEC §9)."""
+    """Strip tracking params and normalize — used for cross-feed dedupe (SPEC §9).
+
+    Any YouTube video URL (watch, youtu.be, /shorts, /live, /embed, m./music.) collapses to
+    `https://www.youtube.com/watch?v=<id>`; `si`, `t`, `list`, … are dropped (YOUTUBE_PLAN 3.4).
+    """
+    video_url = youtube.canonical_url(url)
+    if video_url:
+        return video_url
     parts = urlparse(url)
     query = [
         (k, v)

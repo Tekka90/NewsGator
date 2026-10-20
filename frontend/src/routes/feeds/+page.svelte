@@ -10,6 +10,8 @@
   let adding = $state(false);
   let importResult = $state('');
   let importing = $state(false);
+  let importingSubs = $state(false);
+  let subsResult = $state('');
   let exporting = $state(false);
   let exportError = $state('');
   let refreshing = $state(false);
@@ -40,6 +42,26 @@
       importResult = err instanceof Error ? err.message : 'Import failed';
     } finally {
       importing = false;
+      input.value = '';
+    }
+  }
+
+  async function importSubs(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    importingSubs = true;
+    subsResult = '';
+    try {
+      const r = await api.feeds.importSubscriptions(file);
+      subsResult = `Imported ${r.added} feed${r.added === 1 ? '' : 's'}` +
+        (r.skipped ? `, ${r.skipped} already existed` : '') +
+        (r.invalid ? `, ${r.invalid} invalid entries` : '');
+      await load();
+    } catch (err) {
+      subsResult = err instanceof Error ? err.message : 'Import failed';
+    } finally {
+      importingSubs = false;
       input.value = '';
     }
   }
@@ -131,7 +153,7 @@
 {#if error}<p class="error">{error}</p>{/if}
 
 <form class="card add" onsubmit={add}>
-  <input placeholder="https://example.com/feed.xml" bind:value={url} required type="url" />
+  <input placeholder="Feed URL, YouTube channel URL, video URL or @handle" bind:value={url} required type="text" />
   <label class="backfill">
     Initial import
     <select bind:value={backfill}>
@@ -158,6 +180,11 @@
     <input type="file" accept=".opml,.xml" onchange={importOpml} disabled={importing} />
   </label>
   {#if importResult}<p class="small">{importResult}</p>{/if}
+  <label class="import-label" style="margin-top: 0.6rem">
+    ▶ Import YouTube subscriptions (Google Takeout subscriptions.csv or OPML)
+    <input type="file" accept=".csv,.opml,.xml" onchange={importSubs} disabled={importingSubs} />
+  </label>
+  {#if subsResult}<p class="small">{subsResult}</p>{/if}
   <div class="row" style="margin-top: 0.6rem">
     <button onclick={refreshAll} disabled={refreshing}>
       {refreshing ? 'Refreshing…' : '↻ Refresh all feeds now'}
@@ -179,6 +206,8 @@
       <strong>{feed.title || feed.url}</strong>
       {#if feed.kind === 'mail'}
         <span class="badge mail">✉ newsletter</span>
+      {:else if feed.url.includes('youtube.com/feeds/videos.xml')}
+        <span class="badge video">▶ YouTube</span>
       {:else if feed.kind === 'reader_api'}
         <span class="badge reader">📡 reader api</span>
       {/if}

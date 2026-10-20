@@ -29,6 +29,7 @@ OVERRIDABLE = {
     "llm_api_key": str,
     "embed_base_url": str,
     "embed_model": str,
+    "llm_context_tokens": int,
     "llm_trace_enabled": bool,
     "llm_trace_max_chars": int,
     "summary_language": str,
@@ -68,6 +69,7 @@ OVERRIDABLE = {
 
 # key -> (min, max) allowed values
 _RANGES = {
+    "llm_context_tokens": (2048, 4_000_000),
     "summary_min_sentences": (1, 12),
     "summary_max_sentences": (1, 12),
     "headline_min_words": (0, 40),

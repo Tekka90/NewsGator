@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models import Article, ChatMessage, Story, UserFeed
-from app.services import activity, llm_client, llmtrace, prompts, usage
+from app.services import activity, llm_budget, llm_client, llmtrace, prompts, usage
 from app.services.vectorstore import cosine_similarity, get_vector_store
 
 
@@ -174,7 +174,17 @@ async def ask(
             )
             for s in stories
         ]
-        system, user_prompt = prompts.chat_answer(question, blocks)
+        # Cap the retrieved context to the model budget (best-ranked stories first)
+        fixed_system, fixed_user = prompts.chat_answer(question, [])
+        remaining = llm_budget.input_budget_chars(fixed_system, fixed_user)
+        kept_blocks: list[Any] = []
+        for block in blocks:
+            size = sum(len(str(part)) for part in block) + 40
+            if kept_blocks and size > remaining:
+                break
+            kept_blocks.append(block)
+            remaining -= size
+        system, user_prompt = prompts.chat_answer(question, kept_blocks)
         try:
             data, latency_ms = await _answer(system, user_prompt)
         except Exception as exc:

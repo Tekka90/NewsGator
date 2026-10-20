@@ -2,7 +2,9 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, TypeAdapter, field_validator
+
+from app.services import youtube
 
 # --- auth / users ---
 
@@ -80,13 +82,24 @@ class ManagedUserOut(BaseModel):
 
 
 class FeedIn(BaseModel):
-    url: HttpUrl
+    # An RSS/Atom URL, or — resolved server-side to the channel's RSS URL — a YouTube channel
+    # URL (/@handle, /channel/UC…, /c/…, /user/…), a YouTube video URL, `@handle` or `UC…` id.
+    url: str
     title: str = ""
     poll_interval_min: int = Field(default=30, ge=5, le=1440)
     auth_cookies: str | None = None
     fetch_fulltext: bool = True
     # First-poll backfill window; omit to use the server default, 0 = everything
     backfill_days: int | None = Field(default=None, ge=0, le=3650)
+
+
+    @field_validator("url")
+    @classmethod
+    def _valid_url(cls, v: str) -> str:
+        value = v.strip()
+        if youtube.is_channel_input(value):
+            return value
+        return str(TypeAdapter(HttpUrl).validate_python(value))
 
 
 class FeedPatch(BaseModel):

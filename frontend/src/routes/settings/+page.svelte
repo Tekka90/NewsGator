@@ -343,6 +343,7 @@
         { key: 'llm_api_key', label: 'LLM API key', secret: true },
         { key: 'embed_base_url', label: 'Embeddings base URL (empty = same as LLM)' },
         { key: 'embed_model', label: 'Embedding model' },
+        { key: 'llm_context_tokens', label: 'Model context window (tokens, min 2048 — default 32768; match your LLM model)' },
         { key: 'llm_trace_enabled', label: 'Live LLM trace on Activity page (1 = on, 0 = off)' },
         { key: 'llm_trace_max_chars', label: 'Trace max chars per message' }
       ]

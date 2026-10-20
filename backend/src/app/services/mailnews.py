@@ -46,7 +46,7 @@ from typing_extensions import TypedDict
 from app.core.config import settings
 from app.core.db import get_session
 from app.models import Article, Feed, MailAccount, UserFeed
-from app.services import activity, llm_client, llmtrace, prompts, usage
+from app.services import activity, llm_budget, llm_client, llmtrace, prompts, usage
 from app.services.fulltext import fetch_full_text_batch
 from app.services.ingest import _is_duplicate, canonicalize_url
 
@@ -254,10 +254,31 @@ async def _llm_clean_filter(
         {"sender": sender, "subject": msg.subject, "chars": len(body)},
     )
     await session.commit()
+    # The cleaned text is a near-verbatim copy of the input, so input AND output must fit
+    # the context together: a body over half the budget is cleaned in paragraph chunks.
+    system, fixed_user = prompts.newsletter_clean(msg.subject, "")
+    chunk_chars = llm_budget.input_budget_chars(system, fixed_user) // 2
+    cleaned_parts: list[str] = []
+    latency_ms = 0
     try:
-        system, user = prompts.newsletter_clean(msg.subject, body)
-        with llmtrace.context("newsletter_clean", label=f"clean: {sender}: {msg.subject}"):
-            cleaned, latency_ms = await llm_client.chat_text(system, user)
+        parts = (
+            [body] if len(body) <= chunk_chars else llm_budget.split_paragraphs(body, chunk_chars)
+        )
+        for part in parts:
+            system, user = prompts.newsletter_clean(msg.subject, part)
+            with llmtrace.context("newsletter_clean", label=f"clean: {sender}: {msg.subject}"):
+                part_cleaned, part_ms = await llm_client.chat_text(system, user)
+            latency_ms += part_ms
+            cleaned_parts.append(part_cleaned)
+            usage.record(
+                session,
+                "newsletter_clean",
+                endpoint="chat",
+                model=settings.llm_model,
+                latency_ms=part_ms,
+                prompt_chars=len(system) + len(user),
+                completion_chars=len(part_cleaned),
+            )
     except llm_client.LLMError as exc:
         await activity.emit(
             session,
@@ -268,19 +289,11 @@ async def _llm_clean_filter(
         )
         await session.commit()
         return None
+    cleaned = "\n\n".join(cleaned_parts)
     surviving = dict.fromkeys(_PLACEHOLDER_RE.findall(cleaned))  # ordered set
     valid = {c.url for c in msg.candidates}
     kept = {url_map[p] for p in surviving if p in url_map} & valid
     unknown = len([p for p in surviving if p not in url_map])
-    usage.record(
-        session,
-        "newsletter_clean",
-        endpoint="chat",
-        model=settings.llm_model,
-        latency_ms=latency_ms,
-        prompt_chars=len(system) + len(user),
-        completion_chars=len(cleaned),
-    )
     await activity.emit(
         session,
         "mail",
@@ -510,6 +523,31 @@ async def get_or_create_mail_feed(
 EXTRACT_BATCH_SIZE = 12
 
 
+def _extract_batches(
+    msg: NewsletterMessage, candidates: list[LinkCandidate]
+) -> list[list[LinkCandidate]]:
+    """Slice candidates into batches of EXTRACT_BATCH_SIZE, halving any batch whose prompt would
+    exceed the model's context budget (one-link batches are kept as they are)."""
+    queue = [
+        candidates[i : i + EXTRACT_BATCH_SIZE]
+        for i in range(0, len(candidates), EXTRACT_BATCH_SIZE)
+    ]
+    batches: list[list[LinkCandidate]] = []
+    while queue:
+        batch = queue.pop(0)
+        system, user = prompts.newsletter_extract(
+            msg.sender_name or msg.sender_email,
+            msg.subject,
+            [(c.url, c.anchor, c.context) for c in batch],
+        )
+        if len(batch) > 1 and len(system) + len(user) > llm_budget.input_budget_chars(""):
+            half = len(batch) // 2
+            queue[:0] = [batch[:half], batch[half:]]
+        else:
+            batches.append(batch)
+    return batches
+
+
 async def _refine_with_llm(
     session: AsyncSession,
     msg: NewsletterMessage,
@@ -540,10 +578,10 @@ async def _refine_with_llm(
     valid = {c.url for c in candidates}
     out: dict[str, tuple[str, str]] = {}
     total_latency_ms = 0
-    num_batches = (len(candidates) + EXTRACT_BATCH_SIZE - 1) // EXTRACT_BATCH_SIZE
+    batches = _extract_batches(msg, candidates)
+    num_batches = len(batches)
 
-    for batch_idx in range(num_batches):
-        chunk = candidates[batch_idx * EXTRACT_BATCH_SIZE : (batch_idx + 1) * EXTRACT_BATCH_SIZE]
+    for batch_idx, chunk in enumerate(batches):
         batch_label = (
             f"extract: {sender}: {msg.subject}"
             if num_batches == 1

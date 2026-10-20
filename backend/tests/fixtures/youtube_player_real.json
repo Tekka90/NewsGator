@@ -1,0 +1,70 @@
+{
+ "playabilityStatus": {
+  "status": "OK"
+ },
+ "captions": {
+  "playerCaptionsTracklistRenderer": {
+   "captionTracks": [
+    {
+     "baseUrl": "https://www.youtube.com/api/timedtext?v=xGZdqOOyxJM&caps=asr&lang=en&kind=asr&fmt=srv3",
+     "name": {
+      "runs": [
+       {
+        "text": "English (auto-generated)"
+       }
+      ]
+     },
+     "vssId": "a.en",
+     "languageCode": "en",
+     "kind": "asr",
+     "trackName": ""
+    },
+    {
+     "baseUrl": "https://www.youtube.com/api/timedtext?v=xGZdqOOyxJM&caps=asr&lang=fr&kind=asr&fmt=srv3",
+     "name": {
+      "runs": [
+       {
+        "text": "French (auto-generated)"
+       }
+      ]
+     },
+     "vssId": "a.fr",
+     "languageCode": "fr",
+     "kind": "asr",
+     "trackName": ""
+    }
+   ],
+   "audioTracks": [
+    {
+     "captionTrackIndices": [
+      1,
+      0
+     ],
+     "audioTrackId": "fr-FR.4"
+    },
+    {
+     "captionTrackIndices": [
+      1,
+      0
+     ],
+     "audioTrackId": "en-US.10"
+    }
+   ],
+   "defaultAudioTrackIndex": 0,
+   "defaultTranslationSourceTrackIndices": [
+    0
+   ]
+  }
+ },
+ "videoDetails": {
+  "videoId": "xGZdqOOyxJM",
+  "title": "N'achetez pas l'iPhone Duo, SAUF SI...",
+  "lengthSeconds": "1107",
+  "channelId": "UCVwG9JHqGLfEO-4TkF-lf2g",
+  "isOwnerViewing": false,
+  "shortDescription": "Vous allez vraiment acheter l'iPhone Duo ?\n⚡️ UGREEN MagFlow Pro 10000mAh 25W : https://amzlink.to/az0mneTFYuve3\n⚡️ UGREEN MagFlow Qi2 25W chargeur pliable : https://amzlink.to/az0mFU02xsb0I\n⚡️ UGREEN MagFlow Pro 3 en 1 25W : https://amzlink.to/az0xn4pqb4JZV\n\niPhone Duo : https://amzlink.to/az05m0OJ",
+  "isCrawlable": true,
+  "isLiveContent": false,
+  "author": "Nowtech"
+ }
+}
