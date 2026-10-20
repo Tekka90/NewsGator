@@ -185,7 +185,11 @@ class Story(Base):
 class Article(Base):
     __tablename__ = "article"
     # story_id sits after the large text columns, so unindexed lookups read through them
-    __table_args__ = (Index("ix_article_feed_story", "feed_id", "story_id"),)
+    __table_args__ = (
+        Index("ix_article_feed_story", "feed_id", "story_id"),
+        # covering index for per-story count / date aggregates
+        Index("ix_article_story_dates", "story_id", "published_at", "fetched_at"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     feed_id: Mapped[int] = mapped_column(ForeignKey("feed.id"), index=True)

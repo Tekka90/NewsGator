@@ -552,6 +552,15 @@ filter-pill counts. It now calls `GET /api/stories/counts` (`{all, unread, updat
 saved}`, optional `category`/`feed`; selects only `Story.id/version`, no summaries) —
 one list request instead of two. No schema change.
 
+Story-list SQL push-down (2026-10-20, Alembic 0023): `GET /api/stories`, `/counts`, `/facets`
+and `/widget-snapshot` no longer load every `Story` row / article `story_id` into Python.
+Visibility (user's feeds), read/updated/saved flags, category, `since`, ordering
+(published / sources / updated) and `limit`/`offset` are all done in SQL
+(`_filtered_stories` in `api/stories.py`; keep `_flag_conditions` in sync with `_flags`);
+only the returned page is hydrated (`_page_items`). New covering index
+`ix_article_story_dates (story_id, published_at, fetched_at)`. Measured on 8k stories:
+prod 1.3–4.6s per call → ~20–250ms.
+
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,
   `workers/`); routers depend on `get_session` and `current_user`/`admin_user` deps.

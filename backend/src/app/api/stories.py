@@ -1,14 +1,14 @@
 """Stories API (SPEC §6): list with per-user flags, detail, read/unread, diff,
 manual merge/move (logged as labeled pairs — invariant 9)."""
 
-from collections import Counter
 from collections.abc import Iterable
 from datetime import UTC, datetime
+from typing import Any
 
 import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import delete, func, select
+from sqlalchemy import ColumnElement, Select, and_, case, delete, false, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -149,9 +149,7 @@ def _saved_flag(state: StoryState | None) -> tuple[bool, datetime | None]:
     return saved_at is not None, saved_at
 
 
-async def _require_visible_story(
-    session: AsyncSession, user: User, story_id: int
-) -> Story:
+async def _require_visible_story(session: AsyncSession, user: User, story_id: int) -> Story:
     story = await session.get(Story, story_id)
     if story is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Story not found")
@@ -372,6 +370,102 @@ def _order_stories(
     return ordered
 
 
+def _is_read_sql() -> ColumnElement[bool]:
+    return func.coalesce(StoryState.is_read, false())
+
+
+def _flag_conditions(filter: str, saved: bool) -> list[ColumnElement[bool]]:
+    """SQL twin of ``_flags`` / ``_saved_flag`` (needs StoryState outer-joined)."""
+    conditions: list[ColumnElement[bool]] = []
+    if filter == "unread":
+        conditions.append(_is_read_sql().is_(False))
+    elif filter == "updated":
+        conditions.append(
+            and_(StoryState.is_read.is_(True), Story.version > StoryState.read_at_version)
+        )
+    if saved:
+        conditions.append(StoryState.saved_at.is_not(None))
+    return conditions
+
+
+def _filtered_stories(
+    user: User,
+    feed_ids: set[int],
+    *,
+    filter: str,
+    saved: bool,
+    category: str | None,
+    sort: str,
+    reverse: bool,
+    since: datetime | None,
+) -> Select[tuple[Story]]:
+    """Visible stories of the user, filtered, ordered like ``_order_stories``, in SQL."""
+    visible = select(Article.story_id).where(
+        Article.feed_id.in_(feed_ids), Article.story_id.is_not(None)
+    )
+    stats = (
+        select(
+            Article.story_id.label("sid"),
+            func.count(Article.id).label("n"),
+            func.min(Article.published_at).label("first"),
+        )
+        .where(Article.story_id.is_not(None))
+        .group_by(Article.story_id)
+        .subquery()
+    )
+    query = (
+        select(Story)
+        .outerjoin(stats, stats.c.sid == Story.id)
+        .outerjoin(StoryState, and_(StoryState.story_id == Story.id, StoryState.user_id == user.id))
+        .where(Story.id.in_(visible), *_flag_conditions(filter, saved))
+    )
+    if category:
+        query = query.where(Story.category == category)
+    recent_n = None
+    if since is not None:
+        recent = (
+            select(Article.story_id.label("sid"), func.count(Article.id).label("n"))
+            .where(
+                Article.story_id.is_not(None),
+                func.coalesce(Article.published_at, Article.fetched_at) >= since,
+            )
+            .group_by(Article.story_id)
+            .subquery()
+        )
+        query = query.join(recent, recent.c.sid == Story.id)
+        recent_n = recent.c.n
+
+    def direction(column: Any) -> Any:
+        return column.desc() if reverse else column.asc()
+
+    if sort == "published":
+        key = func.coalesce(stats.c.first, Story.last_updated_at)
+        return query.order_by(direction(key), direction(Story.last_updated_at), direction(Story.id))
+    if sort == "sources":
+        count = recent_n if recent_n is not None else func.coalesce(stats.c.n, 0)
+        return query.order_by(
+            direction(count), direction(Story.last_updated_at), direction(Story.id)
+        )
+    return query.order_by(direction(Story.last_updated_at), direction(Story.id))
+
+
+async def _page_items(session: AsyncSession, user: User, page: list[Story]) -> list[StoryListItem]:
+    """List items for one page: statistics and read state are loaded for the page only."""
+    page_ids = [s.id for s in page]
+    stats = await _article_stats(session, page_ids)
+    states: dict[int, StoryState] = {}
+    for chunk in _chunked(page_ids):
+        for state in (
+            await session.scalars(
+                select(StoryState).where(
+                    StoryState.user_id == user.id, StoryState.story_id.in_(chunk)
+                )
+            )
+        ).all():
+            states[state.story_id] = state
+    return await _story_items(session, user, page, states, stats)
+
+
 @router.get("")
 async def list_stories(
     filter: str = Query(default="all", pattern="^(all|unread|updated)$"),
@@ -396,66 +490,22 @@ async def list_stories(
     if feed is not None and feed not in user_feed_ids:
         return []
 
-    user_story_ids = await _story_ids_of_feeds(session, user_feed_ids)
-    if not user_story_ids:
-        return []
-
-    reverse = order == "desc"
-    stories = (
-        await session.scalars(
-            select(Story).order_by(
-                Story.last_updated_at.desc() if reverse else Story.last_updated_at
-            )
-        )
-    ).all()
-    # story ids reachable from the selected feed (None = no feed filter)
-    feed_story_ids: set[int] | None = None
-    if feed is not None:
-        feed_story_ids = {
-            story_id
-            for story_id in (
-                await session.scalars(
-                    select(Article.story_id).where(
-                        Article.feed_id == feed, Article.story_id.is_not(None)
-                    )
-                )
-            ).all()
-            if story_id is not None
-        }
-    states = {
-        s.story_id: s
-        for s in (
-            await session.scalars(select(StoryState).where(StoryState.user_id == user.id))
-        ).all()
-    }
-    selected: list[Story] = []
-    for story in stories:
-        if story.id not in user_story_ids:
-            continue
-        state = states.get(story.id)
-        is_read, updated = _flags(state, story)
-        is_saved, _ = _saved_flag(state)
-        if filter == "unread" and is_read:
-            continue
-        if filter == "updated" and not updated:
-            continue
-        if saved and not is_saved:
-            continue
-        if category and story.category != category:
-            continue
-        if feed_story_ids is not None and story.id not in feed_story_ids:
-            continue
-        selected.append(story)
-
-    # statistics are needed to sort; hosts and translations only for the returned page
-    stats = await _article_stats(session, [s.id for s in selected])
-    recent_counts: dict[int, int] = {}
-    if since is not None:
-        recent_counts = await _recent_source_counts(session, [s.id for s in selected], since)
-        selected = [s for s in selected if recent_counts.get(s.id, 0) > 0]
-    ordered = _order_stories(selected, stats, recent_counts, since, sort, reverse)
-    page = ordered[offset : offset + limit] if limit is not None else ordered[offset:]
-    return await _story_items(session, user, page, states, stats)
+    query = _filtered_stories(
+        user,
+        {feed} if feed is not None else user_feed_ids,
+        filter=filter,
+        saved=saved,
+        category=category,
+        sort=sort,
+        reverse=order == "desc",
+        since=since,
+    )
+    if limit is not None:
+        query = query.limit(limit)
+    if offset:
+        query = query.offset(offset) if limit is not None else query.limit(-1).offset(offset)
+    page = list((await session.scalars(query)).all())
+    return await _page_items(session, user, page)
 
 
 class FeedOption(BaseModel):
@@ -487,51 +537,56 @@ async def widget_snapshot(
 ) -> WidgetSnapshotOut:
     """Everything the home-screen widgets show, computed in one pass for the requesting user."""
     names = (
-        "latest", "latest_unread", "oldest", "oldest_unread", "most_sources", "most_sources_unread"
+        "latest",
+        "latest_unread",
+        "oldest",
+        "oldest_unread",
+        "most_sources",
+        "most_sources_unread",
     )
     empty = WidgetSnapshotOut(unread_count=0, lists={name: [] for name in names})
     user_feed_ids = await _user_feed_ids(session, user)
     if not user_feed_ids:
         return empty
-    user_story_ids = await _story_ids_of_feeds(session, user_feed_ids)
-    if not user_story_ids:
-        return empty
 
-    stories = [
-        story
-        for story in (await session.scalars(select(Story))).all()
-        if story.id in user_story_ids
-    ]
-    states = {
-        s.story_id: s
-        for s in (
-            await session.scalars(select(StoryState).where(StoryState.user_id == user.id))
-        ).all()
+    def pick(filter: str, sort: str, reverse: bool, recent: bool) -> Select[tuple[Story]]:
+        return _filtered_stories(
+            user,
+            user_feed_ids,
+            filter=filter,
+            saved=False,
+            category=None,
+            sort=sort,
+            reverse=reverse,
+            since=since if recent else None,
+        ).limit(limit)
+
+    queries = {
+        "latest": pick("all", "published", True, False),
+        "latest_unread": pick("unread", "published", True, False),
+        "oldest": pick("all", "published", False, False),
+        "oldest_unread": pick("unread", "published", False, False),
+        "most_sources": pick("all", "sources", True, True),
+        "most_sources_unread": pick("unread", "sources", True, True),
     }
-    stats = await _article_stats(session, [s.id for s in stories])
-    recent_counts = await _recent_source_counts(session, [s.id for s in stories], since)
-    unread = [s for s in stories if not _flags(states.get(s.id), s)[0]]
-    recent = [s for s in stories if recent_counts.get(s.id, 0) > 0]
-    recent_unread = [s for s in recent if not _flags(states.get(s.id), s)[0]]
-
-    def top(pool: list[Story], sort: str, reverse: bool) -> list[Story]:
-        return _order_stories(pool, stats, recent_counts, since, sort, reverse)[:limit]
-
-    chosen = {
-        "latest": top(stories, "published", True),
-        "latest_unread": top(unread, "published", True),
-        "oldest": top(stories, "published", False),
-        "oldest_unread": top(unread, "published", False),
-        "most_sources": top(recent, "sources", True),
-        "most_sources_unread": top(recent_unread, "sources", True),
-    }
+    chosen = {name: list((await session.scalars(query)).all()) for name, query in queries.items()}
     union = {story.id: story for pool in chosen.values() for story in pool}
-    items = {
-        item.id: item
-        for item in await _story_items(session, user, list(union.values()), states, stats)
-    }
+    items = {item.id: item for item in await _page_items(session, user, list(union.values()))}
+    unread_count = await session.scalar(
+        select(func.count())
+        .select_from(Story)
+        .outerjoin(StoryState, and_(StoryState.story_id == Story.id, StoryState.user_id == user.id))
+        .where(
+            Story.id.in_(
+                select(Article.story_id).where(
+                    Article.feed_id.in_(user_feed_ids), Article.story_id.is_not(None)
+                )
+            ),
+            *_flag_conditions("unread", False),
+        )
+    )
     return WidgetSnapshotOut(
-        unread_count=len(unread),
+        unread_count=unread_count or 0,
         lists={name: [items[s.id] for s in pool] for name, pool in chosen.items()},
     )
 
@@ -560,26 +615,23 @@ async def story_counts(
         Article.feed_id.in_([feed] if feed is not None else user_feed_ids),
         Article.story_id.is_not(None),
     )
-    query = select(Story.id, Story.version).where(Story.id.in_(visible))
+    unread = _is_read_sql().is_(False)
+    updated = and_(StoryState.is_read.is_(True), Story.version > StoryState.read_at_version)
+    query = (
+        select(
+            func.count(),
+            func.coalesce(func.sum(case((unread, 1), else_=0)), 0),
+            func.coalesce(func.sum(case((updated, 1), else_=0)), 0),
+            func.coalesce(func.sum(case((StoryState.saved_at.is_not(None), 1), else_=0)), 0),
+        )
+        .select_from(Story)
+        .outerjoin(StoryState, and_(StoryState.story_id == Story.id, StoryState.user_id == user.id))
+        .where(Story.id.in_(visible))
+    )
     if category:
         query = query.where(Story.category == category)
-    rows = (await session.execute(query)).all()
-    states = {
-        s.story_id: s
-        for s in (
-            await session.scalars(select(StoryState).where(StoryState.user_id == user.id))
-        ).all()
-    }
-    counts = StoryCountsOut(all=len(rows), unread=0, updated=0, saved=0)
-    for story_id, version in rows:
-        state = states.get(story_id)
-        if not (state and state.is_read):
-            counts.unread += 1
-        elif state.read_at_version < version:
-            counts.updated += 1
-        if state is not None and state.saved_at is not None:
-            counts.saved += 1
-    return counts
+    total, n_unread, n_updated, n_saved = (await session.execute(query)).one()
+    return StoryCountsOut(all=total, unread=n_unread, updated=n_updated, saved=n_saved)
 
 
 class FacetCount(BaseModel):
@@ -612,46 +664,33 @@ async def story_facets(
     user_feed_ids = await _user_feed_ids(session, user)
     if not user_feed_ids:
         return empty
-    pairs = (
+    base = (
+        select(Article.feed_id, Story.category, func.count(func.distinct(Story.id)))
+        .select_from(Article)
+        .join(Story, Story.id == Article.story_id)
+        .outerjoin(StoryState, and_(StoryState.story_id == Story.id, StoryState.user_id == user.id))
+        .where(Article.feed_id.in_(user_feed_ids), *_flag_conditions(filter, saved))
+    )
+    # category counts honour the selected feed, feed counts the selected category
+    by_category = base.group_by(Story.category)
+    if feed is not None:
+        by_category = by_category.where(Article.feed_id == feed)
+    by_feed = base.group_by(Article.feed_id)
+    if category:
+        by_feed = by_feed.where(Story.category == category)
+    category_rows = (
         await session.execute(
-            select(Article.feed_id, Article.story_id)
-            .where(Article.feed_id.in_(user_feed_ids), Article.story_id.is_not(None))
-            .distinct()
+            by_category.with_only_columns(Story.category, func.count(func.distinct(Story.id)))
         )
     ).all()
-    feeds_of: dict[int, set[int]] = {}
-    for feed_id, story_id in pairs:
-        feeds_of.setdefault(story_id, set()).add(feed_id)
-    if not feeds_of:
-        return empty
-    states = {
-        s.story_id: s
-        for s in (
-            await session.scalars(select(StoryState).where(StoryState.user_id == user.id))
-        ).all()
-    }
-    category_counts: Counter[str] = Counter()
-    feed_counts: Counter[int] = Counter()
-    for story in (await session.scalars(select(Story))).all():
-        story_feeds = feeds_of.get(story.id)
-        if not story_feeds:
-            continue
-        state = states.get(story.id)
-        is_read, updated = _flags(state, story)
-        is_saved, _ = _saved_flag(state)
-        if (
-            (filter == "unread" and is_read)
-            or (filter == "updated" and not updated)
-            or (saved and not is_saved)
-        ):
-            continue
-        if feed is None or feed in story_feeds:
-            category_counts[story.category] += 1
-        if not category or story.category == category:
-            feed_counts.update(story_feeds)
+    feed_rows = (
+        await session.execute(
+            by_feed.with_only_columns(Article.feed_id, func.count(func.distinct(Story.id)))
+        )
+    ).all()
     return StoryFacetsOut(
-        categories=[FacetCount(key=k, count=c) for k, c in sorted(category_counts.items())],
-        feeds=[FacetCount(key=str(k), count=c) for k, c in sorted(feed_counts.items())],
+        categories=[FacetCount(key=k, count=c) for k, c in sorted(category_rows)],
+        feeds=[FacetCount(key=str(k), count=c) for k, c in sorted(feed_rows)],
     )
 
 
@@ -732,9 +771,7 @@ async def story_detail(
     if user_lang != story_lang:
         from app.services.translation import get_or_translate_story
 
-        detail_title, detail_summary = await get_or_translate_story(
-            session, story, user_lang
-        )
+        detail_title, detail_summary = await get_or_translate_story(session, story, user_lang)
 
     detail_video_id = _story_video_id(a.url for a in articles)
     return StoryDetail(
@@ -838,14 +875,19 @@ async def save_to_readeck(
         result = await readeck.save_story(story, articles)
     except readeck.ReadeckError as exc:
         await activity.emit(
-            session, "readeck", "save_failed",
-            {"story_id": story.id, "error": str(exc)}, level="error",
+            session,
+            "readeck",
+            "save_failed",
+            {"story_id": story.id, "error": str(exc)},
+            level="error",
         )
         await session.commit()
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
     story.readeck_bookmark_id = result["bookmark_id"] or None
     await activity.emit(
-        session, "readeck", "save_done",
+        session,
+        "readeck",
+        "save_done",
         {
             "story_id": story.id,
             "bookmark_id": result["bookmark_id"],
@@ -897,7 +939,9 @@ async def share_story(
         ).all()
     )
     await activity.emit(
-        session, "share", "prepare_start",
+        session,
+        "share",
+        "prepare_start",
         {"story_id": story.id, "language": body.language or "original"},
     )
     await session.commit()
@@ -905,20 +949,28 @@ async def share_story(
         result = await share.prepare_share(story, articles, body.language)
     except share.ShareError as exc:
         await activity.emit(
-            session, "share", "prepare_failed",
-            {"story_id": story.id, "error": str(exc)}, level="error",
+            session,
+            "share",
+            "prepare_failed",
+            {"story_id": story.id, "error": str(exc)},
+            level="error",
         )
         await session.commit()
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     except llm_client.LLMError as exc:
         await activity.emit(
-            session, "share", "prepare_failed",
-            {"story_id": story.id, "error": str(exc)}, level="error",
+            session,
+            "share",
+            "prepare_failed",
+            {"story_id": story.id, "error": str(exc)},
+            level="error",
         )
         await session.commit()
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
     await activity.emit(
-        session, "share", "prepare_done",
+        session,
+        "share",
+        "prepare_done",
         {
             "story_id": story.id,
             "language": result["language"],
@@ -986,7 +1038,9 @@ async def reprocess_article(
         article.processing_state = "fulltext"
         process.enqueue_article(article.id)
         await activity.emit(
-            session, "fulltext", "manual_reprocess",
+            session,
+            "fulltext",
+            "manual_reprocess",
             {"article_id": article.id, "old_chars": old_len, "new_chars": new_len},
         )
         await session.commit()
@@ -1094,8 +1148,7 @@ async def story_diff(
     return {
         "from_version": from_version,
         "changes": [
-            {"version": r.version, "summary": r.summary, "at": r.created_at}
-            for r in revisions
+            {"version": r.version, "summary": r.summary, "at": r.created_at} for r in revisions
         ],
     }
 
@@ -1146,9 +1199,7 @@ async def _rank_candidates(
     return ranked
 
 
-async def _recent_candidates(
-    session: AsyncSession, exclude_ids: set[int]
-) -> list[SimilarStoryOut]:
+async def _recent_candidates(session: AsyncSession, exclude_ids: set[int]) -> list[SimilarStoryOut]:
     """No query vector available — fall back to most-recent stories, unscored."""
     stories = (
         await session.scalars(
@@ -1218,23 +1269,19 @@ async def merge_story(
     if target.id == source.id:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cannot merge a story into itself")
 
-    moved = (
-        await session.scalars(select(Article).where(Article.story_id == source.id))
-    ).all()
+    moved = (await session.scalars(select(Article).where(Article.story_id == source.id))).all()
     for article in moved:
         article.story_id = target.id
-        session.add(
-            OverridePair(article_id=article.id, story_id=target.id, label="same")
-        )
+        session.add(OverridePair(article_id=article.id, story_id=target.id, label="same"))
     target.last_updated_at = datetime.now(UTC)
     if target.image_url is None:
         target.image_url = source.image_url
     await get_vector_store(session).delete_story(source.id)
-    await session.execute(
-        delete(StoryTranslation).where(StoryTranslation.story_id == source.id)
-    )
+    await session.execute(delete(StoryTranslation).where(StoryTranslation.story_id == source.id))
     await activity.emit(
-        session, "cluster", "manual_merge",
+        session,
+        "cluster",
+        "manual_merge",
         {"target": target.id, "source": source.id, "articles": len(moved)},
     )
     from app.services.translation import enqueue_story_translation
@@ -1269,7 +1316,9 @@ async def move_article(
     article.story_id = target.id
     target.last_updated_at = datetime.now(UTC)
     await activity.emit(
-        session, "cluster", "manual_move",
+        session,
+        "cluster",
+        "manual_move",
         {"article_id": article.id, "story_id": target.id},
     )
     await session.commit()
