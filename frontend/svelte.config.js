@@ -12,7 +12,7 @@ const config = {
       // credentials. SvelteKit's Origin header check 403s legit multipart
       // uploads (OPML import) when the computed request origin differs from
       // the browser-visible one behind the adapter/proxy. Disable it.
-      checkOrigin: false
+      trustedOrigins: ['*']
     }
   }
 };
