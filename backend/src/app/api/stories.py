@@ -1,7 +1,8 @@
 """Stories API (SPEC §6): list with per-user flags, detail, read/unread, diff,
 manual merge/move (logged as labeled pairs — invariant 9)."""
 
-from collections.abc import Iterable
+from collections import Counter
+from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -549,45 +550,78 @@ async def widget_snapshot(
     if not user_feed_ids:
         return empty
 
-    def pick(filter: str, sort: str, reverse: bool, recent: bool) -> Select[tuple[Story]]:
-        return _filtered_stories(
-            user,
-            user_feed_ids,
-            filter=filter,
-            saved=False,
-            category=None,
-            sort=sort,
-            reverse=reverse,
-            since=since if recent else None,
-        ).limit(limit)
-
-    queries = {
-        "latest": pick("all", "published", True, False),
-        "latest_unread": pick("unread", "published", True, False),
-        "oldest": pick("all", "published", False, False),
-        "oldest_unread": pick("unread", "published", False, False),
-        "most_sources": pick("all", "sources", True, True),
-        "most_sources_unread": pick("unread", "sources", True, True),
-    }
-    chosen = {name: list((await session.scalars(query)).all()) for name, query in queries.items()}
-    union = {story.id: story for pool in chosen.values() for story in pool}
-    items = {item.id: item for item in await _page_items(session, user, list(union.values()))}
-    unread_count = await session.scalar(
-        select(func.count())
-        .select_from(Story)
-        .outerjoin(StoryState, and_(StoryState.story_id == Story.id, StoryState.user_id == user.id))
-        .where(
-            Story.id.in_(
-                select(Article.story_id).where(
-                    Article.feed_id.in_(user_feed_ids), Article.story_id.is_not(None)
-                )
-            ),
-            *_flag_conditions("unread", False),
-        )
+    visible = select(Article.story_id).where(
+        Article.feed_id.in_(user_feed_ids), Article.story_id.is_not(None)
     )
+    # light columns only (no summaries); each aggregate runs once for all six lists
+    rows = (
+        await session.execute(
+            select(
+                Story.id,
+                Story.last_updated_at,
+                func.coalesce(StoryState.is_read, false()),
+            )
+            .outerjoin(
+                StoryState, and_(StoryState.story_id == Story.id, StoryState.user_id == user.id)
+            )
+            .where(Story.id.in_(visible))
+        )
+    ).all()
+    ids = {row[0] for row in rows}
+    first: dict[int, tuple[int, datetime | None]] = {}
+    for story_id, count, earliest in (
+        await session.execute(
+            select(Article.story_id, func.count(Article.id), func.min(Article.published_at))
+            .where(Article.story_id.is_not(None))
+            .group_by(Article.story_id)
+        )
+    ).all():
+        if story_id in ids:
+            first[story_id] = (count, earliest)
+    recent: dict[int, int] = {}
+    for story_id, count in (
+        await session.execute(
+            select(Article.story_id, func.count(Article.id))
+            .where(
+                Article.story_id.is_not(None),
+                func.coalesce(Article.published_at, Article.fetched_at) >= since,
+            )
+            .group_by(Article.story_id)
+        )
+    ).all():
+        if story_id in ids:
+            recent[story_id] = count
+
+    def published_key(row: Any) -> datetime:
+        earliest = first.get(row[0], (0, None))[1]
+        return earliest if earliest is not None else row[1]
+
+    def top(pool: Sequence[Any], by_sources: bool, reverse: bool) -> list[int]:
+        if by_sources:
+            pool = sorted(pool, key=lambda r: (recent.get(r[0], 0), r[1], r[0]), reverse=reverse)
+        else:
+            pool = sorted(pool, key=lambda r: (published_key(r), r[1], r[0]), reverse=reverse)
+        return [r[0] for r in pool[:limit]]
+
+    unread = [r for r in rows if not r[2]]
+    recent_rows = [r for r in rows if recent.get(r[0], 0) > 0]
+    recent_unread = [r for r in recent_rows if not r[2]]
+    chosen_ids = {
+        "latest": top(rows, False, True),
+        "latest_unread": top(unread, False, True),
+        "oldest": top(rows, False, False),
+        "oldest_unread": top(unread, False, False),
+        "most_sources": top(recent_rows, True, True),
+        "most_sources_unread": top(recent_unread, True, True),
+    }
+    wanted = {i for pool in chosen_ids.values() for i in pool}
+    stories = {
+        st.id: st for st in (await session.scalars(select(Story).where(Story.id.in_(wanted)))).all()
+    }
+    items = {item.id: item for item in await _page_items(session, user, list(stories.values()))}
     return WidgetSnapshotOut(
-        unread_count=unread_count or 0,
-        lists={name: [items[s.id] for s in pool] for name, pool in chosen.items()},
+        unread_count=len(unread),
+        lists={name: [items[i] for i in pool] for name, pool in chosen_ids.items()},
     )
 
 
@@ -664,33 +698,37 @@ async def story_facets(
     user_feed_ids = await _user_feed_ids(session, user)
     if not user_feed_ids:
         return empty
-    base = (
-        select(Article.feed_id, Story.category, func.count(func.distinct(Story.id)))
-        .select_from(Article)
-        .join(Story, Story.id == Article.story_id)
+    # filtered stories first (small for "unread"), then their distinct (feed, story) pairs
+    filtered = (
+        select(Story.id.label("sid"), Story.category.label("category"))
         .outerjoin(StoryState, and_(StoryState.story_id == Story.id, StoryState.user_id == user.id))
-        .where(Article.feed_id.in_(user_feed_ids), *_flag_conditions(filter, saved))
+        .where(*_flag_conditions(filter, saved))
+        .subquery()
     )
-    # category counts honour the selected feed, feed counts the selected category
-    by_category = base.group_by(Story.category)
-    if feed is not None:
-        by_category = by_category.where(Article.feed_id == feed)
-    by_feed = base.group_by(Article.feed_id)
-    if category:
-        by_feed = by_feed.where(Story.category == category)
-    category_rows = (
+    pairs = (
         await session.execute(
-            by_category.with_only_columns(Story.category, func.count(func.distinct(Story.id)))
+            select(Article.feed_id, filtered.c.sid, filtered.c.category)
+            .join(filtered, filtered.c.sid == Article.story_id)
+            .where(Article.feed_id.in_(user_feed_ids))
+            .distinct()
         )
     ).all()
-    feed_rows = (
-        await session.execute(
-            by_feed.with_only_columns(Article.feed_id, func.count(func.distinct(Story.id)))
-        )
-    ).all()
+    feeds_of: dict[int, set[int]] = {}
+    category_of: dict[int, str] = {}
+    for feed_id, story_id, story_category in pairs:
+        feeds_of.setdefault(story_id, set()).add(feed_id)
+        category_of[story_id] = story_category
+    category_counts: Counter[str] = Counter()
+    feed_counts: Counter[int] = Counter()
+    for story_id, story_feeds in feeds_of.items():
+        # category counts honour the selected feed, feed counts the selected category
+        if feed is None or feed in story_feeds:
+            category_counts[category_of[story_id]] += 1
+        if not category or category_of[story_id] == category:
+            feed_counts.update(story_feeds)
     return StoryFacetsOut(
-        categories=[FacetCount(key=k, count=c) for k, c in sorted(category_rows)],
-        feeds=[FacetCount(key=str(k), count=c) for k, c in sorted(feed_rows)],
+        categories=[FacetCount(key=k, count=c) for k, c in sorted(category_counts.items())],
+        feeds=[FacetCount(key=str(k), count=c) for k, c in sorted(feed_counts.items())],
     )
 
 
