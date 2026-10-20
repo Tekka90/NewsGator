@@ -7,7 +7,7 @@
 <meta name="description" content="NewsGator는 같은 사건을 다루는 기사를 하나의 살아 있는 스토리로 묶고, 과장 없는 제목과 최신 요약을 제공합니다. Apple Intelligence로 실행하거나 직접 호스팅하는 서버에서 사용할 수 있으며, 더 읽고 싶을 때는 원문 발행처로 보내드립니다." />
 <meta property="og:title" content="NewsGator — 모든 출처, 하나의 스토리" />
 <meta property="og:description" content="한 사건, 하나의 스토리. 과장 없는 제목. 원문을 읽고 취재자를 응원하세요. Apple Intelligence 또는 직접 호스팅하는 서버에서 NewsGator를 실행할 수 있습니다." />
-<meta property="og:image" content="https://www.newsgator.app/assets/shots/app-mac-stories.jpg" />
+<meta property="og:image" content="https://www.newsgator.app/assets/store/og-ko.jpg" />
 <meta property="og:url" content="https://www.newsgator.app/index-ko.html" />
 <meta property="og:type" content="website" />
 <meta property="og:locale" content="ko_KR" />
@@ -353,7 +353,7 @@ p { margin: 0; }
 }
 .feature-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
 .feature {
@@ -371,7 +371,7 @@ p { margin: 0; }
 .gallery-intro { margin-bottom: 28px; }
 .gallery {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.75fr);
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 18px;
   align-items: start;
 }
@@ -382,20 +382,22 @@ p { margin: 0; }
   padding: 16px;
   box-shadow: var(--shadow-card);
 }
-.shot.wide { grid-column: span 1; }
-.shot.phone { grid-row: span 2; }
+.shot.wide { grid-column: span 6; }
+.shot.phone { grid-column: span 3; }
+.shot.full { grid-column: span 12; }
 .shot-media {
   overflow: hidden;
   border-radius: 20px;
   background: #fff;
 }
 .shot.wide .shot-media img { border-radius: 16px; }
+.shot.full .shot-media { max-width: 560px; margin: 0 auto; }
 .shot.phone .shot-media {
   max-width: 360px;
   margin: 0 auto;
-  border-radius: 30px;
+  border-radius: 20px;
 }
-.shot.phone .shot-media img { border-radius: 24px; }
+.shot.phone .shot-media img { border-radius: 16px; }
 figcaption { margin-top: 14px; }
 figcaption strong {
   display: block;
@@ -447,7 +449,7 @@ footer {
   .fact-strip ul {
     grid-template-columns: 1fr;
   }
-  .shot.phone { grid-row: auto; }
+  .shot.wide, .shot.phone, .shot.full { grid-column: auto; }
 }
 @media (max-width: 760px) {
   .site-nav .wrap { align-items: flex-start; padding-top: 14px; padding-bottom: 14px; }
@@ -537,7 +539,7 @@ footer {
             더 읽고 싶을 때는 <strong>원문 발행처</strong>로 보내드립니다.
           </p>
           <p class="note">두 가지 엔진: Apple Intelligence로 구동되는 네이티브 Apple 앱, 또는 직접 호스팅하는 NewsGator 서버.</p>
-          <p class="avail">iPhone, iPad, Mac에서 지금 만나보세요.</p>
+          <p class="avail">iPhone, iPad, iPhone Duo, Mac에서 지금 만나보세요.</p>
           <div class="actions">
             <a class="btn store" href="https://apps.apple.com/app/newsgator-news-aggregator/id6816198546" target="_blank" rel="noopener noreferrer" aria-label="App Store에서 다운로드"><img src="assets/badges/app-store-ko.svg" alt="App Store에서 다운로드" height="52" /></a>
             <a class="btn secondary" href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">셀프 호스팅 서버 보기</a>
@@ -565,7 +567,7 @@ footer {
 
       <div class="fact-strip reveal">
         <ul>
-          <li><strong>독립 실행:</strong> Apple Intelligence, iCloud 동기화, 서버나 구독 필요 없음.</li>
+          <li><strong>독립 실행:</strong> Apple Intelligence, iCloud 동기화, 서버 필요 없음. 무료로 체험할 수 있고 Pro는 선택입니다.</li>
           <li><strong>셀프 호스팅:</strong> 원하는 OpenAI 호환 AI와 함께 쓰는 Python/FastAPI + SvelteKit.</li>
           <li><strong>개인정보 보호:</strong> 광고 없음, 타사 추적기 없음, 분석 없음.</li>
         </ul>
@@ -615,7 +617,7 @@ footer {
           <h3>Apple Intelligence, 서버 필요 없음</h3>
           <p>iPhone, iPad, Mac용 네이티브 앱으로, 먼저 Apple Private Cloud Compute를 사용하고 필요할 때 온디바이스 모델로 이어집니다. 라이브러리와 읽음 상태는 iCloud를 통해 동기화됩니다.</p>
           <ul>
-            <li>서버를 운영할 필요도, 구독도 필요하지 않습니다.</li>
+            <li>서버를 운영할 필요가 없습니다. 체험 기간과 하루 무료 처리량으로 무료로 사용하고, NewsGator Pro로 무제한 처리, Listen, 위젯을 이용하세요.</li>
             <li>영어, 프랑스어, 독일어, 스페인어, 이탈리아어, 포르투갈어, 일본어, 한국어, 중국어 간체와 번체까지 10개 언어로 제공됩니다.</li>
             <li>Siri와 단축어를 지원해 저장과 읽기 흐름이 더 빨라집니다.</li>
             <li>스토리를 차 안에서도 들으세요: 기기 내 자연스러운 음성과 CarPlay.</li>
@@ -631,6 +633,7 @@ footer {
             <li>사용자별 피드, 읽음 상태, 환경설정을 갖춘 다중 사용자 읽기 환경.</li>
             <li>웹 앱 + PWA, 아카이브 대화, 스토리 공유, 스토리 RSS 피드, 활동 추적.</li>
             <li>RSS, IMAP 뉴스레터, FreshRSS·Miniflux·Inoreader 스타일의 리더 동기화.</li>
+            <li>네이티브 앱은 서버 모드로 내 서버에 연결할 수 있습니다. 무료이며 Pro가 필요한 것은 Listen과 위젯뿐입니다.</li>
           </ul>
           <div class="code-note"><span class="muted"># 간단한 Docker 설정</span><br />git clone …/NewsGator &amp;&amp; cd docker<br />cp .env.example .env<br />docker compose up --build</div>
         </article>
@@ -683,7 +686,46 @@ footer {
           <h3>다중 사용자 서버</h3>
           <p>하나의 셀프 호스팅 인스턴스로도 가족 구성원을 모두 한 계정으로 합치지 않고 함께 사용할 수 있습니다.</p>
         </article>
+        <article class="feature reveal">
+          <h3>위젯</h3>
+          <p>홈 화면, 잠금 화면, Mac 위젯으로 최신 스토리를 한눈에 확인합니다(Pro).</p>
+        </article>
+        <article class="feature reveal">
+          <h3>피드 검색</h3>
+          <p>국가와 주제별로 좋은 출처를 찾거나 AI에게 맡기세요.</p>
+        </article>
+        <article class="feature reveal">
+          <h3>저장한 스토리</h3>
+          <p>별표를 한 스토리는 보관되며 자동으로 삭제되지 않습니다.</p>
+        </article>
+        <article class="feature reveal">
+          <h3>번역</h3>
+          <p>모든 스토리를 내 언어로. 필요할 때 번역하고 캐시에 저장합니다.</p>
+        </article>
+        <article class="feature reveal">
+          <h3>모든 기기에서 iCloud</h3>
+          <p>라이브러리와 읽음 상태가 iPhone, iPad, Mac 사이에서 동기화됩니다. 처리 가능한 기기가 다른 기기를 대신해 처리할 수 있습니다.</p>
+        </article>
+        <article class="feature reveal">
+          <h3>앱 내 도움말</h3>
+          <p>채팅에 앱 사용법을 물어보세요. 내장 문서를 바탕으로 기기에서 답변합니다.</p>
+        </article>
       </div>
+    </div>
+  </section>
+
+  <section id="video">
+    <link rel="stylesheet" href="assets/video.css" />
+    <div class="wrap">
+      <div class="section-head reveal">
+        <div class="eyebrow">동영상</div>
+        <h2>NewsGator 살펴보기.</h2>
+        <p class="sub">앱을 짧게 둘러보세요.</p>
+      </div>
+      <div class="video-frame reveal">
+        <video controls playsinline preload="none" poster="assets/video/poster.jpg" src="assets/video/newsgator-demo.mp4"></video>
+      </div>
+      <p class="video-note">더 많은 영상은 <a href="https://www.youtube.com/@NewsGatorApp" rel="noopener">YouTube 채널</a>에서 확인하세요.</p>
     </div>
   </section>
 
@@ -692,13 +734,13 @@ footer {
       <div class="section-head gallery-intro reveal">
         <div class="eyebrow">스크린샷</div>
         <h2>마케팅용 목업이 아닌, 실제 네이티브 앱 화면입니다.</h2>
-        <p class="sub">iPhone과 Mac 앱, 그리고 셀프 호스팅 서버의 웹 앱에서 직접 캡처한 최신 화면입니다.</p>
+        <p class="sub">iPhone, iPad, iPhone Duo, Mac 앱과 셀프 호스팅 서버의 웹 앱에서 직접 캡처한 최신 화면입니다.</p>
       </div>
 
       <div class="gallery">
         <figure class="shot wide reveal">
           <div class="shot-media">
-            <img src="assets/shots/app-mac-stories.jpg" alt="NewsGator 선별 목록에서 사건별로 카드 하나씩 보여 주는 Mac 스토리 화면" width="1600" height="1000" loading="lazy" />
+            <img src="assets/store/ko-mac-stories.webp" alt="NewsGator 선별 목록에서 사건별로 카드 하나씩 보여 주는 Mac 스토리 화면" width="1600" height="1000" loading="lazy" />
           </div>
           <figcaption>
             <strong>Mac에서 스토리 선별</strong>
@@ -706,19 +748,9 @@ footer {
           </figcaption>
         </figure>
 
-        <figure class="shot phone reveal">
-          <div class="shot-media">
-            <img src="assets/shots/app-iphone-stories.jpg" alt="빠르게 스와이프하며 뉴스를 훑을 수 있는 iPhone 스토리 카드 화면" width="900" height="1950" loading="lazy" />
-          </div>
-          <figcaption>
-            <strong>iPhone에서 빠른 선별</strong>
-            <span class="caption">터치 중심 스토리 덱으로 오늘의 뉴스를 빠르게 훑고, 더 깊게 읽을 가치가 있는지 바로 판단할 수 있습니다.</span>
-          </figcaption>
-        </figure>
-
         <figure class="shot wide reveal">
           <div class="shot-media">
-            <img src="assets/shots/app-mac-story-detail.jpg" alt="요약된 스토리 옆에 원문 발행처 페이지를 함께 보여 주는 Mac 스토리 상세 화면" width="1600" height="1000" loading="lazy" />
+            <img src="assets/store/ko-mac-detail.webp" alt="요약된 스토리 옆에 원문 발행처 페이지를 함께 보여 주는 Mac 스토리 상세 화면" width="1600" height="1000" loading="lazy" />
           </div>
           <figcaption>
             <strong>원문 읽기</strong>
@@ -726,16 +758,80 @@ footer {
           </figcaption>
         </figure>
 
+        <figure class="shot phone reveal">
+          <div class="shot-media">
+            <img src="assets/store/ko-iphone-stories.webp" alt="빠르게 스와이프하며 뉴스를 훑을 수 있는 iPhone 스토리 카드 화면" width="800" height="1734" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>iPhone에서 빠른 선별</strong>
+          </figcaption>
+        </figure>
+
+        <figure class="shot phone reveal">
+          <div class="shot-media">
+            <img src="assets/store/ko-iphone-listen.webp" alt="차 안에서도 듣기" width="800" height="1734" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>차 안에서도 듣기</strong>
+          </figcaption>
+        </figure>
+
+        <figure class="shot phone reveal">
+          <div class="shot-media">
+            <img src="assets/store/ko-iphone-widgets.webp" alt="모든 화면의 위젯" width="800" height="1734" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>모든 화면의 위젯</strong>
+          </figcaption>
+        </figure>
+
+        <figure class="shot phone reveal">
+          <div class="shot-media">
+            <img src="assets/store/ko-duo-stories.webp" alt="폴더블 iPhone 지원" width="900" height="1310" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>폴더블 iPhone 지원</strong>
+          </figcaption>
+        </figure>
+
         <figure class="shot wide reveal">
           <div class="shot-media">
-            <img src="assets/shots/app-mac-activity.jpg" alt="NewsGator 처리 파이프라인과 실시간 Apple Intelligence 활동을 보여 주는 Mac 활동 화면" width="1600" height="1000" loading="lazy" />
+            <img src="assets/store/ko-mac-discovery.webp" alt="새 피드 찾기" width="1600" height="1000" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>새 피드 찾기</strong>
+          </figcaption>
+        </figure>
+
+        <figure class="shot wide reveal">
+          <div class="shot-media">
+            <img src="assets/store/ko-mac-chat.webp" alt="아카이브에 질문하기" width="1600" height="1000" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>아카이브에 질문하기</strong>
+          </figcaption>
+        </figure>
+
+        <figure class="shot wide reveal">
+          <div class="shot-media">
+            <img src="assets/store/ko-mac-activity.webp" alt="NewsGator 처리 파이프라인과 실시간 Apple Intelligence 활동을 보여 주는 Mac 활동 화면" width="1600" height="1000" loading="lazy" />
           </div>
           <figcaption>
             <strong>보이는 파이프라인 활동</strong>
             <span class="caption">앱이 무엇을 하는지 짐작할 필요 없이, 처리 상태와 기기, 스토리 파이프라인 진행 상황을 직접 확인할 수 있습니다.</span>
           </figcaption>
         </figure>
+
         <figure class="shot wide reveal">
+          <div class="shot-media">
+            <img src="assets/store/ko-ipad-stories.webp" alt="iPad에 맞춰 설계" width="1000" height="1334" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>iPad에 맞춰 설계</strong>
+          </figcaption>
+        </figure>
+
+        <figure class="shot full reveal">
           <div class="shot-media">
             <img src="assets/shots/app-web-usage.jpg" alt="토큰 총량, 일일 토큰 수, 단계별 내역을 보여 주는 서버 웹 앱의 LLM 사용량 화면" width="1010" height="1130" loading="lazy" />
           </div>

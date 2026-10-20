@@ -7,7 +7,7 @@
 <meta name="description" content="NewsGator 会把围绕同一事件的重复报道汇成一条持续更新的故事，写出诚实不钓鱼的标题，并带你回到原始发布者。可用 Apple Intelligence 本地运行，或部署你自己的自托管服务器。" />
 <meta property="og:title" content="NewsGator：新闻聚合器——所有来源，一事一条故事" />
 <meta property="og:description" content="一件事，一条故事。标题诚实不钓鱼。阅读来源，支持作者。可用 Apple Intelligence 本地运行，或部署你自己的自托管服务器。" />
-<meta property="og:image" content="https://www.newsgator.app/assets/shots/app-mac-stories.jpg" />
+<meta property="og:image" content="https://www.newsgator.app/assets/store/og-zh-hans.jpg" />
 <meta property="og:url" content="https://www.newsgator.app/index-zh-hans.html" />
 <meta property="og:type" content="website" />
 <meta property="og:locale" content="zh_CN" />
@@ -352,7 +352,7 @@ p { margin: 0; }
 }
 .feature-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
 .feature {
@@ -370,7 +370,7 @@ p { margin: 0; }
 .gallery-intro { margin-bottom: 28px; }
 .gallery {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.75fr);
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 18px;
   align-items: start;
 }
@@ -381,20 +381,22 @@ p { margin: 0; }
   padding: 16px;
   box-shadow: var(--shadow-card);
 }
-.shot.wide { grid-column: span 1; }
-.shot.phone { grid-row: span 2; }
+.shot.wide { grid-column: span 6; }
+.shot.phone { grid-column: span 3; }
+.shot.full { grid-column: span 12; }
 .shot-media {
   overflow: hidden;
   border-radius: 20px;
   background: #fff;
 }
 .shot.wide .shot-media img { border-radius: 16px; }
+.shot.full .shot-media { max-width: 560px; margin: 0 auto; }
 .shot.phone .shot-media {
   max-width: 360px;
   margin: 0 auto;
-  border-radius: 30px;
+  border-radius: 20px;
 }
-.shot.phone .shot-media img { border-radius: 24px; }
+.shot.phone .shot-media img { border-radius: 16px; }
 figcaption { margin-top: 14px; }
 figcaption strong {
   display: block;
@@ -446,7 +448,7 @@ footer {
   .fact-strip ul {
     grid-template-columns: 1fr;
   }
-  .shot.phone { grid-row: auto; }
+  .shot.wide, .shot.phone, .shot.full { grid-column: auto; }
 }
 @media (max-width: 760px) {
   .site-nav .wrap { align-items: flex-start; padding-top: 14px; padding-bottom: 14px; }
@@ -536,7 +538,7 @@ footer {
             并在你想深入阅读时带你回到 <strong>原始发布者</strong>。
           </p>
           <p class="note">两种引擎：由 Apple Intelligence 驱动的原生 Apple 应用，或你自己的自托管 NewsGator 服务器。</p>
-          <p class="avail">现已登陆 iPhone、iPad 和 Mac。</p>
+          <p class="avail">现已登陆 iPhone、iPad、iPhone Duo 和 Mac。</p>
           <div class="actions">
             <a class="btn store" href="https://apps.apple.com/app/newsgator-news-aggregator/id6816198546" target="_blank" rel="noopener noreferrer" aria-label="在 App Store 下载"><img src="assets/badges/app-store-zh-hans.svg" alt="在 App Store 下载" height="52" /></a>
             <a class="btn secondary" href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">查看自托管服务器</a>
@@ -564,7 +566,7 @@ footer {
 
       <div class="fact-strip reveal">
         <ul>
-          <li><strong>独立模式：</strong>Apple Intelligence、iCloud 同步、无需服务器，也无需订阅。</li>
+          <li><strong>独立模式：</strong>Apple Intelligence、iCloud 同步、无需服务器。可免费试用，Pro 为可选升级。</li>
           <li><strong>自托管：</strong>Python/FastAPI + SvelteKit，可搭配任意你选择的 OpenAI 兼容 AI。</li>
           <li><strong>隐私：</strong>零广告、零第三方追踪器、零分析统计。</li>
         </ul>
@@ -614,7 +616,7 @@ footer {
           <h3>Apple Intelligence，无需服务器</h3>
           <p>原生 iPhone、iPad 和 Mac 应用，优先使用 Apple Private Cloud Compute，其次使用设备端模型。你的资料库和阅读状态会通过 iCloud 同步。</p>
           <ul>
-            <li>无需运行服务器，也无需订阅。</li>
+            <li>无需运行服务器。试用期和每日免费额度内可免费使用；NewsGator Pro 解锁无限处理、Listen 和小组件。</li>
             <li>现已提供 10 种语言：English、Français、Deutsch、Español、Italiano、Português、日本語、한국어、简体中文、繁體中文。</li>
             <li>支持 Siri 与快捷指令，更快完成收藏与阅读流程。</li>
             <li>随时收听故事，车里也行：设备端自然语音与 CarPlay。</li>
@@ -630,6 +632,7 @@ footer {
             <li>支持多用户阅读，每位用户都有自己的订阅源、阅读状态和偏好设置。</li>
             <li>提供 Web 应用 + PWA、归档聊天、故事分享、故事 RSS feed 和活动追踪。</li>
             <li>支持 RSS、IMAP 新闻简报，以及 FreshRSS / Miniflux / Inoreader 风格的阅读器同步。</li>
+            <li>原生应用可通过服务器模式连接你的服务器：免费使用，只有 Listen 和小组件需要 Pro。</li>
           </ul>
           <div class="code-note"><span class="muted"># 精简 Docker 部署</span><br />git clone …/NewsGator &amp;&amp; cd docker<br />cp .env.example .env<br />docker compose up --build</div>
         </article>
@@ -682,7 +685,46 @@ footer {
           <h3>多用户服务器</h3>
           <p>一个自托管实例就能服务整个家庭，而不会把所有人压进同一个账号。</p>
         </article>
+        <article class="feature reveal">
+          <h3>小组件</h3>
+          <p>主屏幕、锁定屏幕和 Mac 小组件让最新故事一目了然（Pro）。</p>
+        </article>
+        <article class="feature reveal">
+          <h3>发现订阅源</h3>
+          <p>按国家和主题找到优质来源，或让 AI 帮你搜索。</p>
+        </article>
+        <article class="feature reveal">
+          <h3>已保存的故事</h3>
+          <p>给故事加星即可保留；已保存的故事不会被清理。</p>
+        </article>
+        <article class="feature reveal">
+          <h3>翻译</h3>
+          <p>用你的语言阅读每个故事，按需翻译并缓存。</p>
+        </article>
+        <article class="feature reveal">
+          <h3>iCloud，所有设备</h3>
+          <p>资料库和已读状态在 iPhone、iPad 和 Mac 间同步。任何支持的设备都能替其他设备处理。</p>
+        </article>
+        <article class="feature reveal">
+          <h3>应用内帮助</h3>
+          <p>向聊天询问应用的用法：帮助内容基于内置文档，在你的设备上回答。</p>
+        </article>
       </div>
+    </div>
+  </section>
+
+  <section id="video">
+    <link rel="stylesheet" href="assets/video.css" />
+    <div class="wrap">
+      <div class="section-head reveal">
+        <div class="eyebrow">视频</div>
+        <h2>看看 NewsGator 的实际效果。</h2>
+        <p class="sub">应用的简短导览。</p>
+      </div>
+      <div class="video-frame reveal">
+        <video controls playsinline preload="none" poster="assets/video/poster.jpg" src="assets/video/newsgator-demo.mp4"></video>
+      </div>
+      <p class="video-note">更多视频请见我们的 <a href="https://www.youtube.com/@NewsGatorApp" rel="noopener">YouTube 频道</a>。</p>
     </div>
   </section>
 
@@ -691,13 +733,13 @@ footer {
       <div class="section-head gallery-intro reveal">
         <div class="eyebrow">截图</div>
         <h2>都是真实的原生应用画面，不是营销效果图。</h2>
-        <p class="sub">来自 iPhone、Mac 应用以及自托管服务器 Web 应用的最新截图。</p>
+        <p class="sub">来自 iPhone、iPad、iPhone Duo 和 Mac 应用，以及自托管服务器 Web 应用的最新截图。</p>
       </div>
 
       <div class="gallery">
         <figure class="shot wide reveal">
           <div class="shot-media">
-            <img src="assets/shots/app-mac-stories.jpg" alt="Mac 上的故事列表视图，在 NewsGator 分流列表中为每个事件显示一张卡片" width="1600" height="1000" loading="lazy" />
+            <img src="assets/store/zh-hans-mac-stories.webp" alt="Mac 上的故事列表视图，在 NewsGator 分流列表中为每个事件显示一张卡片" width="1600" height="1000" loading="lazy" />
           </div>
           <figcaption>
             <strong>Mac 上的故事分流</strong>
@@ -705,19 +747,9 @@ footer {
           </figcaption>
         </figure>
 
-        <figure class="shot phone reveal">
-          <div class="shot-media">
-            <img src="assets/shots/app-iphone-stories.jpg" alt="iPhone 上用于快速滑动分流新闻的故事卡片视图" width="900" height="1950" loading="lazy" />
-          </div>
-          <figcaption>
-            <strong>iPhone 上的快速分流</strong>
-            <span class="caption">以触控为先的故事卡组，让你快速扫完当天新闻，决定哪些值得深入阅读。</span>
-          </figcaption>
-        </figure>
-
         <figure class="shot wide reveal">
           <div class="shot-media">
-            <img src="assets/shots/app-mac-story-detail.jpg" alt="Mac 上的故事详情视图，摘要故事旁边打开了原始发布者页面" width="1600" height="1000" loading="lazy" />
+            <img src="assets/store/zh-hans-mac-detail.webp" alt="Mac 上的故事详情视图，摘要故事旁边打开了原始发布者页面" width="1600" height="1000" loading="lazy" />
           </div>
           <figcaption>
             <strong>阅读来源</strong>
@@ -725,16 +757,80 @@ footer {
           </figcaption>
         </figure>
 
+        <figure class="shot phone reveal">
+          <div class="shot-media">
+            <img src="assets/store/zh-hans-iphone-stories.webp" alt="iPhone 上用于快速滑动分流新闻的故事卡片视图" width="800" height="1734" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>iPhone 上的快速分流</strong>
+          </figcaption>
+        </figure>
+
+        <figure class="shot phone reveal">
+          <div class="shot-media">
+            <img src="assets/store/zh-hans-iphone-listen.webp" alt="在车里也能收听" width="800" height="1734" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>在车里也能收听</strong>
+          </figcaption>
+        </figure>
+
+        <figure class="shot phone reveal">
+          <div class="shot-media">
+            <img src="assets/store/zh-hans-iphone-widgets.webp" alt="每个屏幕都有小组件" width="800" height="1734" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>每个屏幕都有小组件</strong>
+          </figcaption>
+        </figure>
+
+        <figure class="shot phone reveal">
+          <div class="shot-media">
+            <img src="assets/store/zh-hans-duo-stories.webp" alt="为折叠屏 iPhone 打造" width="900" height="1310" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>为折叠屏 iPhone 打造</strong>
+          </figcaption>
+        </figure>
+
         <figure class="shot wide reveal">
           <div class="shot-media">
-            <img src="assets/shots/app-mac-activity.jpg" alt="Mac 上的活动视图，展示 NewsGator 处理流程和 Apple Intelligence 实时活动" width="1600" height="1000" loading="lazy" />
+            <img src="assets/store/zh-hans-mac-discovery.webp" alt="发现新的订阅源" width="1600" height="1000" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>发现新的订阅源</strong>
+          </figcaption>
+        </figure>
+
+        <figure class="shot wide reveal">
+          <div class="shot-media">
+            <img src="assets/store/zh-hans-mac-chat.webp" alt="向你的归档提问" width="1600" height="1000" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>向你的归档提问</strong>
+          </figcaption>
+        </figure>
+
+        <figure class="shot wide reveal">
+          <div class="shot-media">
+            <img src="assets/store/zh-hans-mac-activity.webp" alt="Mac 上的活动视图，展示 NewsGator 处理流程和 Apple Intelligence 实时活动" width="1600" height="1000" loading="lazy" />
           </div>
           <figcaption>
             <strong>可见的流程活动</strong>
             <span class="caption">跟踪处理、设备和故事流水线进度，不再靠猜测应用正在做什么。</span>
           </figcaption>
         </figure>
+
         <figure class="shot wide reveal">
+          <div class="shot-media">
+            <img src="assets/store/zh-hans-ipad-stories.webp" alt="为 iPad 打造" width="1000" height="1334" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>为 iPad 打造</strong>
+          </figcaption>
+        </figure>
+
+        <figure class="shot full reveal">
           <div class="shot-media">
             <img src="assets/shots/app-web-usage.jpg" alt="服务器 Web 应用的 LLM 使用页面，显示总 token、每日 token 数和各阶段明细" width="1010" height="1130" loading="lazy" />
           </div>

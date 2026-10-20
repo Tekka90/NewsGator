@@ -8,7 +8,7 @@
 <meta property="og:locale" content="de_DE" />
 <meta property="og:title" content="NewsGator — Eine Story pro Ereignis" />
 <meta property="og:description" content="Eine Story pro Ereignis. Ehrliche Titel. Quelle lesen und Autoren unterstützen. NewsGator läuft mit Apple Intelligence oder auf Ihrem eigenen selbst gehosteten Server." />
-<meta property="og:image" content="https://www.newsgator.app/assets/shots/app-mac-stories.jpg" />
+<meta property="og:image" content="https://www.newsgator.app/assets/store/og-de.jpg" />
 <meta property="og:url" content="https://www.newsgator.app/index-de.html" />
 <meta property="og:type" content="website" />
 <meta name="twitter:card" content="summary_large_image" />
@@ -352,7 +352,7 @@ p { margin: 0; }
 }
 .feature-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
 .feature {
@@ -370,7 +370,7 @@ p { margin: 0; }
 .gallery-intro { margin-bottom: 28px; }
 .gallery {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.75fr);
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 18px;
   align-items: start;
 }
@@ -381,20 +381,22 @@ p { margin: 0; }
   padding: 16px;
   box-shadow: var(--shadow-card);
 }
-.shot.wide { grid-column: span 1; }
-.shot.phone { grid-row: span 2; }
+.shot.wide { grid-column: span 6; }
+.shot.phone { grid-column: span 3; }
+.shot.full { grid-column: span 12; }
 .shot-media {
   overflow: hidden;
   border-radius: 20px;
   background: #fff;
 }
 .shot.wide .shot-media img { border-radius: 16px; }
+.shot.full .shot-media { max-width: 560px; margin: 0 auto; }
 .shot.phone .shot-media {
   max-width: 360px;
   margin: 0 auto;
-  border-radius: 30px;
+  border-radius: 20px;
 }
-.shot.phone .shot-media img { border-radius: 24px; }
+.shot.phone .shot-media img { border-radius: 16px; }
 figcaption { margin-top: 14px; }
 figcaption strong {
   display: block;
@@ -446,7 +448,7 @@ footer {
   .fact-strip ul {
     grid-template-columns: 1fr;
   }
-  .shot.phone { grid-row: auto; }
+  .shot.wide, .shot.phone, .shot.full { grid-column: auto; }
 }
 @media (max-width: 760px) {
   .site-nav .wrap { align-items: flex-start; padding-top: 14px; padding-bottom: 14px; }
@@ -536,7 +538,7 @@ footer {
             und führt Sie zum <strong>ursprünglichen Verlag</strong> zurück, wenn Sie mehr lesen möchten.
           </p>
           <p class="note">Zwei starke Betriebsmodi: native Apple-Apps mit Apple Intelligence oder Ihr eigener selbst gehosteter NewsGator-Server.</p>
-          <p class="avail">Jetzt für iPhone, iPad und Mac erhältlich.</p>
+          <p class="avail">Jetzt für iPhone, iPad, iPhone Duo und Mac erhältlich.</p>
           <div class="actions">
             <a class="btn store" href="https://apps.apple.com/app/newsgator-news-aggregator/id6816198546" target="_blank" rel="noopener noreferrer" aria-label="Im App Store laden"><img src="assets/badges/app-store-de.svg" alt="Im App Store laden" height="52" /></a>
             <a class="btn secondary" href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">Zum selbst gehosteten Server</a>
@@ -564,7 +566,7 @@ footer {
 
       <div class="fact-strip reveal">
         <ul>
-          <li><strong>Standalone:</strong> Apple Intelligence, iCloud-Sync, kein Server, kein Abo.</li>
+          <li><strong>Standalone:</strong> Apple Intelligence, iCloud-Sync, kein Server. Kostenlos testen, optional mit Pro-Upgrade.</li>
           <li><strong>Selbst gehostet:</strong> Python/FastAPI + SvelteKit mit jeder OpenAI-kompatiblen KI Ihrer Wahl.</li>
           <li><strong>Privatsphäre:</strong> keine Werbung, keine Tracker von Drittanbietern, keine Analysedaten.</li>
         </ul>
@@ -614,7 +616,7 @@ footer {
           <h3>Apple Intelligence, kein Server</h3>
           <p>Native Apps für iPhone, iPad und Mac, zuerst mit Apple Private Cloud Compute, dann mit dem Modell auf dem Gerät. Ihre Bibliothek und Ihr Lesestatus synchronisieren sich über iCloud.</p>
           <ul>
-            <li>Kein Serverbetrieb und kein Abo erforderlich.</li>
+            <li>Kein Serverbetrieb nötig. Kostenlos testen mit Testphase und täglichem Gratis-Kontingent; NewsGator Pro schaltet unbegrenzte Verarbeitung, Listen und Widgets frei.</li>
             <li>Verfügbar in 10 Sprachen: Englisch, Französisch, Deutsch, Spanisch, Italienisch, Portugiesisch, Japanisch, Koreanisch, vereinfachtes Chinesisch und traditionelles Chinesisch.</li>
             <li>Siri- und Kurzbefehle-Support für schnellere Erfassungs- und Leseflüsse.</li>
             <li>Stories anhören, auch im Auto: natürliche Stimmen auf dem Gerät und CarPlay.</li>
@@ -630,6 +632,7 @@ footer {
             <li>Multi-User-Lesen mit Feeds, Lesestatus und Einstellungen pro Benutzer.</li>
             <li>Web-App + PWA, Archiv-Chat, Story teilen, Story-RSS-Feed und sichtbare Aktivitätsverfolgung.</li>
             <li>RSS, IMAP-Newsletter und Reader-Sync im Stil von FreshRSS, Miniflux und Inoreader.</li>
+            <li>Die nativen Apps verbinden sich im Servermodus mit Ihrem Server: kostenlos, nur Listen und Widgets sind Pro vorbehalten.</li>
           </ul>
           <div class="code-note"><span class="muted"># kompaktes Docker-Setup</span><br />git clone …/NewsGator &amp;&amp; cd docker<br />cp .env.example .env<br />docker compose up --build</div>
         </article>
@@ -682,7 +685,46 @@ footer {
           <h3>Multi-User-Server</h3>
           <p>Eine selbst gehostete Instanz kann einen Haushalt bedienen, ohne alle auf ein einziges Konto zu reduzieren.</p>
         </article>
+        <article class="feature reveal">
+          <h3>Widgets</h3>
+          <p>Widgets für Home-Bildschirm, Sperrbildschirm und Mac halten Ihre neuesten Stories im Blick (Pro).</p>
+        </article>
+        <article class="feature reveal">
+          <h3>Feed-Entdeckung</h3>
+          <p>Finden Sie gute Quellen nach Land und Thema, oder lassen Sie die KI für Sie suchen.</p>
+        </article>
+        <article class="feature reveal">
+          <h3>Gemerkte Stories</h3>
+          <p>Markieren Sie eine Story mit dem Stern, um sie zu behalten; gesicherte Stories werden nie bereinigt.</p>
+        </article>
+        <article class="feature reveal">
+          <h3>Übersetzung</h3>
+          <p>Lesen Sie jede Story in Ihrer Sprache, auf Abruf übersetzt und zwischengespeichert.</p>
+        </article>
+        <article class="feature reveal">
+          <h3>iCloud auf allen Geräten</h3>
+          <p>Bibliothek und Lesestatus folgen Ihnen über iPhone, iPad und Mac. Jedes geeignete Gerät kann für die anderen verarbeiten.</p>
+        </article>
+        <article class="feature reveal">
+          <h3>Hilfe in der App</h3>
+          <p>Fragen Sie den Chat, wie die App funktioniert: Die Hilfe stützt sich auf die integrierte Dokumentation, direkt auf Ihrem Gerät.</p>
+        </article>
       </div>
+    </div>
+  </section>
+
+  <section id="video">
+    <link rel="stylesheet" href="assets/video.css" />
+    <div class="wrap">
+      <div class="section-head reveal">
+        <div class="eyebrow">Video</div>
+        <h2>NewsGator in Aktion.</h2>
+        <p class="sub">Eine kurze Tour durch die App.</p>
+      </div>
+      <div class="video-frame reveal">
+        <video controls playsinline preload="none" poster="assets/video/poster.jpg" src="assets/video/newsgator-demo.mp4"></video>
+      </div>
+      <p class="video-note">Mehr auf <a href="https://www.youtube.com/@NewsGatorApp" rel="noopener">unserem YouTube-Kanal</a>.</p>
     </div>
   </section>
 
@@ -691,13 +733,13 @@ footer {
       <div class="section-head gallery-intro reveal">
         <div class="eyebrow">Screenshots</div>
         <h2>Aktuelle Ansichten der nativen Apps, keine Marketing-Mockups.</h2>
-        <p class="sub">Frische Aufnahmen aus den Apps für iPhone und Mac sowie aus der Web-App des selbst gehosteten Servers.</p>
+        <p class="sub">Aktuelle Aufnahmen aus den Apps für iPhone, iPad, iPhone Duo und Mac sowie aus der Web-App des selbst gehosteten Servers.</p>
       </div>
 
       <div class="gallery">
         <figure class="shot wide reveal">
           <div class="shot-media">
-            <img src="assets/shots/app-mac-stories.jpg" alt="Stories-Ansicht auf dem Mac mit einer Karte pro Ereignis in der NewsGator-Vorsortierliste" width="1600" height="1000" loading="lazy" />
+            <img src="assets/store/de-mac-stories.webp" alt="Stories-Ansicht auf dem Mac mit einer Karte pro Ereignis in der NewsGator-Vorsortierliste" width="1600" height="1000" loading="lazy" />
           </div>
           <figcaption>
             <strong>Stories vorsortieren auf dem Mac</strong>
@@ -705,19 +747,9 @@ footer {
           </figcaption>
         </figure>
 
-        <figure class="shot phone reveal">
-          <div class="shot-media">
-            <img src="assets/shots/app-iphone-stories.jpg" alt="Story-Kartenansicht auf dem iPhone für schnelle Nachrichtenvorsortierung per Wischen" width="900" height="1950" loading="lazy" />
-          </div>
-          <figcaption>
-            <strong>Schnelle Vorsortierung auf dem iPhone</strong>
-            <span class="caption">Mit dem touch-optimierten Story-Stapel scannen Sie den Tag schnell und entscheiden, was ein tieferes Lesen verdient.</span>
-          </figcaption>
-        </figure>
-
         <figure class="shot wide reveal">
           <div class="shot-media">
-            <img src="assets/shots/app-mac-story-detail.jpg" alt="Story-Detailansicht auf dem Mac mit geöffneter Originalseite des Verlags neben der zusammengefassten Story" width="1600" height="1000" loading="lazy" />
+            <img src="assets/store/de-mac-detail.webp" alt="Story-Detailansicht auf dem Mac mit geöffneter Originalseite des Verlags neben der zusammengefassten Story" width="1600" height="1000" loading="lazy" />
           </div>
           <figcaption>
             <strong>Quelle lesen</strong>
@@ -725,16 +757,80 @@ footer {
           </figcaption>
         </figure>
 
+        <figure class="shot phone reveal">
+          <div class="shot-media">
+            <img src="assets/store/de-iphone-stories.webp" alt="Story-Kartenansicht auf dem iPhone für schnelle Nachrichtenvorsortierung per Wischen" width="800" height="1734" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>Schnelle Vorsortierung auf dem iPhone</strong>
+          </figcaption>
+        </figure>
+
+        <figure class="shot phone reveal">
+          <div class="shot-media">
+            <img src="assets/store/de-iphone-listen.webp" alt="Hören, auch im Auto" width="800" height="1734" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>Hören, auch im Auto</strong>
+          </figcaption>
+        </figure>
+
+        <figure class="shot phone reveal">
+          <div class="shot-media">
+            <img src="assets/store/de-iphone-widgets.webp" alt="Widgets auf jedem Bildschirm" width="800" height="1734" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>Widgets auf jedem Bildschirm</strong>
+          </figcaption>
+        </figure>
+
+        <figure class="shot phone reveal">
+          <div class="shot-media">
+            <img src="assets/store/de-duo-stories.webp" alt="Gemacht für faltbare iPhones" width="900" height="1310" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>Gemacht für faltbare iPhones</strong>
+          </figcaption>
+        </figure>
+
         <figure class="shot wide reveal">
           <div class="shot-media">
-            <img src="assets/shots/app-mac-activity.jpg" alt="Aktivitätsansicht auf dem Mac mit der NewsGator-Verarbeitungspipeline und laufender Apple-Intelligence-Aktivität" width="1600" height="1000" loading="lazy" />
+            <img src="assets/store/de-mac-discovery.webp" alt="Neue Feeds entdecken" width="1600" height="1000" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>Neue Feeds entdecken</strong>
+          </figcaption>
+        </figure>
+
+        <figure class="shot wide reveal">
+          <div class="shot-media">
+            <img src="assets/store/de-mac-chat.webp" alt="Fragen Sie Ihr Archiv" width="1600" height="1000" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>Fragen Sie Ihr Archiv</strong>
+          </figcaption>
+        </figure>
+
+        <figure class="shot wide reveal">
+          <div class="shot-media">
+            <img src="assets/store/de-mac-activity.webp" alt="Aktivitätsansicht auf dem Mac mit der NewsGator-Verarbeitungspipeline und laufender Apple-Intelligence-Aktivität" width="1600" height="1000" loading="lazy" />
           </div>
           <figcaption>
             <strong>Sichtbare Pipeline-Aktivität</strong>
             <span class="caption">Verfolgen Sie Verarbeitung, Geräte und Story-Fortschritt, statt raten zu müssen, was die App gerade macht.</span>
           </figcaption>
         </figure>
+
         <figure class="shot wide reveal">
+          <div class="shot-media">
+            <img src="assets/store/de-ipad-stories.webp" alt="Gemacht für das iPad" width="1000" height="1334" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>Gemacht für das iPad</strong>
+          </figcaption>
+        </figure>
+
+        <figure class="shot full reveal">
           <div class="shot-media">
             <img src="assets/shots/app-web-usage.jpg" alt="LLM-Nutzungsseite der Server-Web-App mit Token-Gesamtsummen, Tokens pro Tag und einer Aufschlüsselung nach Verarbeitungsschritt" width="1010" height="1130" loading="lazy" />
           </div>

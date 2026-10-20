@@ -8,7 +8,7 @@
 <meta property="og:locale" content="ja_JP" />
 <meta property="og:title" content="NewsGator — 出来事ごとに1つのストーリー" />
 <meta property="og:description" content="出来事ごとに1つのストーリー。誇張しない見出しで把握し、元記事を読んで書き手を支援。Apple Intelligenceまたはセルフホストのサーバーで動作します。" />
-<meta property="og:image" content="https://www.newsgator.app/assets/shots/app-mac-stories.jpg" />
+<meta property="og:image" content="https://www.newsgator.app/assets/store/og-ja.jpg" />
 <meta property="og:url" content="https://www.newsgator.app/index-ja.html" />
 <meta property="og:type" content="website" />
 <meta name="twitter:card" content="summary_large_image" />
@@ -354,7 +354,7 @@ p { margin: 0; }
 }
 .feature-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
 .feature {
@@ -372,7 +372,7 @@ p { margin: 0; }
 .gallery-intro { margin-bottom: 28px; }
 .gallery {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.75fr);
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 18px;
   align-items: start;
 }
@@ -383,20 +383,22 @@ p { margin: 0; }
   padding: 16px;
   box-shadow: var(--shadow-card);
 }
-.shot.wide { grid-column: span 1; }
-.shot.phone { grid-row: span 2; }
+.shot.wide { grid-column: span 6; }
+.shot.phone { grid-column: span 3; }
+.shot.full { grid-column: span 12; }
 .shot-media {
   overflow: hidden;
   border-radius: 20px;
   background: #fff;
 }
 .shot.wide .shot-media img { border-radius: 16px; }
+.shot.full .shot-media { max-width: 560px; margin: 0 auto; }
 .shot.phone .shot-media {
   max-width: 360px;
   margin: 0 auto;
-  border-radius: 30px;
+  border-radius: 20px;
 }
-.shot.phone .shot-media img { border-radius: 24px; }
+.shot.phone .shot-media img { border-radius: 16px; }
 figcaption { margin-top: 14px; }
 figcaption strong {
   display: block;
@@ -448,7 +450,7 @@ footer {
   .fact-strip ul {
     grid-template-columns: 1fr;
   }
-  .shot.phone { grid-row: auto; }
+  .shot.wide, .shot.phone, .shot.full { grid-column: auto; }
 }
 @media (max-width: 760px) {
   .site-nav .wrap { align-items: flex-start; padding-top: 14px; padding-bottom: 14px; }
@@ -538,7 +540,7 @@ footer {
             もっと読みたいときは<strong>元の出版社</strong>へ戻します。
           </p>
           <p class="note">2つのエンジン。Apple Intelligenceで動くネイティブアプリ、または自分で運用するNewsGatorサーバー。</p>
-          <p class="avail">iPhone、iPad、Macで利用できます。</p>
+          <p class="avail">iPhone、iPad、iPhone Duo、Macで利用できます。</p>
           <div class="actions">
             <a class="btn store" href="https://apps.apple.com/app/newsgator-news-aggregator/id6816198546" target="_blank" rel="noopener noreferrer" aria-label="App Storeでダウンロード"><img src="assets/badges/app-store-ja.svg" alt="App Storeでダウンロード" height="52" /></a>
             <a class="btn secondary" href="https://github.com/Tekka90/NewsGator" target="_blank" rel="noopener noreferrer">セルフホスト版サーバーを見る</a>
@@ -566,7 +568,7 @@ footer {
 
       <div class="fact-strip reveal">
         <ul>
-          <li><strong>スタンドアロン:</strong> Apple Intelligence、iCloud同期、サーバー不要、追加料金不要。</li>
+          <li><strong>スタンドアロン:</strong> Apple Intelligence、iCloud同期、サーバー不要。無料で試せて、Proは任意です。</li>
           <li><strong>セルフホスト:</strong> Python/FastAPI + SvelteKit。好きなOpenAI互換AIを選べます。</li>
           <li><strong>プライバシー:</strong> 広告なし、サードパーティトラッカーなし、分析なし。</li>
         </ul>
@@ -616,7 +618,7 @@ footer {
           <h3>Apple Intelligenceで、サーバー不要</h3>
           <p>iPhone、iPad、Mac向けのネイティブアプリです。まずApple Private Cloud Compute、次にオンデバイスモデルを使います。ライブラリと既読状態はiCloudで同期されます。</p>
           <ul>
-            <li>運用するサーバーは不要。サブスクリプションも必要ありません。</li>
+            <li>運用するサーバーは不要。お試し期間と1日の無料枠で無料で使え、NewsGator Proで無制限の処理、Listen、ウィジェットが使えます。</li>
             <li>英語、フランス語、ドイツ語、スペイン語、イタリア語、ポルトガル語、日本語、韓国語、簡体字中国語、繁体字中国語で利用できます。</li>
             <li>Siriとショートカットに対応し、保存や読書フローをすばやく進められます。</li>
             <li>ストーリーを音声で、車の中でも：デバイス上の自然な音声とCarPlay。</li>
@@ -632,6 +634,7 @@ footer {
             <li>ユーザーごとのフィード、既読状態、設定を持つマルチユーザー環境。</li>
             <li>Webアプリ + PWA、アーカイブチャット、ストーリー共有、ストーリーRSSフィード、アクティビティ追跡。</li>
             <li>RSS、IMAPニュースレター、FreshRSS / Miniflux / Inoreader系のリーダー同期に対応。</li>
+            <li>ネイティブアプリはサーバーモードで自分のサーバーに接続できます。無料で使え、Proが必要なのはListenとウィジェットだけです。</li>
           </ul>
           <div class="code-note"><span class="muted"># 最小構成の Docker セットアップ</span><br />git clone …/NewsGator &amp;&amp; cd docker<br />cp .env.example .env<br />docker compose up --build</div>
         </article>
@@ -684,7 +687,46 @@ footer {
           <h3>マルチユーザーサーバー</h3>
           <p>1つのセルフホスト環境で、家族みんなが別々のアカウントとして使えます。</p>
         </article>
+        <article class="feature reveal">
+          <h3>ウィジェット</h3>
+          <p>ホーム画面、ロック画面、Macのウィジェットで、最新のストーリーをひと目で確認(Pro)。</p>
+        </article>
+        <article class="feature reveal">
+          <h3>フィード探索</h3>
+          <p>国やトピックから良質な情報源を見つけたり、AIに探してもらったりできます。</p>
+        </article>
+        <article class="feature reveal">
+          <h3>保存したストーリー</h3>
+          <p>星を付けたストーリーは保持され、自動で削除されません。</p>
+        </article>
+        <article class="feature reveal">
+          <h3>翻訳</h3>
+          <p>すべてのストーリーを自分の言語で。必要に応じて翻訳し、キャッシュします。</p>
+        </article>
+        <article class="feature reveal">
+          <h3>iCloudですべてのデバイスに</h3>
+          <p>ライブラリと既読状態がiPhone、iPad、Macで同期。対応デバイスが他のデバイスの分も処理できます。</p>
+        </article>
+        <article class="feature reveal">
+          <h3>アプリ内ヘルプ</h3>
+          <p>チャットにアプリの使い方を質問できます。回答は内蔵ドキュメントをもとに、デバイス上で生成されます。</p>
+        </article>
       </div>
+    </div>
+  </section>
+
+  <section id="video">
+    <link rel="stylesheet" href="assets/video.css" />
+    <div class="wrap">
+      <div class="section-head reveal">
+        <div class="eyebrow">動画</div>
+        <h2>NewsGatorの実際の動き。</h2>
+        <p class="sub">アプリをざっと紹介します。</p>
+      </div>
+      <div class="video-frame reveal">
+        <video controls playsinline preload="none" poster="assets/video/poster.jpg" src="assets/video/newsgator-demo.mp4"></video>
+      </div>
+      <p class="video-note">その他の動画は<a href="https://www.youtube.com/@NewsGatorApp" rel="noopener">YouTubeチャンネル</a>で。</p>
     </div>
   </section>
 
@@ -693,13 +735,13 @@ footer {
       <div class="section-head gallery-intro reveal">
         <div class="eyebrow">スクリーンショット</div>
         <h2>マーケティング用モックではなく、実際のネイティブアプリ画面です。</h2>
-        <p class="sub">iPhoneアプリ、Macアプリ、そしてセルフホスト版サーバーのWebアプリから撮った最新の画面です。</p>
+        <p class="sub">iPhone、iPad、iPhone Duo、Macのアプリと、セルフホスト版サーバーのWebアプリから撮った最新の画面です。</p>
       </div>
 
       <div class="gallery">
         <figure class="shot wide reveal">
           <div class="shot-media">
-            <img src="assets/shots/app-mac-stories.jpg" alt="NewsGatorの一覧で、出来事ごとに1枚のカードが並ぶMacのストーリー表示" width="1600" height="1000" loading="lazy" />
+            <img src="assets/store/ja-mac-stories.webp" alt="NewsGatorの一覧で、出来事ごとに1枚のカードが並ぶMacのストーリー表示" width="1600" height="1000" loading="lazy" />
           </div>
           <figcaption>
             <strong>Macでストーリーを仕分け</strong>
@@ -707,19 +749,9 @@ footer {
           </figcaption>
         </figure>
 
-        <figure class="shot phone reveal">
-          <div class="shot-media">
-            <img src="assets/shots/app-iphone-stories.jpg" alt="スワイプ中心ですばやくニュースを仕分けできるiPhoneのストーリーカード表示" width="900" height="1950" loading="lazy" />
-          </div>
-          <figcaption>
-            <strong>iPhoneで素早く仕分け</strong>
-            <span class="caption">タッチ中心のストーリーデッキで、その日の動きをざっと見て、深掘りすべき話題をすぐ決められます。</span>
-          </figcaption>
-        </figure>
-
         <figure class="shot wide reveal">
           <div class="shot-media">
-            <img src="assets/shots/app-mac-story-detail.jpg" alt="要約されたストーリーの横に元の出版社ページが開いているMacのストーリー詳細画面" width="1600" height="1000" loading="lazy" />
+            <img src="assets/store/ja-mac-detail.webp" alt="要約されたストーリーの横に元の出版社ページが開いているMacのストーリー詳細画面" width="1600" height="1000" loading="lazy" />
           </div>
           <figcaption>
             <strong>元記事を読む</strong>
@@ -727,16 +759,80 @@ footer {
           </figcaption>
         </figure>
 
+        <figure class="shot phone reveal">
+          <div class="shot-media">
+            <img src="assets/store/ja-iphone-stories.webp" alt="スワイプ中心ですばやくニュースを仕分けできるiPhoneのストーリーカード表示" width="800" height="1734" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>iPhoneで素早く仕分け</strong>
+          </figcaption>
+        </figure>
+
+        <figure class="shot phone reveal">
+          <div class="shot-media">
+            <img src="assets/store/ja-iphone-listen.webp" alt="車の中でも聴ける" width="800" height="1734" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>車の中でも聴ける</strong>
+          </figcaption>
+        </figure>
+
+        <figure class="shot phone reveal">
+          <div class="shot-media">
+            <img src="assets/store/ja-iphone-widgets.webp" alt="あらゆる画面でウィジェット" width="800" height="1734" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>あらゆる画面でウィジェット</strong>
+          </figcaption>
+        </figure>
+
+        <figure class="shot phone reveal">
+          <div class="shot-media">
+            <img src="assets/store/ja-duo-stories.webp" alt="折りたたみiPhoneに対応" width="900" height="1310" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>折りたたみiPhoneに対応</strong>
+          </figcaption>
+        </figure>
+
         <figure class="shot wide reveal">
           <div class="shot-media">
-            <img src="assets/shots/app-mac-activity.jpg" alt="NewsGatorの処理パイプラインとApple Intelligenceの進行状況を表示するMacのアクティビティ画面" width="1600" height="1000" loading="lazy" />
+            <img src="assets/store/ja-mac-discovery.webp" alt="新しいフィードを探す" width="1600" height="1000" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>新しいフィードを探す</strong>
+          </figcaption>
+        </figure>
+
+        <figure class="shot wide reveal">
+          <div class="shot-media">
+            <img src="assets/store/ja-mac-chat.webp" alt="アーカイブに質問" width="1600" height="1000" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>アーカイブに質問</strong>
+          </figcaption>
+        </figure>
+
+        <figure class="shot wide reveal">
+          <div class="shot-media">
+            <img src="assets/store/ja-mac-activity.webp" alt="NewsGatorの処理パイプラインとApple Intelligenceの進行状況を表示するMacのアクティビティ画面" width="1600" height="1000" loading="lazy" />
           </div>
           <figcaption>
             <strong>見える処理状況</strong>
             <span class="caption">アプリが何をしているかを推測するのではなく、処理、デバイス、ストーリーパイプラインの進み具合を確認できます。</span>
           </figcaption>
         </figure>
+
         <figure class="shot wide reveal">
+          <div class="shot-media">
+            <img src="assets/store/ja-ipad-stories.webp" alt="iPad向けに最適化" width="1000" height="1334" loading="lazy" />
+          </div>
+          <figcaption>
+            <strong>iPad向けに最適化</strong>
+          </figcaption>
+        </figure>
+
+        <figure class="shot full reveal">
           <div class="shot-media">
             <img src="assets/shots/app-web-usage.jpg" alt="トークン合計、1日あたりの使用量、処理段階ごとの内訳を表示するサーバーWebアプリのLLM使用量ページ" width="1010" height="1130" loading="lazy" />
           </div>
