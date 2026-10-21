@@ -31,6 +31,8 @@ class UserOut(BaseModel):
     story_order: str = ""
     # "" = follow the server default (unread)
     story_filter: str = ""
+    # last selected story preset (null = none yet; clients use the first enabled preset)
+    last_preset_id: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -52,6 +54,8 @@ class MePatch(BaseModel):
     story_sort: str | None = Field(default=None, pattern="^(updated|published|sources)$")
     story_order: str | None = Field(default=None, pattern="^(asc|desc)$")
     story_filter: str | None = Field(default=None, pattern="^(all|unread|updated|saved)$")
+    # "" clears; otherwise must be the id of an existing preset
+    last_preset_id: str | None = Field(default=None, max_length=64)
 
 
 # --- admin user management ---

@@ -3,7 +3,7 @@ manual merge/move (logged as labeled pairs — invariant 9)."""
 
 from collections import Counter
 from collections.abc import Iterable, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import numpy as np
@@ -26,8 +26,10 @@ from app.models import (
     StoryTranslation,
     User,
     UserFeed,
+    utcnow,
 )
 from app.services import activity, process, saved_links, youtube
+from app.services import story_presets as presets_svc
 from app.services.fulltext import fetch_full_text
 from app.services.vectorstore import cosine_similarity, get_vector_store
 
@@ -399,8 +401,12 @@ def _filtered_stories(
     sort: str,
     reverse: bool,
     since: datetime | None,
+    extra: Sequence[ColumnElement[bool]] = (),
 ) -> Select[tuple[Story]]:
-    """Visible stories of the user, filtered, ordered like ``_order_stories``, in SQL."""
+    """Visible stories of the user, filtered, ordered like ``_order_stories``, in SQL.
+
+    ``extra`` are additional AND conditions (preset criteria, feed sets); ``sort="saved_at"``
+    orders by the user's save time (never-saved stories count as the smallest value)."""
     visible = select(Article.story_id).where(
         Article.feed_id.in_(feed_ids), Article.story_id.is_not(None)
     )
@@ -418,7 +424,7 @@ def _filtered_stories(
         select(Story)
         .outerjoin(stats, stats.c.sid == Story.id)
         .outerjoin(StoryState, and_(StoryState.story_id == Story.id, StoryState.user_id == user.id))
-        .where(Story.id.in_(visible), *_flag_conditions(filter, saved))
+        .where(Story.id.in_(visible), *_flag_conditions(filter, saved), *extra)
     )
     if category:
         query = query.where(Story.category == category)
@@ -447,7 +453,53 @@ def _filtered_stories(
         return query.order_by(
             direction(count), direction(Story.last_updated_at), direction(Story.id)
         )
+    if sort == "saved_at":
+        return query.order_by(
+            direction(StoryState.saved_at), direction(Story.last_updated_at), direction(Story.id)
+        )
     return query.order_by(direction(Story.last_updated_at), direction(Story.id))
+
+
+def _stories_of_feeds(feed_ids: Iterable[int]) -> ColumnElement[bool]:
+    return Story.id.in_(
+        select(Article.story_id).where(
+            Article.feed_id.in_(list(feed_ids)), Article.story_id.is_not(None)
+        )
+    )
+
+
+async def _feed_source_kinds(session: AsyncSession, feed_ids: set[int]) -> dict[int, str]:
+    """Effective source kind (rss|mail|youtube|saved|reader_api) of the given feeds."""
+    rows = (
+        await session.execute(select(Feed.id, Feed.kind, Feed.url).where(Feed.id.in_(feed_ids)))
+    ).all()
+    return {fid: presets_svc.effective_source_kind(kind, url) for fid, kind, url in rows}
+
+
+def _criteria_conditions(
+    criteria: dict[str, Any], feed_kinds: dict[int, str], now: datetime
+) -> list[ColumnElement[bool]] | None:
+    """SQL twin of ``story_presets.story_matches`` (needs StoryState outer-joined).
+
+    None = the criteria can match nothing (e.g. a source kind none of the user's feeds has)."""
+    status_ = criteria["status"]
+    conditions = _flag_conditions(status_ if status_ in ("unread", "updated") else "all",
+                                  status_ == "saved")
+    if criteria["feed_ids"]:
+        conditions.append(_stories_of_feeds(criteria["feed_ids"]))
+    if criteria["category_ids"]:
+        conditions.append(Story.category.in_(criteria["category_ids"]))
+    if criteria["source_kinds"]:
+        of_kind = [f for f, k in feed_kinds.items() if k in criteria["source_kinds"]]
+        if not of_kind:
+            return None
+        conditions.append(_stories_of_feeds(of_kind))
+    if criteria["max_age_days"] is not None:
+        conditions.append(Story.last_updated_at >= now - timedelta(days=criteria["max_age_days"]))
+    haystack = func.ng_norm(func.coalesce(Story.title, "") + " " + func.coalesce(Story.summary, ""))
+    for token in presets_svc.query_tokens(criteria["query"]):
+        conditions.append(func.instr(haystack, token) > 0)
+    return conditions
 
 
 async def _page_items(session: AsyncSession, user: User, page: list[Story]) -> list[StoryListItem]:
@@ -474,8 +526,14 @@ async def list_stories(
     category: str | None = None,
     # only stories having at least one source article from this feed
     feed: int | None = None,
-    sort: str = Query(default="published", pattern="^(updated|published|sources)$"),
-    order: str = Query(default="asc", pattern="^(asc|desc)$"),
+    # same, for several feeds (repeatable; OR within the list, AND with `feed`)
+    feed_ids: list[int] = Query(default=[]),
+    # apply a stored preset's criteria + sort + order; explicit sort/order replace the
+    # preset's, feed/feed_ids/category/filter/saved/since are ANDed on top. 404 if the
+    # preset is unknown or disabled.
+    preset: str | None = None,
+    sort: str | None = Query(default=None, pattern="^(updated|published|sources|saved_at)$"),
+    order: str | None = Query(default=None, pattern="^(asc|desc)$"),
     # only stories with source articles published (else fetched) at or after this instant;
     # with sort=sources the ranking counts only those recent sources
     since: datetime | None = None,
@@ -486,10 +544,36 @@ async def list_stories(
     session: AsyncSession = Depends(get_session),
 ) -> list[StoryListItem]:
     user_feed_ids = await _user_feed_ids(session, user)
+    stored: dict[str, Any] | None = None
+    if preset is not None:
+        presets = presets_svc.visible_presets(
+            presets_svc.load_presets(user.story_presets), user_feed_ids
+        )
+        stored = next((p for p in presets if p["id"] == preset and p["enabled"]), None)
+        if stored is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Preset not found")
+    sort = sort or (stored["sort"] if stored else "published")
+    order = order or (stored["order"] if stored else "asc")
     if not user_feed_ids:
         return []
     if feed is not None and feed not in user_feed_ids:
         return []
+
+    extra: list[ColumnElement[bool]] = []
+    if stored is not None:
+        criteria = stored["criteria"]
+        kinds = (
+            await _feed_source_kinds(session, user_feed_ids) if criteria["source_kinds"] else {}
+        )
+        conditions = _criteria_conditions(criteria, kinds, utcnow())
+        if conditions is None:
+            return []
+        extra.extend(conditions)
+    if feed_ids:
+        visible_requested = [f for f in feed_ids if f in user_feed_ids]
+        if not visible_requested:
+            return []
+        extra.append(_stories_of_feeds(visible_requested))
 
     query = _filtered_stories(
         user,
@@ -500,6 +584,7 @@ async def list_stories(
         sort=sort,
         reverse=order == "desc",
         since=since,
+        extra=extra,
     )
     if limit is not None:
         query = query.limit(limit)
@@ -666,6 +751,87 @@ async def story_counts(
         query = query.where(Story.category == category)
     total, n_unread, n_updated, n_saved = (await session.execute(query)).one()
     return StoryCountsOut(all=total, unread=n_unread, updated=n_updated, saved=n_saved)
+
+
+class PresetCountsOut(BaseModel):
+    counts: dict[str, int]
+
+
+@router.get("/preset-counts")
+async def preset_counts(
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> PresetCountsOut:
+    """Story count per enabled preset with ``show_count`` (manual filters ignored).
+
+    Status-only presets share one conditional-aggregate query; every other preset costs
+    one count query."""
+    user_feed_ids = await _user_feed_ids(session, user)
+    presets = [
+        p
+        for p in presets_svc.visible_presets(
+            presets_svc.load_presets(user.story_presets), user_feed_ids
+        )
+        if p["enabled"] and p["show_count"]
+    ]
+    if not user_feed_ids:
+        return PresetCountsOut(counts={p["id"]: 0 for p in presets})
+    visible = select(Article.story_id).where(
+        Article.feed_id.in_(user_feed_ids), Article.story_id.is_not(None)
+    )
+    joined = (
+        select(Story.id)
+        .select_from(Story)
+        .outerjoin(StoryState, and_(StoryState.story_id == Story.id, StoryState.user_id == user.id))
+    )
+
+    def only_status(p: dict[str, Any]) -> bool:
+        return bool(p["criteria"] == presets_svc.empty_criteria(p["criteria"]["status"]))
+
+    by_status: dict[str, int] = {}
+    if any(only_status(p) for p in presets):
+        unread = _is_read_sql().is_(False)
+        updated = and_(StoryState.is_read.is_(True), Story.version > StoryState.read_at_version)
+        total, n_unread, n_updated, n_saved = (
+            await session.execute(
+                select(
+                    func.count(),
+                    func.coalesce(func.sum(case((unread, 1), else_=0)), 0),
+                    func.coalesce(func.sum(case((updated, 1), else_=0)), 0),
+                    func.coalesce(
+                        func.sum(case((StoryState.saved_at.is_not(None), 1), else_=0)), 0
+                    ),
+                )
+                .select_from(Story)
+                .outerjoin(
+                    StoryState, and_(StoryState.story_id == Story.id, StoryState.user_id == user.id)
+                )
+                .where(Story.id.in_(visible))
+            )
+        ).one()
+        by_status = {"any": total, "unread": n_unread, "updated": n_updated, "saved": n_saved}
+    now = utcnow()
+    kinds: dict[int, str] | None = None
+    counts: dict[str, int] = {}
+    for p in presets:
+        if only_status(p):
+            counts[p["id"]] = by_status[p["criteria"]["status"]]
+            continue
+        if kinds is None:
+            kinds = await _feed_source_kinds(session, user_feed_ids)
+        conditions = _criteria_conditions(p["criteria"], kinds, now)
+        if conditions is None:
+            counts[p["id"]] = 0
+            continue
+        counts[p["id"]] = int(
+            await session.scalar(
+                select(func.count()).select_from(
+                    joined.where(Story.id.in_(visible), *conditions).subquery()
+                )
+            )
+            or 0
+        )
+    return PresetCountsOut(counts=counts)
 
 
 class FacetCount(BaseModel):

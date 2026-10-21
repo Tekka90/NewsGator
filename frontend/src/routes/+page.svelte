@@ -6,22 +6,35 @@
   import YouTubePlayer from '$lib/components/YouTubePlayer.svelte';
   import ReadeckIcon from '$lib/components/ReadeckIcon.svelte';
   import ShareButton from '$lib/components/ShareButton.svelte';
-  import type { Category, FeedOption, StoryListItem } from '$lib/types';
-
-  type Sort = 'updated' | 'published' | 'sources';
-  type Order = 'asc' | 'desc';
-  type StoryFilter = 'all' | 'unread' | 'updated' | 'saved';
-  const filterPills: StoryFilter[] = ['all', 'unread', 'updated', 'saved'];
+  import PresetBar from '$lib/components/PresetBar.svelte';
+  import { adjustSavedCounts, defaultPresets, pickActivePreset, SORT_LABELS } from '$lib/presets';
+  import type {
+    Category,
+    FeedOption,
+    PresetOrder,
+    PresetSort,
+    StoryListItem,
+    StoryPreset
+  } from '$lib/types';
 
   let stories = $state<StoryListItem[]>([]);
   let categories = $state<Category[]>([]);
   let feedOptions = $state<FeedOption[]>([]);
-  let filter = $state<StoryFilter>('unread');
+  // Story views (presets): the active one supplies criteria + sort/order; the
+  // sort dropdown / order toggle / feed / category below are session overrides
+  // that never rewrite it and reset whenever a view is selected.
+  let presets = $state<StoryPreset[]>(defaultPresets());
+  let compact = $state(false);
+  let activeId = $state<string | null>(null);
+  let activePreset = $derived(presets.find((p) => p.id === activeId) ?? null);
+  let sortOverride = $state<PresetSort | null>(null);
+  let orderOverride = $state<PresetOrder | null>(null);
+  let sort = $derived<PresetSort>(sortOverride ?? activePreset?.sort ?? 'published');
+  let order = $derived<PresetOrder>(orderOverride ?? activePreset?.order ?? 'asc');
+  let savedOnly = $derived(activePreset?.criteria.status === 'saved');
   let category = $state('');
   // 0 = all feeds (transient — not a persisted per-user pref)
   let feedId = $state(0);
-  let sort = $state<Sort>('published');
-  let order = $state<Order>('asc');
   // Mobile filter sheet — three selects + the direction toggle don't fit next
   // to the pills on a phone (the feed select alone overflows with long feed
   // titles), so advanced filters live in a bottom sheet on touch devices.
@@ -33,7 +46,7 @@
   let readeckEnabled = $state(false);
   let readeckSaving = $state<Record<number, boolean>>({});
   let saving = $state<Record<number, boolean>>({});
-  let filterCounts = $state<{ all?: number; unread?: number; updated?: number; saved?: number }>({});
+  let presetCounts = $state<Record<string, number>>({});
   // Sticky title + filter bar — its height is measured at click time so a
   // just-read story can be scrolled out exactly behind it.
   let pagehead = $state<HTMLElement>();
@@ -142,13 +155,18 @@
     onMq();
     mq.addEventListener('change', onMq);
     // Per-user list prefs live server-side — shared across devices
-    if ($currentUser?.story_sort) sort = $currentUser.story_sort;
-    if ($currentUser?.story_order) order = $currentUser.story_order;
-    if ($currentUser?.story_filter) filter = $currentUser.story_filter;
     // ?feed=N pre-selects the feed filter (linked from the Feeds page counts)
     const qFeed = Number(page.url.searchParams.get('feed'));
     if (qFeed > 0) feedId = qFeed;
     void (async () => {
+      try {
+        const doc = await api.presets.get();
+        presets = doc.presets;
+        compact = doc.compact;
+        activeId = pickActivePreset(doc.presets, doc.last_preset_id, $currentUser?.story_filter)?.id ?? null;
+      } catch {
+        activeId = pickActivePreset(presets, null, $currentUser?.story_filter)?.id ?? null;
+      }
       try {
         categories = await api.categories.list();
       } catch {
@@ -184,24 +202,55 @@
 
   async function load() {
     loading = true;
+    if (!activeId) {
+      stories = [];
+      loading = false;
+      return;
+    }
     const [fetchedStories, counts] = await Promise.all([
-      api.stories.list(filter, category || undefined, sort, order, feedId || undefined),
-      api.stories.counts(category || undefined, feedId || undefined).catch(() => null)
+      api.stories.listPreset({
+        preset: activeId,
+        sort: sortOverride ?? undefined,
+        order: orderOverride ?? undefined,
+        category: category || undefined,
+        feedId: feedId || undefined
+      }),
+      api.presets.counts().catch(() => null)
     ]);
     stories = fetchedStories;
-    if (counts && (counts.all > 0 || fetchedStories.length === 0)) filterCounts = counts;
+    if (counts) presetCounts = counts.counts;
     index = 0;
     dx = 0;
     dy = 0;
     loading = false;
   }
 
-  /** Remember list prefs server-side so every device follows (per-user pref). */
-  function savePrefs() {
+  /** Selecting a view applies its criteria + sort/order and drops every manual override. */
+  function selectPreset(p: StoryPreset) {
+    activeId = p.id;
+    sortOverride = null;
+    orderOverride = null;
+    category = '';
+    feedId = 0;
+    // last_preset_id is synced across devices; story_filter keeps older clients in step for built-ins
     api
-      .patchMe({ story_sort: sort, story_order: order, story_filter: filter })
+      .patchMe({
+        last_preset_id: p.id,
+        ...(p.kind === 'builtin' ? { story_filter: p.id as 'all' } : {})
+      })
       .then((u) => ($currentUser = u))
       .catch(() => {});
+    void load();
+  }
+
+  function setSort(value: PresetSort) {
+    sortOverride = value === activePreset?.sort ? null : value;
+    void load();
+  }
+
+  function toggleOrder() {
+    orderOverride = order === 'desc' ? 'asc' : 'desc';
+    void load();
   }
 
   async function saveReadeck(story: StoryListItem, e: Event) {
@@ -280,13 +329,8 @@
       story.saved = saved.saved;
       story.saved_at = saved.saved_at;
       stories = [...stories];
-      if (filterCounts.saved !== undefined) {
-        filterCounts = {
-          ...filterCounts,
-          saved: Math.max(0, (filterCounts.saved ?? 0) + (saved.saved ? 1 : -1))
-        };
-      }
-      if (filter === 'saved' && !saved.saved) {
+      presetCounts = adjustSavedCounts(presets, presetCounts, saved.saved ? 1 : -1);
+      if (savedOnly && !saved.saved) {
         const removedIndex = stories.findIndex((s) => s.id === story.id);
         stories = stories.filter((s) => s.id !== story.id);
         if (removedIndex >= 0 && index > removedIndex) index -= 1;
@@ -424,15 +468,7 @@
 
   <div class="toolbar card">
     <div class="filters">
-      {#each filterPills as f}
-        {@const count = filterCounts[f]}
-        <button
-          class:active={filter === f}
-          onclick={() => { filter = f as typeof filter; savePrefs(); load(); }}
-        >
-          {f === 'all' ? 'All' : f === 'unread' ? 'Unread' : f === 'updated' ? 'Updated' : 'Saved'}{#if count !== undefined}<span class="pill-count">{count}</span>{/if}
-        </button>
-      {/each}
+      <PresetBar {presets} {activeId} counts={presetCounts} {compact} onselect={selectPreset} />
     </div>
     {#if isMobile}
       <button
@@ -462,15 +498,13 @@
             {#each categories as c (c.id)}<option value={c.name}>{c.name}</option>{/each}
           </select>
         {/if}
-        <select bind:value={sort} onchange={() => { savePrefs(); load(); }}>
-          <option value="published">Article date</option>
-          <option value="updated">Processing date</option>
-          <option value="sources">Source count</option>
+        <select value={sort} onchange={(e) => setSort(e.currentTarget.value as PresetSort)} aria-label="Sort by">
+          {#each Object.entries(SORT_LABELS) as [value, text] (value)}<option {value}>{text}</option>{/each}
         </select>
         <button
           class="dir"
           title={order === 'desc' ? 'Newest / most first — click to reverse' : 'Oldest / least first — click to reverse'}
-          onclick={() => { order = order === 'desc' ? 'asc' : 'desc'; savePrefs(); load(); }}
+          onclick={toggleOrder}
         >
           {order === 'desc' ? '↓' : '↑'}
         </button>
@@ -505,15 +539,13 @@
     {/if}
     <label>
       Sort by
-      <select bind:value={sort} onchange={() => { savePrefs(); load(); }}>
-        <option value="published">Article date</option>
-        <option value="updated">Processing date</option>
-        <option value="sources">Source count</option>
+      <select value={sort} onchange={(e) => setSort(e.currentTarget.value as PresetSort)}>
+        {#each Object.entries(SORT_LABELS) as [value, text] (value)}<option {value}>{text}</option>{/each}
       </select>
     </label>
     <button
       class="orderbtn"
-      onclick={() => { order = order === 'desc' ? 'asc' : 'desc'; savePrefs(); load(); }}
+      onclick={toggleOrder}
     >
       {order === 'desc' ? '↓ Newest / most first' : '↑ Oldest / least first'}
     </button>
@@ -526,7 +558,7 @@
 {:else if stories.length === 0}
   <div class="card">
     <p>
-      {#if filter === 'saved'}
+      {#if savedOnly}
         No saved stories yet.
       {:else}
         No stories yet. Add feeds on the <a href="/feeds">Feeds page</a> — articles are
@@ -745,54 +777,13 @@
     .pagehead { margin: -0.8rem -0.6rem 0; padding: 0.8rem 0.6rem 0; }
   }
   .toolbar { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
-  .filters {
-    display: inline-flex;
-    gap: 0.2rem;
-    background: var(--surface-soft);
-    padding: 0.22rem;
-    border-radius: var(--radius-pill);
-    border: 1px solid var(--border);
-  }
-  .filters button {
-    border: none;
-    background: transparent;
-    color: var(--muted);
-    border-radius: var(--radius-pill);
-    padding: 0.25rem 0.85rem;
-    font-size: 0.85rem;
-    font-weight: 600;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
-  }
-  .filters button:hover {
-    color: var(--text);
-  }
-  .filters button.active {
-    background: var(--accent);
-    color: #fff;
-    box-shadow: 0 2px 6px rgba(20, 107, 58, 0.22);
-  }
-  .pill-count {
-    font-size: 0.75em;
-    font-weight: 700;
-    opacity: 0.9;
-    background: var(--border);
-    color: var(--text);
-    padding: 0.05rem 0.35rem;
-    border-radius: var(--radius-pill);
-  }
-  .filters button.active .pill-count {
-    background: rgba(255, 255, 255, 0.25);
-    color: #fff;
-  }
+  .filters { display: flex; min-width: 0; max-width: 100%; }
   .tools { display: flex; gap: 0.4rem; align-items: center; }
   .tools select { max-width: 10rem; }
   @media (max-width: 700px) {
     /* touch layout: pills + a single Filters button share one row; the
        advanced filters live in the bottom sheet (filterSheetOpen) */
-    .filters { flex: 1 1 auto; }
+    .filters { flex: 1 1 0; }
     .filterbtn { flex-shrink: 0; }
   }
   .filterbtn {

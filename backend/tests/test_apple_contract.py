@@ -96,7 +96,7 @@ def login(client: httpx.Client, credentials: dict = READER) -> dict:
     body = response.json()
     assert set(body) == {
         "id", "username", "is_admin", "summary_language", "story_sort",
-        "story_order", "story_filter", "token",
+        "story_order", "story_filter", "last_preset_id", "token",
     }
     client.cookies.clear()
     client.headers["Authorization"] = f"Bearer {body['token']}"

@@ -50,6 +50,10 @@ def _configure_sqlite_on_connect(dbapi_conn: object, _record: object) -> None:
     raw.execute("PRAGMA journal_mode=WAL")
     raw.execute("PRAGMA busy_timeout=30000")
     raw.execute("PRAGMA synchronous=NORMAL")
+    # accent/case-insensitive keyword matching for story presets (services/story_presets.py)
+    from app.services.story_presets import normalize_text
+
+    raw.create_function("ng_norm", 1, normalize_text, deterministic=True)
     try:
         import sqlite_vec
 

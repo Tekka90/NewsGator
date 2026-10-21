@@ -12,15 +12,19 @@ import type {
   FeedOption,
   MailAccount,
   ManagedUser,
+  PresetFacets,
+  PresetsDoc,
   ReaderAccount,
   SimilarStory,
   StoryDetail,
   StoryListItem,
+  StoryPreset,
   UsageByFeed,
   UsageDailyRow,
   UsageSummary,
   User
 } from './types';
+import { storiesQuery, type ListQuery } from './presets';
 
 const BASE = '/api';
 const TOKEN_KEY = 'newsgator_token';
@@ -96,7 +100,9 @@ async function req<T>(
   }
   if (!res.ok) {
     const detail = await res.json().catch(() => ({}));
-    throw new Error(detail.detail ?? `HTTP ${res.status}`);
+    const d = detail.detail;
+    // preset validation errors are {code, message}
+    throw new Error(typeof d === 'object' && d?.message ? d.message : (d ?? `HTTP ${res.status}`));
   }
   if (res.status === 204) return undefined as T;
   return res.json();
@@ -139,6 +145,8 @@ export const api = {
     story_sort?: 'updated' | 'published' | 'sources';
     story_order?: 'asc' | 'desc';
     story_filter?: 'all' | 'unread' | 'updated' | 'saved';
+    // '' clears; unknown ids are rejected with 422 invalid_last_preset_id
+    last_preset_id?: string;
   }) => req<User>('/auth/me', { method: 'PATCH', body: patch }),
 
   users: {
@@ -328,7 +336,22 @@ export const api = {
       )
   },
 
+  presets: {
+    get: () => req<PresetsDoc>('/me/presets'),
+    // replaces the whole list; the server validates, renumbers and returns it
+    save: (doc: { presets: StoryPreset[]; last_preset_id: string | null; compact: boolean }) =>
+      req<PresetsDoc>('/me/presets', { method: 'PUT', body: doc }),
+    reset: (scope: 'builtin' | 'all') =>
+      req<PresetsDoc>('/me/presets/reset', { method: 'POST', body: { scope } }),
+    // one call for every enabled preset with show_count; manual filters are ignored
+    counts: () => req<{ counts: Record<string, number> }>('/stories/preset-counts')
+  },
+
   stories: {
+    // story list of a preset; sort/order/category/feed are session overrides on top
+    listPreset: (q: ListQuery) => req<StoryListItem[]>(`/stories?${storiesQuery(q)}`),
+    // category facet of the editor's category picker (any authenticated user)
+    facets: () => req<PresetFacets>('/stories/facets'),
     list: (
       filter: 'all' | 'unread' | 'updated' | 'saved' = 'all',
       category?: string,

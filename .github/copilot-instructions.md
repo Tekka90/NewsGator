@@ -561,6 +561,24 @@ only the returned page is hydrated (`_page_items`). New covering index
 `ix_article_story_dates (story_id, published_at, fetched_at)`. Measured on 8k stories:
 prod 1.3–4.6s per call → ~20–250ms.
 
+Story presets / "Smart Views" (2026-10-21, Alembic 0024): per-user JSON document
+`user.story_presets` (NULL = defaults) + `last_preset_id` + `presets_compact`; API
+`GET/PUT /api/me/presets`, `POST /api/me/presets/reset`, `GET /api/stories/preset-counts`,
+`GET /api/stories?preset=&feed_ids=` and `sort=saved_at` (`api/presets.py`, `api/stories.py`
+`_criteria_conditions`). **Invariants**: semantics live in `services/story_presets.py` and
+are mirrored (not shared) by the Apple standalone pipeline — both must pass
+`backend/tests/fixtures/story_presets_vectors.json`; the icon catalog (47 keys) has one list
+there and one key→glyph map per platform; criteria are AND across types / OR within a list;
+keyword match is accent- and case-insensitive on stored `title + summary` (SQLite UDF
+`ng_norm`, registered in `core/db.py`); validation errors are `422 {detail:{code,message}}`;
+default Unread = oldest first, Updated = most sources first, Saved = most recently saved.
+Keep `_criteria_conditions` (SQL) in sync with `story_matches` (pure reference).
+Web side (Phase 2): `routes/+page.svelte` uses `PresetBar` + `api.presets.*`; manual sort/feed/category
+are session overrides (never persisted into a preset); settings editor `StoryViewsSettings.svelte`; pure logic
+`lib/presets.ts` and the single icon catalog `lib/presetIcons.ts` are tested with `npm test` (Node's built-in
+`node --test` running `.ts` directly — no extra framework) against the shared vectors; the test file carries
+`// @ts-nocheck` because the project has no `@types/node`.
+
 Notes on the current code:
 - Backend lives in `backend/src/app/` (`api/`, `core/`, `models/`, `services/`,
   `workers/`); routers depend on `get_session` and `current_user`/`admin_user` deps.

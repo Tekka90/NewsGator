@@ -367,10 +367,12 @@ v1 is **data-first, no online learning**:
 |---|---|
 | `POST /auth/login`, `POST /auth/logout` | session auth; login/setup also return the signed token in the body — clients that cannot persist cookies (iOS standalone PWAs) send it as `Authorization: Bearer <token>` (or `?token=` for SSE) |
 | `POST /auth/session-token` | issue a fresh portable token for the authenticated user — for flows that can't use cookies/headers (RSS readers on `/feed.xml`); works even when the client lost its localStorage token mid-session (valid cookie suffices) |
-| `GET/PATCH /me` | profile + per-user preferences: summary language, story-list filter (`story_filter`, default `unread`) and ordering (`story_sort`/`story_order`) — shared across the user's devices |
+| `GET/PATCH /me` | profile + per-user preferences: summary language, story-list filter (`story_filter`, default `unread`) and ordering (`story_sort`/`story_order`) — shared across the user's devices; the payload also carries `last_preset_id` and `PATCH` accepts it (`""` clears, unknown id → `422 invalid_last_preset_id`); `story_*` stay for older clients |
 | `GET /users`, `POST /users`, `PATCH /users/{id}`, `DELETE /users/{id}` | user management (admin): list, create (username/password/admin flag), reset password or toggle admin, delete. First-run `/auth/setup` only creates the initial admin; additional users come from here. Guards: the last admin can be neither demoted nor deleted, and a user cannot delete themselves; deleting a user bulk-removes their `STORY_STATE` rows |
-| `GET /stories?filter=all\|unread\|updated&category=&feed=&sort=updated\|published\|sources&order=asc\|desc&since=<ISO datetime>` | story list scoped to the requesting user's subscribed feeds with **per-user** flags; `feed` keeps only stories with at least one source article from that feed; sort by article publication date (default), last update, or source count, ascending (default: oldest first) or descending; undated stories sort by last update; `since` keeps only stories with source articles published (else fetched) at or after that instant, and with `sort=sources` ranks by that recent source count; optional `limit`/`offset` slice the result after filtering and sorting (omitted = full list) and per-story hosts/translations are only computed for the returned slice |
+| `GET /stories?preset=<id>&feed_ids=&filter=all\|unread\|updated&category=&feed=&sort=updated\|published\|sources\|saved_at&order=asc\|desc&since=<ISO datetime>` | story list scoped to the requesting user's subscribed feeds with **per-user** flags; `feed` keeps only stories with at least one source article from that feed; sort by article publication date (default), last update, or source count, ascending (default: oldest first) or descending; undated stories sort by last update; `since` keeps only stories with source articles published (else fetched) at or after that instant, and with `sort=sources` ranks by that recent source count; optional `limit`/`offset` slice the result after filtering and sorting (omitted = full list) and per-story hosts/translations are only computed for the returned slice; `preset=<id>` applies a stored preset's criteria + sort + order (explicit `sort`/`order` replace the preset's; `feed`, repeatable `feed_ids`, `category`, `filter`, `saved`, `since` are ANDed on top; unknown or disabled preset → `404 {"detail": "Preset not found"}`); `sort=saved_at` orders by the user's save time (never-saved stories sort as the smallest value) |
 | `GET /stories/widget-snapshot?since=<ISO datetime>&limit=12` | one lightweight call for the Apple widgets: `unread_count` plus `lists` (`latest`, `latest_unread`, `oldest`, `oldest_unread`, `most_sources`, `most_sources_unread`), each up to `limit` story items; `most_sources*` rank by sources published since `since` |
+| `GET /stories/preset-counts` | `{counts: {<preset_id>: int}}` for every enabled preset with `show_count` — manual filters ignored; status-only presets share one conditional-aggregate query, each other preset costs one count query |
+| `GET/PUT /me/presets`, `POST /me/presets/reset` | story presets ("Smart Views", see below): `GET` → `{presets, last_preset_id, compact}` (defaults when none stored); `PUT` replaces the whole list + `last_preset_id` + `compact` (validated, normalised, returned); `POST /reset` body `{scope: "builtin"\|"all"}`. Validation failures are `422 {"detail": {"code", "message"}}` |
 | `GET /stories/counts?category=&feed=` | filter-pill counts `{all, unread, updated, saved}` for the user's visible stories (optional category/feed scope) — lets the GUI avoid fetching the full list just to count |
 | `GET /stories/feed-options` | feeds subscribed by the current user that have at least one article in a story (`[{id, title, kind, url, sender_email}]`) — options for the story-list feed filter |
 | `GET /stories/{id}` | story detail: merged summary + source articles + revision history (404 if user is not subscribed to any member feeds) |
@@ -413,6 +415,45 @@ user must be able to fix it. Corrections can later feed threshold tuning.
 
 ---
 
+
+### Story presets ("Smart Views") — 2026-10-21, Alembic `0024`
+
+A preset = filter + presentation. Stored per user as one JSON document on `user.story_presets`
+(NULL = defaults, computed and not persisted until the first edit) with `user.last_preset_id`
+and `user.presets_compact` (global icon-only bar). Reference implementation:
+`services/story_presets.py`; shared test vectors `backend/tests/fixtures/story_presets_vectors.json`
+(defaults, criteria matrix, sort vectors, keyword normalisation, validation codes, ordered icon catalog).
+
+- **Model**: `{id, kind builtin|custom, label, icon, display icon+label|icon|label, enabled, position,
+  sort published|updated|sources|saved_at, order asc|desc, show_count, criteria{status any|unread|updated|saved,
+  feed_ids[], category_ids[] (category names), source_kinds[] (rss|mail|youtube|saved|reader_api),
+  query, max_age_days 1–3650}}`. AND across criteria types, OR within a list; empty = no constraint.
+  Built-in ids `all|unread|updated|saved` always exist once, cannot be deleted, have fixed criteria
+  (editing them → `builtin_criteria_locked`); custom ids are `[A-Za-z0-9_-]{1,64}` (clients use UUIDs).
+  Built-in `label: null` means "client shows its localized default name". Server sanity cap: 200 presets.
+- **Defaults** (behaviour change for users with nothing stored): All = published desc; **Unread = published asc
+  (oldest first)**; **Updated = sources desc (most sources first)**; Saved = saved_at desc. All enabled,
+  `icon+label`, `show_count`. Icons `list`, `circle-dot`, `refresh`, `bookmark`.
+- **Criteria semantics**: status as in the read-state rules (updated = read ∧ `version > read_at_version`;
+  never unread); `feed_ids`: story has an article from a listed feed; `source_kinds`: story has an article from
+  one of the user's feeds of that kind (**YouTube channel feeds count as `youtube`, not `rss`**);
+  `max_age_days`: `story.last_updated_at >= now − N days`; `query`: keyword only (no semantic search) —
+  whitespace tokens, NFKD + strip combining marks + casefold, every token a substring of
+  `title + " " + summary` (stored story text, untranslated). Implemented in SQL with a connection-level
+  `ng_norm()` SQLite function + `instr` (no FTS table); full scan of the user's visible stories, only when `query` is set.
+- **Sort `saved_at`**: user's `story_state.saved_at`; never-saved = smallest value (last when desc, first when asc);
+  ties `last_updated_at`, then id, in the same direction (same tie rule as the other keys).
+- **Validation** (`PUT`): whole list; unique ids; every built-in present; ≥ 1 enabled; enums; label rules
+  (custom 1–40 chars; built-in null/≤40); icon = catalog key (47 keys) or one emoji; lists ≤ 500; `query` ≤ 200
+  (trimmed, empty → null); positions renumbered densely (stable on ties); unknown fields rejected. Codes:
+  `invalid_payload, invalid_enum, invalid_id, invalid_label, invalid_icon, invalid_max_age, query_too_long,
+  list_too_large, too_many_presets, duplicate_id, builtin_missing, builtin_criteria_locked, no_enabled_preset,
+  invalid_scope`. `last_preset_id` that is unknown collapses to null.
+- **Reset**: `builtin` restores the four built-ins (first, default order) and keeps customs, `compact` and a still-valid
+  `last_preset_id`; `all` removes customs and clears `last_preset_id`/`compact`.
+- **Visibility**: feed ids the user is not subscribed to (deleted, hidden) are dropped from presets on every read.
+- No activity events (not a pipeline transition). The legacy `story_filter/story_sort/story_order` columns remain.
+
 ## 7. Web GUI (concept)
 
 - **Main view**: story cards (headline, lead image thumbnail, merged summary,
@@ -445,6 +486,19 @@ user must be able to fix it. Corrections can later feed threshold tuning.
   the same usage would cost on a cloud provider. A warning banner shows the share of
   calls whose token counts were estimated (server returned no `usage` object).
 - Filters: category, unread / updated-since-read, language of sources.
+- **Story views (presets) in the web GUI** (2026-10-21): the Stories page's top bar is `PresetBar.svelte`,
+  driven by `GET /me/presets` (enabled presets by `position`; per-preset `display` icon+label / icon / label, or all
+  icon-only when `compact`; horizontal scroll, ←/→ focus keys, `aria-pressed`, accessible name = label + count).
+  Counts come from one `GET /stories/preset-counts` call (load/refresh; Saved is updated optimistically on star/unstar).
+  Selecting a view loads `GET /stories?preset=<id>`, clears every manual override and persists `last_preset_id`
+  (`PATCH /auth/me`, plus `story_filter` for built-ins so older clients follow). The sort dropdown (adds *Saved date*),
+  order toggle and feed/category selects are **session-only overrides** (sent as explicit `sort`/`order`/`feed`/`category`,
+  never written back to the view). Settings → **Story views** (`StoryViewsSettings.svelte`): drag + ↑/↓ reorder, Shown
+  toggle (last enabled view is locked), inline editor (name, icon grid + single emoji, display, sort, order, count; custom
+  views also status, source types, feeds, categories, keywords, max age), add/duplicate/delete, *Reset built-ins* /
+  *Reset everything* (confirm), compact-bar toggle, live bar preview, explicit *Save views* (`PUT /me/presets`).
+  Pure logic is in `lib/presets.ts` and the single icon catalog (key → inline SVG, unknown → `filter`, emoji accepted)
+  in `lib/presetIcons.ts`; both are unit-tested against `story_presets_vectors.json` with `npm test` (`node --test`).
 - **Design system & theme centralization**: styled according to the "Editorial Gator"
   concept with all tokens centralized in `src/lib/theme.css` (primary brand Forest green
   `#146B3A`, Forest 900 `#0B3D2A`, warm Paper `#F8F7F1` with dark forest night palette

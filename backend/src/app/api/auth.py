@@ -120,6 +120,16 @@ async def patch_me(
         user.story_order = body.story_order
     if body.story_filter is not None:
         user.story_filter = body.story_filter
+    if body.last_preset_id is not None:
+        from app.services import story_presets as sp
+
+        known = sp.load_presets(user.story_presets)
+        if body.last_preset_id and not any(p["id"] == body.last_preset_id for p in known):
+            raise HTTPException(
+                422,
+                detail={"code": "invalid_last_preset_id", "message": "Unknown preset id"},
+            )
+        user.last_preset_id = body.last_preset_id or None
     if body.password is not None:
         user.password_hash = hash_password(body.password)
     await session.commit()

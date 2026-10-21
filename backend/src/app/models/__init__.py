@@ -52,6 +52,10 @@ class User(Base):
     story_order: Mapped[str] = mapped_column(String(8), default="")
     # Per-user story-list filter pref; empty = server default (unread)
     story_filter: Mapped[str] = mapped_column(String(16), default="")
+    # Story presets ("Smart Views") as one JSON document; NULL = built-in defaults
+    story_presets: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_preset_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    presets_compact: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 

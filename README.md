@@ -38,7 +38,10 @@ philosophy behind it, and how it feels to use.
   infrastructure you chose.
 - **Multi-user with per-user read state** — read stories that receive new facts come
   back as "updated", never as unread noise. Filter the story list by feed, and see
-  per-feed story/unread counts on the Feeds page.
+  per-feed story/unread counts on the Feeds page. **Story views** (presets): choose
+  and order the buttons above the story list, add custom views (feeds, categories,
+  source kinds, keyword, max age), each with its own icon, sort key and direction.
+  Defaults: Unread lists oldest first and Updated lists most sources first.
 - **Ask your archive** — a built-in chatbot answers questions across everything
   you've loaded (RAG): your question is embedded and matched against story
   centroids, the top story summaries ground the answer, and cited stories are
@@ -112,7 +115,7 @@ feeds on the Feeds page.
 
 ```bash
 cd backend && pytest && ruff check src tests && mypy src
-cd frontend && npm run check && npm run build
+cd frontend && npm run check && npm run build && npm test
 ```
 
 ## Contributing & security

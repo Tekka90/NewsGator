@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { api, getToken } from '$lib/api';
   import { currentUser } from '$lib/stores';
+  import StoryViewsSettings from '$lib/components/StoryViewsSettings.svelte';
   import type { Category, CategorySuggestion, MailAccount, ManagedUser, ReaderAccount } from '$lib/types';
 
   let language = $state('');
@@ -580,6 +581,8 @@
   <button onclick={saveLanguage}>Save</button>
   {#if saved}<span class="ok">Saved ✓</span>{/if}
 </div>
+
+<StoryViewsSettings />
 
 <div class="card">
   <h2>Session</h2>

@@ -85,6 +85,10 @@ async def test_legacy_create_all_db_stamped_and_upgraded(
     sync_conn.execute("ALTER TABLE user DROP COLUMN story_sort")
     sync_conn.execute("ALTER TABLE user DROP COLUMN story_order")
     sync_conn.execute("ALTER TABLE user DROP COLUMN story_filter")
+    # 0024 (story presets) added later still
+    sync_conn.execute("ALTER TABLE user DROP COLUMN story_presets")
+    sync_conn.execute("ALTER TABLE user DROP COLUMN last_preset_id")
+    sync_conn.execute("ALTER TABLE user DROP COLUMN presets_compact")
     sync_conn.execute("ALTER TABLE feed DROP COLUMN backfill_days")
     sync_conn.execute("ALTER TABLE story DROP COLUMN readeck_bookmark_id")
     # llm_usage (0010) and chat_message (0011) were added by later revisions —

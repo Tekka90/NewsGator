@@ -10,6 +10,7 @@ export interface User {
   story_order: '' | 'asc' | 'desc';
   // '' = follow the server default (unread)
   story_filter: '' | 'all' | 'unread' | 'updated' | 'saved';
+  last_preset_id?: string | null;
 }
 
 export interface AuthUser extends User {
@@ -291,4 +292,46 @@ export interface StoryDetail extends StoryListItem {
   first_seen_at: string;
   articles: StoryArticle[];
   revisions: StoryRevision[];
+}
+
+// --- Story presets / "Smart Views" (GET/PUT /api/me/presets) ---
+
+export type PresetStatus = 'any' | 'unread' | 'updated' | 'saved';
+export type PresetSort = 'published' | 'updated' | 'sources' | 'saved_at';
+export type PresetOrder = 'asc' | 'desc';
+export type PresetDisplay = 'icon+label' | 'icon' | 'label';
+export type PresetSourceKind = 'rss' | 'mail' | 'youtube' | 'saved' | 'reader_api';
+
+export interface PresetCriteria {
+  status: PresetStatus;
+  feed_ids: number[];
+  category_ids: string[];
+  source_kinds: PresetSourceKind[];
+  query: string | null;
+  max_age_days: number | null;
+}
+
+export interface StoryPreset {
+  id: string;
+  kind: 'builtin' | 'custom';
+  // null/empty on built-ins = the client's localized default name
+  label: string | null;
+  icon: string;
+  display: PresetDisplay;
+  enabled: boolean;
+  position: number;
+  sort: PresetSort;
+  order: PresetOrder;
+  show_count: boolean;
+  criteria: PresetCriteria;
+}
+
+export interface PresetsDoc {
+  presets: StoryPreset[];
+  last_preset_id: string | null;
+  compact: boolean;
+}
+
+export interface PresetFacets {
+  categories: { key: string; count: number }[];
 }
