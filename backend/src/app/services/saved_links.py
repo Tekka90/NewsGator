@@ -2,6 +2,8 @@
 
 Each user owns one pseudo-feed (`saved:{user_id}`) that is never polled; every shared URL becomes
 an article in it and goes through the normal pipeline (full text → summary → embedding → cluster).
+Every story that gets such an article is also flagged saved for the sharing user (and only
+that user), so shared links never expire (retention skips saved stories).
 """
 
 from urllib.parse import urlparse
@@ -10,7 +12,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Article, Feed, User, UserFeed, utcnow
+from app.models import Article, Feed, StoryState, User, UserFeed, utcnow
 from app.services import activity, youtube
 from app.services.ingest import canonicalize_url
 
@@ -21,6 +23,37 @@ MAX_URL_LENGTH = 2048
 
 def saved_feed_url(user_id: int) -> str:
     return f"{SAVED_FEED_PREFIX}{user_id}"
+
+
+def saved_feed_owner(feed: Feed) -> int | None:
+    """User id owning a saved-links pseudo-feed, else None."""
+    if feed.kind != "saved" or not feed.url.startswith(SAVED_FEED_PREFIX):
+        return None
+    raw = feed.url.removeprefix(SAVED_FEED_PREFIX)
+    return int(raw) if raw.isdigit() else None
+
+
+async def flag_story_saved(session: AsyncSession, user_id: int, story_id: int) -> None:
+    """Set `saved_at` like `PUT /stories/<id>/saved`: idempotent, read state untouched."""
+    state = await session.get(StoryState, (user_id, story_id))
+    if state is None:
+        state = StoryState(user_id=user_id, story_id=story_id)
+        session.add(state)
+    if state.saved_at is None:
+        state.saved_at = utcnow()
+
+
+async def flag_shared_article_story(session: AsyncSession, article: Article) -> None:
+    """Flag the article's story saved for the owner of its shared-links feed (no-op otherwise).
+
+    Called whenever an article joins a story (clustering, manual move/merge)."""
+    if article.story_id is None:
+        return
+    feed = await session.get(Feed, article.feed_id)
+    owner = saved_feed_owner(feed) if feed is not None else None
+    if owner is None or await session.get(User, owner) is None:
+        return
+    await flag_story_saved(session, owner, article.story_id)
 
 
 def validate_shared_url(raw: str) -> str:
@@ -58,6 +91,10 @@ async def import_url(session: AsyncSession, user: User, raw_url: str) -> tuple[A
         .limit(1)
     )
     if existing is not None:
+        # already known (maybe from another feed): sharing it again still saves its story
+        if existing.story_id is not None:
+            await flag_story_saved(session, user.id, existing.story_id)
+            await session.commit()
         return existing, True
     title = urlparse(url).hostname or url
     image_url: str | None = None

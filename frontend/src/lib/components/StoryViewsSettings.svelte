@@ -29,6 +29,7 @@
     saved: 'Saved page',
     reader_api: 'Reader account'
   };
+  const YOUTUBE_HINT = 'YouTube: videos from YouTube channels or links shared from YouTube';
 
   let draft = $state<StoryPreset[]>([]);
   let compact = $state(false);
@@ -288,6 +289,7 @@
                       <label class="check"><input type="checkbox" checked={e.criteria.source_kinds.includes(kind as PresetSourceKind)} onchange={() => (e.criteria.source_kinds = toggleInList(e.criteria.source_kinds, kind as PresetSourceKind))} /> {text}</label>
                     {/each}
                   </div>
+                  <span class="hint">{YOUTUBE_HINT}.</span>
                 </fieldset>
                 <fieldset>
                   <legend>Feeds <span class="hint">(any of; none = all)</span></legend>

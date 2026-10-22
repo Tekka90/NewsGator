@@ -9,7 +9,7 @@ from typing import Any
 import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import ColumnElement, Select, and_, case, delete, false, func, select
+from sqlalchemy import ColumnElement, Select, and_, case, delete, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -476,6 +476,26 @@ async def _feed_source_kinds(session: AsyncSession, feed_ids: set[int]) -> dict[
     return {fid: presets_svc.effective_source_kind(kind, url) for fid, kind, url in rows}
 
 
+def _stories_with_youtube_video(feed_ids: Iterable[int]) -> ColumnElement[bool]:
+    """Stories with an article of the given feeds whose link is a YouTube video.
+
+    The LIKE pre-filter is a superset of every URL with a YouTube host (the host text always
+    appears in the URL); ``ng_youtube_video`` then applies the reference parser exactly."""
+    link = func.lower(Article.url)
+    return Story.id.in_(
+        select(Article.story_id).where(
+            Article.feed_id.in_(list(feed_ids)),
+            Article.story_id.is_not(None),
+            or_(
+                link.like("%youtube.com%"),
+                link.like("%youtu.be%"),
+                link.like("%youtube-nocookie.com%"),
+            ),
+            func.ng_youtube_video(Article.url) == 1,
+        )
+    )
+
+
 def _criteria_conditions(
     criteria: dict[str, Any], feed_kinds: dict[int, str], now: datetime
 ) -> list[ColumnElement[bool]] | None:
@@ -490,10 +510,15 @@ def _criteria_conditions(
     if criteria["category_ids"]:
         conditions.append(Story.category.in_(criteria["category_ids"]))
     if criteria["source_kinds"]:
-        of_kind = [f for f, k in feed_kinds.items() if k in criteria["source_kinds"]]
-        if not of_kind:
+        wanted = criteria["source_kinds"]
+        of_kind = [f for f, k in feed_kinds.items() if k in wanted]
+        by_kind: list[ColumnElement[bool]] = [_stories_of_feeds(of_kind)] if of_kind else []
+        # kinds are not disjoint: a YouTube video link also matches `youtube` in any feed
+        if "youtube" in wanted and feed_kinds:
+            by_kind.append(_stories_with_youtube_video(feed_kinds))
+        if not by_kind:
             return None
-        conditions.append(_stories_of_feeds(of_kind))
+        conditions.append(or_(*by_kind))
     if criteria["max_age_days"] is not None:
         conditions.append(Story.last_updated_at >= now - timedelta(days=criteria["max_age_days"]))
     haystack = func.ng_norm(func.coalesce(Story.title, "") + " " + func.coalesce(Story.summary, ""))
@@ -1477,6 +1502,7 @@ async def merge_story(
     for article in moved:
         article.story_id = target.id
         session.add(OverridePair(article_id=article.id, story_id=target.id, label="same"))
+        await saved_links.flag_shared_article_story(session, article)
     target.last_updated_at = datetime.now(UTC)
     if target.image_url is None:
         target.image_url = source.image_url
@@ -1518,6 +1544,7 @@ async def move_article(
         )
     session.add(OverridePair(article_id=article.id, story_id=target.id, label="same"))
     article.story_id = target.id
+    await saved_links.flag_shared_article_story(session, article)
     target.last_updated_at = datetime.now(UTC)
     await activity.emit(
         session,

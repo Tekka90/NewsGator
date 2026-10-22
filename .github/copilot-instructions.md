@@ -106,6 +106,10 @@ App help (Chat → "App help") is an Apple-app feature: the knowledge bundle liv
 `Newsgator-Apple/NewsGatorCore/Sources/NewsGatorCore/Resources/Knowledge/` and is answered
 on-device. The server has **no** docs mode. When a server change alters something the native apps
 expose to users, update that bundle (see `Newsgator-Apple/.github/copilot-instructions.md`).
+**This is mandatory, not optional:** a server change (API field, setting, default, pipeline rule, source
+kind, import/export, sharing behaviour) that is visible in the apps is not finished until the matching
+Knowledge files + `log.md` are updated and `swift test --filter AppHelp` passes in `Newsgator-Apple/NewsGatorCore`.
+State the bundle files touched in your completion summary, and pass this rule to every subagent you launch.
 
 ## Current status
 
@@ -545,6 +549,12 @@ Saved stories are exempt from retention purging (including member
 articles/revisions/vectors). Web GUI: a gold star toggle in story rows/detail, a
 Saved filter pill, and swipe-down save on the mobile deck. Legacy stamps: 0019 top
 entry keyed on `("story_state", "saved_at")`.
+Shared links are also saved (2026-10-22, Alembic 0025 data-only backfill, no
+schema change): `saved_links.flag_shared_article_story` flags the sharer's
+story when `cluster_article` first clusters a saved-feed article, on known-URL
+re-share and on move/merge; never changes `read_at_version`. Preset source kind
+`youtube` = channel feed OR a YouTube video link on any article (kinds are not
+disjoint; SQL `ng_youtube_video` mirrors `story_presets.is_youtube_video_link`).
 
 Story-list payload diet (2026-10-07): the web Stories page used to fetch the full
 `GET /api/stories` list twice (once filtered, once `filter=all`) just to compute the

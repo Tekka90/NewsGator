@@ -389,9 +389,33 @@ class EvalStory:
     last_updated_at: datetime
     article_feed_ids: tuple[int, ...]
     article_published: tuple[datetime | None, ...]
+    # Link of each source article, parallel to ``article_feed_ids`` (YouTube video detection).
+    article_links: tuple[str | None, ...] = ()
     is_read: bool = False
     read_at_version: int = 0
     saved_at: datetime | None = None
+
+
+def is_youtube_video_link(link: str | None) -> bool:
+    from app.services import youtube
+
+    return bool(link) and youtube.parse_video_id(link or "") is not None
+
+
+def _matches_source_kinds(
+    story: EvalStory, kinds: list[str], feed_kinds: Mapping[int, str]
+) -> bool:
+    """A feed of a listed kind, or (for ``youtube``) a YouTube video link on an article of a
+    subscribed feed. Kinds are not disjoint: a shared YouTube link is both ``saved`` and
+    ``youtube``."""
+    if any(feed_kinds.get(f) in kinds for f in set(story.article_feed_ids)):
+        return True
+    if "youtube" not in kinds:
+        return False
+    return any(
+        feed in feed_kinds and is_youtube_video_link(link)
+        for feed, link in zip(story.article_feed_ids, story.article_links, strict=False)
+    )
 
 
 def story_matches(
@@ -415,7 +439,7 @@ def story_matches(
     if categories and story.category not in categories:
         return False
     kinds = criteria.get("source_kinds") or []
-    if kinds and not any(feed_kinds.get(f) in kinds for f in feeds):
+    if kinds and not _matches_source_kinds(story, kinds, feed_kinds):
         return False
     max_age = criteria.get("max_age_days")
     if max_age is not None and story.last_updated_at < now - timedelta(days=max_age):

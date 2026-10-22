@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models import Article, ClusterDecision, Story, StoryRevision
-from app.services import activity, llm_client, llmtrace, prompts, usage, youtube
+from app.services import activity, llm_client, llmtrace, prompts, saved_links, usage, youtube
 from app.services.vectorstore import cosine_similarity, get_vector_store
 
 HALF_LIFE_HOURS = 24.0
@@ -90,8 +90,11 @@ async def cluster_article(session: AsyncSession, article_id: int) -> None:
     else:
         matched = await _create_story(session, article, vec)
 
+    first_clustering = article.story_id is None
     article.story_id = matched.id
     article.processing_state = "clustered"
+    if first_clustering:  # a re-cluster after reprocessing must not undo an explicit unsave
+        await saved_links.flag_shared_article_story(session, article)
     session.add(
         ClusterDecision(
             article_id=article.id,

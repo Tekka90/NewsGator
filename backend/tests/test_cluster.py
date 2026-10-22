@@ -20,9 +20,11 @@ from app.models import (
     OverridePair,
     Story,
     StoryRevision,
+    StoryState,
+    User,
     UserFeed,
 )
-from app.services import cluster, process
+from app.services import cluster, process, saved_links
 from app.services.vectorstore import InMemoryVectorStore
 
 _counter = itertools.count(100)
@@ -607,3 +609,122 @@ async def test_move_article_logs_different_label(client: AsyncClient, db_session
         labels = {(p.story_id, p.label) for p in (await s.scalars(select(OverridePair))).all()}
         assert (story_id, "different") in labels
         assert (target_id, "same") in labels
+
+
+# --- shared links are also saved (story flagged saved for the sharing user only) ----------
+
+
+async def _shared_article(factory: async_sessionmaker[AsyncSession], user_id: int, n: int) -> int:
+    async with factory() as s:
+        feed = await s.scalar(select(Feed).where(Feed.url == f"saved:{user_id}"))
+        if feed is None:
+            feed = Feed(url=f"saved:{user_id}", kind="saved", title="Shared")
+            s.add(feed)
+            await s.flush()
+            s.add(UserFeed(user_id=user_id, feed_id=feed.id))
+        article = Article(
+            feed_id=feed.id, guid=f"sh{n}", url=f"https://news.example.com/sh{n}", title="Shared",
+            summary="Shared summary.", processing_state="embedded",
+        )
+        s.add(article)
+        await s.commit()
+        return article.id
+
+
+async def _saved_users(factory: async_sessionmaker[AsyncSession], story_id: int) -> dict[int, bool]:
+    async with factory() as s:
+        rows = (await s.scalars(select(StoryState).where(StoryState.story_id == story_id))).all()
+        return {r.user_id: r.saved_at is not None for r in rows}
+
+
+async def test_shared_link_story_is_saved_for_sharer_only(
+    client: AsyncClient, db_session, store, monkeypatch
+) -> None:
+    await setup_admin(client)
+    async with db_session() as s:
+        s.add(User(username="bob", password_hash="x"))
+        await s.commit()
+    _mock_llm(monkeypatch, default_vec=unit_vec(7))
+
+    # a regular RSS article forms the story first; bob's shared link then attaches to it
+    rss = await _embedded_article(db_session, "Event summary.")
+    async with db_session() as s:
+        await cluster.cluster_article(s, rss.id)
+        story_id = (await s.get(Article, rss.id)).story_id  # type: ignore[union-attr]
+    assert await _saved_users(db_session, story_id) == {}
+
+    shared = await _shared_article(db_session, 2, 1)
+    async with db_session() as s:
+        await cluster.cluster_article(s, shared)
+        assert (await s.get(Article, shared)).story_id == story_id  # type: ignore[union-attr]
+    assert await _saved_users(db_session, story_id) == {2: True}
+
+    # admin shares too (second article, same story); clustering again is idempotent
+    mine = await _shared_article(db_session, 1, 2)
+    async with db_session() as s:
+        await cluster.cluster_article(s, mine)
+        await saved_links.flag_story_saved(s, 1, story_id)
+        await saved_links.flag_story_saved(s, 1, story_id)
+        await s.commit()
+    assert await _saved_users(db_session, story_id) == {1: True, 2: True}
+    async with db_session() as s:
+        state = await s.get(StoryState, (1, story_id))
+        assert state is not None
+        assert (state.is_read, state.read_at_version) == (False, 0)
+
+
+async def test_shared_link_new_story_saved_and_still_unread(
+    client: AsyncClient, db_session, store, monkeypatch
+) -> None:
+    await setup_admin(client)
+    _mock_llm(monkeypatch, default_vec=unit_vec(9))
+    shared = await _shared_article(db_session, 1, 3)
+    async with db_session() as s:
+        await cluster.cluster_article(s, shared)
+        story_id = (await s.get(Article, shared)).story_id  # type: ignore[union-attr]
+    assert await _saved_users(db_session, story_id) == {1: True}
+    listed = await client.get("/api/stories?filter=unread&saved=true")
+    assert [x["id"] for x in listed.json()] == [story_id]
+    assert listed.json()[0]["saved"] is True
+
+
+async def test_sharing_a_known_link_saves_its_existing_story(
+    client: AsyncClient, db_session, store, monkeypatch
+) -> None:
+    await setup_admin(client)
+    _mock_llm(monkeypatch, default_vec=unit_vec(11))
+    rss = await _embedded_article(db_session, "Known via RSS.")
+    async with db_session() as s:
+        feed_id = (await s.get(Article, rss.id)).feed_id  # type: ignore[union-attr]
+        s.add(UserFeed(user_id=1, feed_id=feed_id))
+        await s.commit()
+        await cluster.cluster_article(s, rss.id)
+        story_id = (await s.get(Article, rss.id)).story_id  # type: ignore[union-attr]
+    for _ in range(2):
+        r = await client.post("/api/stories/import-url", json={"url": rss.url})
+        assert r.status_code == 201 and r.json()["already_known"] is True
+    assert await _saved_users(db_session, story_id) == {1: True}
+
+
+async def test_retention_keeps_shared_link_stories(
+    client: AsyncClient, db_session, store, monkeypatch
+) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from app.services.retention import purge_old_data
+
+    await setup_admin(client)
+    _mock_llm(monkeypatch, default_vec=unit_vec(13))
+    shared = await _shared_article(db_session, 1, 4)
+    async with db_session() as s:
+        await cluster.cluster_article(s, shared)
+        article = await s.get(Article, shared)
+        assert article is not None
+        story = await s.get(Story, article.story_id)
+        assert story is not None
+        old = datetime.now(UTC) - timedelta(days=settings.retention_days + 30)
+        article.fetched_at = old
+        story.last_updated_at = old
+        await s.commit()
+        report = await purge_old_data(s)
+    assert report["articles"] == 0 and report["stories"] == 0

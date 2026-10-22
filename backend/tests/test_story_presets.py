@@ -431,3 +431,123 @@ def test_migration_0024_up_and_down_keeps_existing_users(tmp_path: Path) -> None
     conn = sqlite3.connect(db_file)
     assert conn.execute('SELECT story_filter FROM "user"').fetchone() == ("unread",)
     conn.close()
+
+
+# --- youtube source kind: video links + channel feeds ---------------------------------
+
+LINKS = VECTORS["youtube_link_vectors"]
+
+
+def _link_stories() -> list[sp.EvalStory]:
+    out = []
+    for s in LINKS["dataset"]["stories"]:
+        state = s["state"] or {"is_read": False, "read_at_version": 0, "saved_at": None}
+        out.append(
+            sp.EvalStory(
+                id=s["id"], title=s["title"], summary=s["summary"], category=s["category"],
+                version=s["version"], last_updated_at=_dt(s["last_updated_at"]),  # type: ignore[arg-type]
+                article_feed_ids=tuple(a["feed_id"] for a in s["articles"]),
+                article_published=tuple(_dt(a["published_at"]) for a in s["articles"]),
+                article_links=tuple(a["url"] for a in s["articles"]),
+                is_read=state["is_read"], read_at_version=state["read_at_version"],
+                saved_at=_dt(state["saved_at"]),
+            )
+        )
+    return out
+
+
+def test_youtube_link_vectors_reference() -> None:
+    kinds = {
+        f["id"]: sp.effective_source_kind(f["kind"], f["url"]) for f in LINKS["dataset"]["feeds"]
+    }
+    stories = _link_stories()
+    for case in LINKS["cases"]:
+        hits = [s for s in stories if sp.story_matches(s, _criteria(case["criteria"]), kinds, NOW)]
+        assert sorted(s.id for s in hits) == case["expect_ids"], case["name"]
+
+
+async def test_youtube_link_vectors_via_sql_list_and_counts(
+    client: AsyncClient, db_session, fixed_now
+) -> None:
+    await setup_admin(client)
+    async with db_session() as s:
+        for f in LINKS["dataset"]["feeds"]:
+            s.add(Feed(id=f["id"], kind=f["kind"], url=f["url"], title=f"F{f['id']}"))
+        await s.flush()
+        for f in LINKS["dataset"]["feeds"]:
+            s.add(UserFeed(user_id=1, feed_id=f["id"]))
+        for st in LINKS["dataset"]["stories"]:
+            s.add(
+                Story(
+                    id=st["id"], title=st["title"], summary=st["summary"], category=st["category"],
+                    version=st["version"], last_updated_at=_dt(st["last_updated_at"]),
+                )
+            )
+            await s.flush()
+            for i, a in enumerate(st["articles"]):
+                s.add(
+                    Article(
+                        feed_id=a["feed_id"], guid=f"l{st['id']}-{i}", url=a["url"], title="a",
+                        story_id=st["id"], processing_state="clustered",
+                    )
+                )
+            if st["state"]:
+                s.add(
+                    StoryState(
+                        user_id=1, story_id=st["id"], is_read=st["state"]["is_read"],
+                        read_at_version=st["state"]["read_at_version"],
+                        saved_at=_dt(st["state"]["saved_at"]),
+                    )
+                )
+        await s.commit()
+    for case in LINKS["cases"]:
+        preset = _custom(criteria=_criteria(case["criteria"]), sort="updated", order="asc")
+        assert (await _put(client, [*sp.default_presets(), preset])).status_code == 200
+        assert _ids(await client.get("/api/stories?preset=c1")) == case["expect_ids"], case["name"]
+        counts = (await client.get("/api/stories/preset-counts")).json()["counts"]
+        assert counts["c1"] == len(case["expect_ids"]), case["name"]
+
+
+def test_migration_0025_flags_stories_of_shared_links(tmp_path: Path) -> None:
+    db_file = tmp_path / "mig25.db"
+    _alembic(db_file, "upgrade", "0024_story_presets")
+    conn = sqlite3.connect(db_file)
+    for uid in (1, 2):
+        conn.execute(
+            'INSERT INTO "user" (id, username, password_hash, is_admin, summary_language, '
+            "story_sort, story_order, story_filter, presets_compact, created_at) "
+            f"VALUES ({uid}, 'u{uid}', 'h', 0, '', 'published', 'asc', 'unread', 0, '2026-01-01')"
+        )
+    for fid, url, kind in ((1, "saved:1", "saved"), (2, "https://a.example/rss", "rss")):
+        conn.execute(
+            "INSERT INTO feed (id, url, kind, title, created_at) "
+            f"VALUES ({fid}, '{url}', '{kind}', 'F', '2026-01-01')"
+        )
+    for sid in (1, 2, 3):
+        conn.execute(
+            "INSERT INTO story (id, title, summary, category, language, version, is_frozen, "
+            f"first_seen_at, last_updated_at) VALUES ({sid}, 't', 's', 'c', 'en', 1, 0, "
+            "'2026-01-01', '2026-01-01')"
+        )
+    for aid, fid, sid in ((1, 1, 1), (2, 1, 2), (3, 2, 3)):
+        conn.execute(
+            "INSERT INTO article (id, feed_id, guid, url, title, raw_content, language, story_id, "
+            "processing_state, content_status, fetched_at) "
+            f"VALUES ({aid}, {fid}, 'g{aid}', 'https://x/{aid}', 't', '', 'en', {sid}, "
+            "'clustered', 'ok', '2026-01-02 00:00:00')"
+        )
+    conn.execute(
+        "INSERT INTO story_state (user_id, story_id, is_read, read_at_version) VALUES (1, 2, 1, 1)"
+    )
+    conn.commit()
+    conn.close()
+
+    _alembic(db_file, "upgrade", "head")
+    conn = sqlite3.connect(db_file)
+    rows = conn.execute(
+        "SELECT user_id, story_id, is_read, read_at_version, saved_at IS NOT NULL "
+        "FROM story_state ORDER BY story_id"
+    ).fetchall()
+    conn.close()
+    # story 1 gets an unread saved-only row; story 2 keeps its read state; story 3 (RSS) untouched
+    assert rows == [(1, 1, 0, 0, 1), (1, 2, 1, 1, 1)]
