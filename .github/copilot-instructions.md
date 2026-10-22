@@ -3,8 +3,7 @@
 > **Maintenance rule (mandatory):** whenever a change alters architecture, stack,
 > conventions, data model, API surface, pipeline behavior, or any rule stated in this
 > file, **update this file in the same change**. Stale instructions are worse than none.
-> Also keep [SPEC.md](../SPEC.md) (normative spec) and
-> [IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md) (milestone checklist) in sync.
+> Also keep [SPEC.md](../SPEC.md) (normative spec) in sync.
 
 ## What this project is
 

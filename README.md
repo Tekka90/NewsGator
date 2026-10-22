@@ -66,8 +66,7 @@ philosophy behind it, and how it feels to use.
 | --- | --- |
 | ![Mac activity view](docs/assets/shots/app-mac-activity.jpg) | ![Web app LLM usage](docs/assets/shots/app-web-usage.jpg) |
 
-See [SPEC.md](SPEC.md) for the normative spec and
-[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for the milestone checklist.
+See [SPEC.md](SPEC.md) for the normative spec.
 
 ## Apple apps (optional)
 

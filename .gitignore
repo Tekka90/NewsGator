@@ -19,3 +19,4 @@ deploy*.sh
 .DS_Store
 
 backup-weblocal.sh
+showlogs-weblocal.sh

@@ -66,5 +66,4 @@ it). Never import backend-specific vector code in pipeline modules.
 
 ## When you change any of the above
 
-Update, in the same change: `SPEC.md`, `IMPLEMENTATION_PLAN.md` (if milestone scope
-shifted), and `.github/copilot-instructions.md` (if an invariant/convention changed).
+Update, in the same change: `SPEC.md`, the in-app help bundle in `Newsgator-Apple` (if user-visible), and `.github/copilot-instructions.md` (if an invariant/convention changed).
