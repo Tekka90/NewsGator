@@ -32,9 +32,7 @@ URL for a reader that cannot attach headers. Native server mode never calls
 `/api/llm` or invokes Apple/device-side models. An unavailable chatbot is an
 explicit server configuration error, not permission to fall back to another LLM.
 
-The native implementation plan and delivery report live in
-`../Newsgator-Apple/docs/SERVER-PARITY-PLAN.md` and
-`../Newsgator-Apple/docs/SERVER-PARITY-REPORT.md`.
+The native contract lives in `../Newsgator-Apple/docs/SPEC-server-client.md`.
 
 ## Historical design notes (superseded)
 
