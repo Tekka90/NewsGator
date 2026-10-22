@@ -17,3 +17,5 @@ backend/demo_assets/
 backend/uv.lock
 deploy*.sh
 .DS_Store
+
+backup-weblocal.sh
