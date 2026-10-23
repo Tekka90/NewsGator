@@ -220,6 +220,14 @@ class Article(Base):
     processing_state: Mapped[str] = mapped_column(String(32), default="fetched", index=True)
     content_status: Mapped[str] = mapped_column(String(16), default="full")
     content_warning: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Video flag (VIDEO_ARTICLES_PLAN D2): "video" or NULL, one persisted notion for native
+    # YouTube items and article pages whose main content is a video.
+    media_kind: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
+    video_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    video_embed_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    video_provider: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    video_id: Mapped[str | None] = mapped_column(String(32), nullable=True)  # YouTube only
+    video_duration: Mapped[int | None] = mapped_column(Integer, nullable=True)  # seconds
     published_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     fetched_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 

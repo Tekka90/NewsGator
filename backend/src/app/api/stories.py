@@ -28,7 +28,7 @@ from app.models import (
     UserFeed,
     utcnow,
 )
-from app.services import activity, process, saved_links, youtube
+from app.services import activity, process, saved_links
 from app.services import story_presets as presets_svc
 from app.services.fulltext import fetch_full_text
 from app.services.vectorstore import cosine_similarity, get_vector_store
@@ -57,9 +57,13 @@ class StoryListItem(BaseModel):
     saved: bool
     saved_at: datetime | None
     readeck_bookmark_id: str | None
-    # YouTube video among the story's sources (derived from article links, not stored)
-    video_id: str | None = None
+    # Video among the story's sources (persisted on the article, VIDEO_ARTICLES_PLAN)
+    video_id: str | None = None  # YouTube videos only
     media_kind: str | None = None  # "video" or absent
+    video_url: str | None = None
+    video_embed_url: str | None = None
+    video_provider: str | None = None  # youtube | file | embed
+    video_duration: int | None = None  # seconds
 
 
 class ArticleOut(BaseModel):
@@ -77,7 +81,11 @@ class ArticleOut(BaseModel):
     feed_title: str
     feed_url: str
     video_id: str | None = None
-    media_kind: str | None = None  # "video" when the link is a YouTube video, else absent
+    media_kind: str | None = None  # "video" when the article's main content is a video
+    video_url: str | None = None
+    video_embed_url: str | None = None
+    video_provider: str | None = None
+    video_duration: int | None = None
 
     model_config = {"from_attributes": True}
 
@@ -110,6 +118,10 @@ class StoryDetail(BaseModel):
     readeck_bookmark_id: str | None
     video_id: str | None = None
     media_kind: str | None = None
+    video_url: str | None = None
+    video_embed_url: str | None = None
+    video_provider: str | None = None
+    video_duration: int | None = None
 
 
 def _article_out(a: Article) -> ArticleOut:
@@ -127,18 +139,37 @@ def _article_out(a: Article) -> ArticleOut:
         feed_id=a.feed_id,
         feed_title=a.feed.title,
         feed_url=a.feed.url,
-        video_id=youtube.video_id_for_link(a.url),
-        media_kind=youtube.media_kind_for_link(a.url),
+        **_video_fields(a),
     )
 
 
-def _story_video_id(links: Iterable[str]) -> str | None:
-    """First YouTube video id among a story's article links."""
-    for link in links:
-        video_id = youtube.video_id_for_link(link)
-        if video_id:
-            return video_id
-    return None
+def _video_fields(a: Article) -> dict[str, Any]:
+    """Persisted video flag of an article, as API fields (absent/None for non-video)."""
+    if a.media_kind != "video":
+        return {}
+    return {
+        "media_kind": a.media_kind,
+        "video_id": a.video_id,
+        "video_url": a.video_url,
+        "video_embed_url": a.video_embed_url,
+        "video_provider": a.video_provider,
+        "video_duration": a.video_duration,
+    }
+
+
+async def _story_videos(session: AsyncSession, story_ids: list[int]) -> dict[int, dict[str, Any]]:
+    """story_id → video fields of the first (oldest) flagged member article."""
+    videos: dict[int, dict[str, Any]] = {}
+    for chunk in _chunked(story_ids):
+        rows = await session.scalars(
+            select(Article)
+            .where(Article.story_id.in_(chunk), Article.media_kind == "video")
+            .order_by(Article.id)
+        )
+        for article in rows.all():
+            if article.story_id is not None and article.story_id not in videos:
+                videos[article.story_id] = _video_fields(article)
+    return videos
 
 
 def _flags(state: StoryState | None, story: Story) -> tuple[bool, bool]:
@@ -291,10 +322,7 @@ async def _story_items(
 
     article_urls = await _article_urls(session, page_ids)
     hosts = _source_hosts(article_urls)
-    links_by_story: dict[int, list[str]] = {}
-    for story_id, url in article_urls:
-        if story_id is not None:
-            links_by_story.setdefault(story_id, []).append(url)
+    videos = await _story_videos(session, page_ids)
     shared = await _shared_links(session, page_ids)
     user_lang = user.summary_language or settings.summary_language
     from app.services.translation import batch_get_translations
@@ -318,7 +346,6 @@ async def _story_items(
                 from app.services.translation import enqueue_story_translation
 
                 enqueue_story_translation(story.id, [user_lang])
-        video_id = _story_video_id(links_by_story.get(story.id, []))
         out.append(
             StoryListItem(
                 id=story.id,
@@ -338,8 +365,7 @@ async def _story_items(
                 saved=is_saved,
                 saved_at=saved_at,
                 readeck_bookmark_id=story.readeck_bookmark_id,
-                video_id=video_id,
-                media_kind="video" if video_id else None,
+                **videos.get(story.id, {}),
             )
         )
     return out
@@ -469,29 +495,20 @@ def _stories_of_feeds(feed_ids: Iterable[int]) -> ColumnElement[bool]:
 
 
 async def _feed_source_kinds(session: AsyncSession, feed_ids: set[int]) -> dict[int, str]:
-    """Effective source kind (rss|mail|youtube|saved|reader_api) of the given feeds."""
+    """Effective feed kind (rss|mail|youtube|saved|reader_api) of the given feeds."""
     rows = (
         await session.execute(select(Feed.id, Feed.kind, Feed.url).where(Feed.id.in_(feed_ids)))
     ).all()
     return {fid: presets_svc.effective_source_kind(kind, url) for fid, kind, url in rows}
 
 
-def _stories_with_youtube_video(feed_ids: Iterable[int]) -> ColumnElement[bool]:
-    """Stories with an article of the given feeds whose link is a YouTube video.
-
-    The LIKE pre-filter is a superset of every URL with a YouTube host (the host text always
-    appears in the URL); ``ng_youtube_video`` then applies the reference parser exactly."""
-    link = func.lower(Article.url)
+def _stories_with_video(feed_ids: Iterable[int]) -> ColumnElement[bool]:
+    """Stories with a flagged video article in one of the given feeds (indexed column)."""
     return Story.id.in_(
         select(Article.story_id).where(
             Article.feed_id.in_(list(feed_ids)),
             Article.story_id.is_not(None),
-            or_(
-                link.like("%youtube.com%"),
-                link.like("%youtu.be%"),
-                link.like("%youtube-nocookie.com%"),
-            ),
-            func.ng_youtube_video(Article.url) == 1,
+            Article.media_kind == "video",
         )
     )
 
@@ -513,9 +530,9 @@ def _criteria_conditions(
         wanted = criteria["source_kinds"]
         of_kind = [f for f, k in feed_kinds.items() if k in wanted]
         by_kind: list[ColumnElement[bool]] = [_stories_of_feeds(of_kind)] if of_kind else []
-        # kinds are not disjoint: a YouTube video link also matches `youtube` in any feed
-        if "youtube" in wanted and feed_kinds:
-            by_kind.append(_stories_with_youtube_video(feed_kinds))
+        # `video` is not a feed kind: any flagged video article of the user's feeds
+        if "video" in wanted and feed_kinds:
+            by_kind.append(_stories_with_video(feed_kinds))
         if not by_kind:
             return None
         conditions.append(or_(*by_kind))
@@ -1002,7 +1019,7 @@ async def story_detail(
 
         detail_title, detail_summary = await get_or_translate_story(session, story, user_lang)
 
-    detail_video_id = _story_video_id(a.url for a in articles)
+    detail_video = next((_video_fields(a) for a in articles if a.media_kind == "video"), {})
     return StoryDetail(
         id=story.id,
         title=detail_title,
@@ -1024,8 +1041,7 @@ async def story_detail(
         articles=[_article_out(a) for a in articles],
         revisions=[RevisionOut.model_validate(r) for r in revisions],
         readeck_bookmark_id=story.readeck_bookmark_id,
-        video_id=detail_video_id,
-        media_kind="video" if detail_video_id else None,
+        **detail_video,
     )
 
 

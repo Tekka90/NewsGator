@@ -552,8 +552,13 @@ Shared links are also saved (2026-10-22, Alembic 0025 data-only backfill, no
 schema change): `saved_links.flag_shared_article_story` flags the sharer's
 story when `cluster_article` first clusters a saved-feed article, on known-URL
 re-share and on move/merge; never changes `read_at_version`. Preset source kind
-`youtube` = channel feed OR a YouTube video link on any article (kinds are not
-disjoint; SQL `ng_youtube_video` mirrors `story_presets.is_youtube_video_link`).
+`video` = an article flagged `media_kind="video"` in one of the user's feeds (kinds are not
+disjoint; the former `youtube` kind was migrated to `video` by Alembic `0027`; `story_presets.article_is_video`).
+
+Video articles: `services/video_detect.py` (pure detector, no I/O) sets `article.media_kind/video_*` at ingest
+(`youtube_video_fields` for native YouTube links) and at fulltext (embedded/page videos: blurb + transcript). Main
+content rule: page-level video, body < 1500 chars, or precedes the first ≥80-char paragraph. Shared parity vectors:
+`tests/fixtures/video_detect_vectors.json` + `video_pages/`; Swift twin `NewsGatorCore/VideoDetector.swift`.
 
 Story-list payload diet (2026-10-07): the web Stories page used to fetch the full
 `GET /api/stories` list twice (once filtered, once `filter=all`) just to compute the

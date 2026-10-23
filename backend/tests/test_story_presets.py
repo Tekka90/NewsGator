@@ -37,6 +37,7 @@ def _eval_stories() -> list[sp.EvalStory]:
                 version=s["version"], last_updated_at=_dt(s["last_updated_at"]),  # type: ignore[arg-type]
                 article_feed_ids=tuple(a["feed_id"] for a in s["articles"]),
                 article_published=tuple(_dt(a["published_at"]) for a in s["articles"]),
+                article_is_video=tuple(a.get("media_kind") == "video" for a in s["articles"]),
                 is_read=state["is_read"], read_at_version=state["read_at_version"],
                 saved_at=_dt(state["saved_at"]),
             )
@@ -140,7 +141,7 @@ async def _load_dataset(db_session, user_ids: tuple[int, ...] = (1,)) -> None:
                         feed_id=a["feed_id"], guid=f"s{st['id']}-{i}",
                         url=f"https://x.example/{st['id']}/{i}", title="a",
                         story_id=st["id"], published_at=_dt(a["published_at"]),
-                        processing_state="clustered",
+                        processing_state="clustered", media_kind=a.get("media_kind"),
                     )
                 )
             state = st["state"]
@@ -433,9 +434,9 @@ def test_migration_0024_up_and_down_keeps_existing_users(tmp_path: Path) -> None
     conn.close()
 
 
-# --- youtube source kind: video links + channel feeds ---------------------------------
+# --- video source kind: persisted media_kind flag --------------------------------------
 
-LINKS = VECTORS["youtube_link_vectors"]
+LINKS = VECTORS["video_flag_vectors"]
 
 
 def _link_stories() -> list[sp.EvalStory]:
@@ -448,7 +449,7 @@ def _link_stories() -> list[sp.EvalStory]:
                 version=s["version"], last_updated_at=_dt(s["last_updated_at"]),  # type: ignore[arg-type]
                 article_feed_ids=tuple(a["feed_id"] for a in s["articles"]),
                 article_published=tuple(_dt(a["published_at"]) for a in s["articles"]),
-                article_links=tuple(a["url"] for a in s["articles"]),
+                article_is_video=tuple(a.get("media_kind") == "video" for a in s["articles"]),
                 is_read=state["is_read"], read_at_version=state["read_at_version"],
                 saved_at=_dt(state["saved_at"]),
             )
@@ -456,7 +457,7 @@ def _link_stories() -> list[sp.EvalStory]:
     return out
 
 
-def test_youtube_link_vectors_reference() -> None:
+def test_video_flag_vectors_reference() -> None:
     kinds = {
         f["id"]: sp.effective_source_kind(f["kind"], f["url"]) for f in LINKS["dataset"]["feeds"]
     }
@@ -466,7 +467,7 @@ def test_youtube_link_vectors_reference() -> None:
         assert sorted(s.id for s in hits) == case["expect_ids"], case["name"]
 
 
-async def test_youtube_link_vectors_via_sql_list_and_counts(
+async def test_video_flag_vectors_via_sql_list_and_counts(
     client: AsyncClient, db_session, fixed_now
 ) -> None:
     await setup_admin(client)
@@ -489,6 +490,7 @@ async def test_youtube_link_vectors_via_sql_list_and_counts(
                     Article(
                         feed_id=a["feed_id"], guid=f"l{st['id']}-{i}", url=a["url"], title="a",
                         story_id=st["id"], processing_state="clustered",
+                        media_kind=a.get("media_kind"),
                     )
                 )
             if st["state"]:
@@ -551,3 +553,146 @@ def test_migration_0025_flags_stories_of_shared_links(tmp_path: Path) -> None:
     conn.close()
     # story 1 gets an unread saved-only row; story 2 keeps its read state; story 3 (RSS) untouched
     assert rows == [(1, 1, 0, 0, 1), (1, 2, 1, 1, 1)]
+
+
+def test_youtube_source_kind_is_removed() -> None:
+    assert "youtube" not in sp.SOURCE_KINDS and "video" in sp.SOURCE_KINDS
+    payload = [*sp.default_presets(), _custom(criteria=_criteria({"source_kinds": ["youtube"]}))]
+    with pytest.raises(sp.PresetValidationError) as err:
+        sp.validate_presets(payload)
+    assert err.value.code == "invalid_enum"
+
+
+async def test_put_rejects_youtube_kind_and_accepts_video(client: AsyncClient) -> None:
+    await setup_admin(client)
+    rejected = _custom(criteria=_criteria({"source_kinds": ["youtube"]}))
+    assert (await _put(client, [*sp.default_presets(), rejected])).status_code == 422
+    accepted = _custom(criteria=_criteria({"source_kinds": ["video"]}))
+    assert (await _put(client, [*sp.default_presets(), accepted])).status_code == 200
+
+
+def test_effective_source_kind_still_describes_channel_feeds() -> None:
+    channel = "https://www.youtube.com/feeds/videos.xml?channel_id=UC" + "a" * 22
+    assert sp.effective_source_kind("rss", channel) == "youtube"
+    assert sp.effective_source_kind("rss", "https://a.example/rss") == "rss"
+    assert sp.effective_source_kind("saved", "saved:1") == "saved"
+
+
+def test_no_leftover_youtube_preset_predicate() -> None:
+    root = Path(__file__).resolve().parents[1] / "src" / "app"
+    sources = "".join(p.read_text("utf-8") for p in root.rglob("*.py"))
+    assert "ng_youtube_video" not in sources
+    assert "is_youtube_video_link" not in sources
+    assert "_stories_with_youtube_video" not in sources
+
+
+def _migration_db(tmp_path: Path, name: str, upto: str) -> Path:
+    db_file = tmp_path / name
+    _alembic(db_file, "upgrade", upto)
+    return db_file
+
+
+def _insert_basics(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        "INSERT INTO feed (id, url, kind, title, created_at) "
+        "VALUES (1, 'https://a.example/rss', 'rss', 'F', '2026-01-01')"
+    )
+    rows = (
+        (1, "https://youtu.be/dQw4w9WgXcQ?si=x"),
+        (2, "https://www.youtube.com/shorts/aaaaaaaaaaa"),
+        (3, "https://notyoutube.com/watch?v=dQw4w9WgXcQ"),
+        (4, "https://example.com/youtube-article"),
+    )
+    for aid, url in rows:
+        conn.execute(
+            "INSERT INTO article (id, feed_id, guid, url, title, raw_content, language, "
+            "processing_state, content_status, fetched_at) "
+            f"VALUES ({aid}, 1, 'g{aid}', '{url}', 't', '', 'en', 'clustered', 'ok', "
+            "'2026-01-02 00:00:00')"
+        )
+
+
+def test_migration_0026_backfills_video_flag_and_downgrades(tmp_path: Path) -> None:
+    db_file = _migration_db(tmp_path, "mig26.db", "0025_saved_shared_links")
+    conn = sqlite3.connect(db_file)
+    _insert_basics(conn)
+    conn.commit()
+    conn.close()
+
+    _alembic(db_file, "upgrade", "0026_article_video_flag")
+    conn = sqlite3.connect(db_file)
+    rows = conn.execute(
+        "SELECT id, media_kind, video_provider, video_id, video_url, video_embed_url, "
+        "video_duration FROM article ORDER BY id"
+    ).fetchall()
+    indexes = {r[1] for r in conn.execute("PRAGMA index_list(article)")}
+    conn.close()
+    assert rows == [
+        (1, "video", "youtube", "dQw4w9WgXcQ", "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+         "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ", None),
+        (2, "video", "youtube", "aaaaaaaaaaa", "https://www.youtube.com/watch?v=aaaaaaaaaaa",
+         "https://www.youtube-nocookie.com/embed/aaaaaaaaaaa", None),
+        (3, None, None, None, None, None, None),
+        (4, None, None, None, None, None, None),
+    ]
+    assert "ix_article_media_kind" in indexes
+
+    _alembic(db_file, "downgrade", "0025_saved_shared_links")
+    conn = sqlite3.connect(db_file)
+    columns = {str(r[1]) for r in conn.execute("PRAGMA table_info(article)")}
+    conn.close()
+    assert not columns & {"media_kind", "video_url", "video_embed_url", "video_provider",
+                          "video_id", "video_duration"}
+
+
+def _kinds(conn: sqlite3.Connection, uid: int) -> list[list[str]]:
+    stored = conn.execute('SELECT story_presets FROM "user" WHERE id = ?', (uid,)).fetchone()[0]
+    return [
+        p["criteria"]["source_kinds"]
+        for p in json.loads(stored)
+        if isinstance(p, dict) and isinstance(p.get("criteria"), dict)
+    ]
+
+
+def test_migration_0027_rewrites_youtube_presets_to_video(tmp_path: Path) -> None:
+    db_file = _migration_db(tmp_path, "mig27.db", "0026_article_video_flag")
+    conn = sqlite3.connect(db_file)
+
+    def preset(pid: str, kinds: list[str]) -> dict[str, Any]:
+        return {"id": pid, "criteria": {"source_kinds": kinds}}
+
+    documents = {
+        1: [preset("a", ["youtube"]), preset("b", ["rss", "youtube", "video"]),
+            preset("c", ["mail"])],
+        2: None,
+        3: "not json",
+        4: {"not": "a list"},
+        5: [preset("d", ["video", "youtube"]), "junk", {"id": "e", "criteria": None}],
+    }
+    for uid, doc in documents.items():
+        stored = doc if doc is None or isinstance(doc, str) else json.dumps(doc)
+        conn.execute(
+            'INSERT INTO "user" (id, username, password_hash, is_admin, summary_language, '
+            "story_sort, story_order, story_filter, presets_compact, created_at, story_presets) "
+            f"VALUES ({uid}, 'u{uid}', 'h', 0, '', 'published', 'asc', 'unread', 0, "
+            "'2026-01-01', ?)",
+            (stored,),
+        )
+    conn.commit()
+    conn.close()
+
+    _alembic(db_file, "upgrade", "0027_presets_video_kind")
+    conn = sqlite3.connect(db_file)
+    assert _kinds(conn, 1) == [["video"], ["rss", "video"], ["mail"]]
+    assert conn.execute('SELECT story_presets FROM "user" WHERE id = 2').fetchone()[0] is None
+    raw3 = conn.execute('SELECT story_presets FROM "user" WHERE id = 3').fetchone()[0]
+    assert raw3 == "not json"
+    raw4 = conn.execute('SELECT story_presets FROM "user" WHERE id = 4').fetchone()[0]
+    assert json.loads(raw4) == {"not": "a list"}
+    assert _kinds(conn, 5)[0] == ["video"]
+    conn.close()
+
+    _alembic(db_file, "downgrade", "0026_article_video_flag")
+    conn = sqlite3.connect(db_file)
+    assert _kinds(conn, 1) == [["youtube"], ["rss", "youtube"], ["mail"]]
+    conn.close()

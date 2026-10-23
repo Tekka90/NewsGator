@@ -426,7 +426,7 @@ and `user.presets_compact` (global icon-only bar). Reference implementation:
 
 - **Model**: `{id, kind builtin|custom, label, icon, display icon+label|icon|label, enabled, position,
   sort published|updated|sources|saved_at, order asc|desc, show_count, criteria{status any|unread|updated|saved,
-  feed_ids[], category_ids[] (category names), source_kinds[] (rss|mail|youtube|saved|reader_api),
+  feed_ids[], category_ids[] (category names), source_kinds[] (rss|mail|video|saved|reader_api),
   query, max_age_days 1–3650}}`. AND across criteria types, OR within a list; empty = no constraint.
   Built-in ids `all|unread|updated|saved` always exist once, cannot be deleted, have fixed criteria
   (editing them → `builtin_criteria_locked`); custom ids are `[A-Za-z0-9_-]{1,64}` (clients use UUIDs).
@@ -436,7 +436,7 @@ and `user.presets_compact` (global icon-only bar). Reference implementation:
   `icon+label`, `show_count`. Icons `list`, `circle-dot`, `refresh`, `bookmark`.
 - **Criteria semantics**: status as in the read-state rules (updated = read ∧ `version > read_at_version`;
   never unread); `feed_ids`: story has an article from a listed feed; `source_kinds`: story has an article from
-  one of the user's feeds of that kind (**YouTube channel feeds count as `youtube`, not `rss`**); `youtube` also matches a story with an article in one of the user's feeds whose link is a YouTube video (`youtube.parse_video_id`), so kinds are **not** disjoint: a link shared from YouTube is both `saved` and `youtube`;
+  one of the user's feeds of that kind (**YouTube channel feeds count as `youtube`, not `rss`**); `video` matches a story with an article flagged `media_kind="video"` (see *Video articles*) in one of the user's feeds, so kinds are **not** disjoint: a shared video link is both `saved` and `video`; the former preset kind `youtube` was migrated to `video` by Alembic `0027` (the *feed* kind `youtube` for channel feeds stays);
   `max_age_days`: `story.last_updated_at >= now − N days`; `query`: keyword only (no semantic search) —
   whitespace tokens, NFKD + strip combining marks + casefold, every token a substring of
   `title + " " + summary` (stored story text, untranslated). Implemented in SQL with a connection-level
@@ -574,6 +574,16 @@ LLM", …) in near real time.
   `POST /feeds` and `/feeds/probe` accept channel URLs, `@handle`, `UC…` ids and video URLs
   (resolved to the RSS URL; `422` if unresolvable). Shared YouTube links are canonicalised to
   `watch?v=<id>` and get title/channel/thumbnail from oEmbed (non-fatal on failure).
+- **Video articles** (`services/video_detect.py`, 2026-10, Alembic `0026`/`0027`): an article whose *main content* is a
+  video carries `media_kind="video"`, `video_url`, `video_embed_url`, `video_provider` (`youtube|file|embed`),
+  `video_id` (YouTube only) and `video_duration` (seconds); all nullable, additive in story list/detail and article
+  DTOs. Detection reads JSON-LD `VideoObject` (page-level before nested), `og:video*`/`twitter:player*`, then in-content
+  `<video>`/`<source>`/provider iframes; only http(s) URLs are kept, relative URLs resolve against the page. A video is
+  main content when the page itself is a video, the extracted body is under 1500 chars, or it precedes the first real
+  (≥80 chars) paragraph; a small embed in a long article is ignored. YouTube links (feed items, shares, embeds) share one
+  flag. Text = page blurb + caption transcript (Shorts embedded in a page are kept); a failed transcript is `partial`;
+  non-YouTube videos keep the page description. Summaries use the video prompt guidance. Backfilled from article URLs.
+  Parity vectors: `backend/tests/fixtures/video_detect_vectors.json` + `video_pages/*.html`.
 - All prompts request **structured JSON output**; validate + retry once on parse failure.
 - Every LLM call is idempotent-ish and stored (article.summary, story.summary), so
   pipeline steps are resumable after failure — store per-article `processing_state`

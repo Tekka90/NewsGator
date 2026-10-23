@@ -46,7 +46,7 @@ from typing_extensions import TypedDict
 from app.core.config import settings
 from app.core.db import get_session
 from app.models import Article, Feed, MailAccount, UserFeed
-from app.services import activity, llm_budget, llm_client, llmtrace, prompts, usage
+from app.services import activity, llm_budget, llm_client, llmtrace, prompts, usage, video_detect
 from app.services.fulltext import fetch_full_text_batch
 from app.services.ingest import _is_duplicate, canonicalize_url
 
@@ -693,6 +693,7 @@ async def _process_message(
             newsletter_intro=intro or None,
             published_at=msg.date,
             processing_state="fetched",
+            **video_detect.youtube_video_fields(cand.url),
         )
         session.add(article)
         await session.flush()

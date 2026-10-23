@@ -28,7 +28,6 @@ from app.services import (
     llmtrace,
     prompts,
     usage,
-    youtube,
 )
 from app.services.vectorstore import get_vector_store
 
@@ -199,7 +198,7 @@ async def summarize_article(session: AsyncSession, article: Article) -> bool:
     taxonomy = (await session.scalars(select(Category.name).order_by(Category.name))).all()
     article_lang = article.language if article.language else settings.summary_language
 
-    media_kind = youtube.media_kind_for_link(article.url)
+    media_kind = article.media_kind
     await activity.emit(session, "llm", "summarize_start", {"article_id": article.id})
     try:
         system, fixed_user = prompts.summarize_article(

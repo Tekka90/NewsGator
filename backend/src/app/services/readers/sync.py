@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models import Article, Feed, ReaderAccount, Story, StoryState, UserFeed
-from app.services import activity
+from app.services import activity, video_detect
 from app.services.fulltext import fetch_full_text_batch
 from app.services.process import enqueue_article
 from app.services.readers.greader import GReaderClient, GReaderItem
@@ -247,6 +247,7 @@ async def _ingest_items(
             published_at=item.published_at,
             origin_feed_title=item.origin_feed_title,
             processing_state="fetched",
+            **video_detect.youtube_video_fields(item.url),
         )
         session.add(article)
         await session.flush()

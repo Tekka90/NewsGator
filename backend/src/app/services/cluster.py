@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models import Article, ClusterDecision, Story, StoryRevision
-from app.services import activity, llm_client, llmtrace, prompts, saved_links, usage, youtube
+from app.services import activity, llm_client, llmtrace, prompts, saved_links, usage
 from app.services.vectorstore import cosine_similarity, get_vector_store
 
 HALF_LIFE_HOURS = 24.0
@@ -172,7 +172,7 @@ async def _create_story(
         system, user = prompts.story_headline(
             [article.summary],
             lang_code=story_lang,
-            media_kind=youtube.media_kind_for_link(article.url),
+            media_kind=article.media_kind,
         )
         with llmtrace.context("headline", label=article.title, article_id=article.id):
             result, latency_ms = await llm_client.chat_json(system, user)

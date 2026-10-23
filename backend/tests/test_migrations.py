@@ -86,6 +86,13 @@ async def test_legacy_create_all_db_stamped_and_upgraded(
     sync_conn.execute("ALTER TABLE user DROP COLUMN story_order")
     sync_conn.execute("ALTER TABLE user DROP COLUMN story_filter")
     # 0024 (story presets) added later still
+    # 0026 (article video flag) later again
+    sync_conn.execute("DROP INDEX ix_article_media_kind")
+    for column in (
+        "media_kind", "video_url", "video_embed_url", "video_provider", "video_id",
+        "video_duration",
+    ):
+        sync_conn.execute(f"ALTER TABLE article DROP COLUMN {column}")
     sync_conn.execute("ALTER TABLE user DROP COLUMN story_presets")
     sync_conn.execute("ALTER TABLE user DROP COLUMN last_preset_id")
     sync_conn.execute("ALTER TABLE user DROP COLUMN presets_compact")
@@ -143,6 +150,8 @@ async def test_legacy_create_all_db_stamped_and_upgraded(
     assert "user_feed" in _tables(path)
     assert "story_translation" in _tables(path)
     assert "saved_at" in _columns(path, "story_state")
+    assert {"media_kind", "video_url", "video_embed_url", "video_provider", "video_id",
+            "video_duration"} <= set(_columns(path, "article"))
 
 
 async def test_already_at_head_is_noop(engine_url: str, tmp_path) -> None:

@@ -25,11 +25,11 @@
   const KIND_LABELS: Record<PresetSourceKind, string> = {
     rss: 'RSS',
     mail: 'Newsletter',
-    youtube: 'YouTube',
+    video: 'Video',
     saved: 'Saved page',
     reader_api: 'Reader account'
   };
-  const YOUTUBE_HINT = 'YouTube: videos from YouTube channels or links shared from YouTube';
+  const VIDEO_HINT = 'Video: articles whose main content is a video (YouTube channels or links, embedded players, video files)';
 
   let draft = $state<StoryPreset[]>([]);
   let compact = $state(false);
@@ -289,7 +289,7 @@
                       <label class="check"><input type="checkbox" checked={e.criteria.source_kinds.includes(kind as PresetSourceKind)} onchange={() => (e.criteria.source_kinds = toggleInList(e.criteria.source_kinds, kind as PresetSourceKind))} /> {text}</label>
                     {/each}
                   </div>
-                  <span class="hint">{YOUTUBE_HINT}.</span>
+                  <span class="hint">{VIDEO_HINT}.</span>
                 </fieldset>
                 <fieldset>
                   <legend>Feeds <span class="hint">(any of; none = all)</span></legend>

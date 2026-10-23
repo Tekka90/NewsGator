@@ -38,7 +38,9 @@ MEDIA_KIND_VIDEO = "video"
 # spoken transcript, so the summary/headline must not echo the (often clickbait) video title.
 VIDEO_GUIDANCE = (
     "The source is an automatic spoken transcript of a video, possibly noisy, in the "
-    "speaker's language. Ignore greetings, sponsor reads, subscribe/like requests and "
+    "speaker's language; it may be preceded by the page's own short description of the "
+    "video, or be only that description when no captions exist. Ignore greetings, sponsor "
+    "reads, subscribe/like requests and "
     "channel promotion. Write a neutral, factual summary of what is actually said. Do not "
     "reuse or imitate the original video title; no clickbait, no questions."
 )

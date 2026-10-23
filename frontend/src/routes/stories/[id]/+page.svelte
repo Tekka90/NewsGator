@@ -4,7 +4,8 @@
   import { api, faviconUrl, imageSrc } from '$lib/api';
   import ReadeckIcon from '$lib/components/ReadeckIcon.svelte';
   import ShareButton from '$lib/components/ShareButton.svelte';
-  import YouTubePlayer from '$lib/components/YouTubePlayer.svelte';
+  import VideoPlayer from '$lib/components/VideoPlayer.svelte';
+  import { formatDuration, providerLabel } from '$lib/video';
   import StoryPicker from '$lib/components/StoryPicker.svelte';
   import type { SimilarStory, StoryDetail } from '$lib/types';
 
@@ -164,12 +165,12 @@
     <div class="row">
       <span class="chip">{story.category}</span>
       {#if story.updated_since_read}<span class="badge updated">UPDATED since you read it</span>{/if}
-      {#if story.media_kind === 'video'}<span class="badge video">▶ YouTube</span>{/if}
+      {#if story.media_kind === 'video'}<span class="badge video">▶ {providerLabel(story.video_provider)}{#if story.video_duration} · {formatDuration(story.video_duration)}{/if}</span>{/if}
       {#if story.is_frozen}<span class="badge frozen">archived</span>{/if}
     </div>
     <h1>{story.title}</h1>
-    {#if story.video_id}
-      <div class="videowrap"><YouTubePlayer videoId={story.video_id} title={story.title} /></div>
+    {#if story.media_kind === 'video'}
+      <div class="videowrap"><VideoPlayer videoId={story.video_id} provider={story.video_provider} url={story.video_url} embedUrl={story.video_embed_url} posterUrl={story.image_url} title={story.title} /></div>
     {:else if story.image_url}
       <img class="lead" src={imageSrc(story.image_url)} alt="" loading="lazy" />
     {/if}

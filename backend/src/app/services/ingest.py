@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.db import get_session
 from app.models import Article, Feed
-from app.services import activity, youtube
+from app.services import activity, video_detect, youtube
 from app.services.fulltext import fetch_full_text
 
 TRACKING_PARAMS_PREFIXES = ("utm_",)
@@ -318,6 +318,7 @@ async def _poll_feed_inner(session: AsyncSession, feed: Feed) -> int:
             raw_content=raw_content,
             published_at=published,
             processing_state="fetched",
+            **video_detect.youtube_video_fields(canonicalize_url(link)),
         )
         session.add(article)
         await session.flush()  # assign id before fulltext stage

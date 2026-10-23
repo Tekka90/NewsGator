@@ -234,6 +234,10 @@ export interface StoryListItem {
   readeck_bookmark_id: string | null;
   video_id: string | null;
   media_kind: 'video' | null;
+  video_url: string | null;
+  video_embed_url: string | null;
+  video_provider: VideoProvider | null;
+  video_duration: number | null;
 }
 
 /** Merge/move candidate from the proximity-ranked endpoints
@@ -280,6 +284,10 @@ export interface StoryArticle {
   feed_url: string;
   video_id: string | null;
   media_kind: 'video' | null;
+  video_url: string | null;
+  video_embed_url: string | null;
+  video_provider: VideoProvider | null;
+  video_duration: number | null;
 }
 
 export interface StoryRevision {
@@ -300,7 +308,8 @@ export type PresetStatus = 'any' | 'unread' | 'updated' | 'saved';
 export type PresetSort = 'published' | 'updated' | 'sources' | 'saved_at';
 export type PresetOrder = 'asc' | 'desc';
 export type PresetDisplay = 'icon+label' | 'icon' | 'label';
-export type PresetSourceKind = 'rss' | 'mail' | 'youtube' | 'saved' | 'reader_api';
+export type VideoProvider = 'youtube' | 'file' | 'embed';
+export type PresetSourceKind = 'rss' | 'mail' | 'video' | 'saved' | 'reader_api';
 
 export interface PresetCriteria {
   status: PresetStatus;

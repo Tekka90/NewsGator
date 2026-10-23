@@ -51,13 +51,9 @@ def _configure_sqlite_on_connect(dbapi_conn: object, _record: object) -> None:
     raw.execute("PRAGMA busy_timeout=30000")
     raw.execute("PRAGMA synchronous=NORMAL")
     # accent/case-insensitive keyword matching for story presets (services/story_presets.py)
-    from app.services.story_presets import is_youtube_video_link, normalize_text
+    from app.services.story_presets import normalize_text
 
     raw.create_function("ng_norm", 1, normalize_text, deterministic=True)
-    # exact YouTube video-link test (same parser as the pure reference): `youtube` source kind
-    raw.create_function(
-        "ng_youtube_video", 1, lambda url: int(is_youtube_video_link(url)), deterministic=True
-    )
     try:
         import sqlite_vec
 

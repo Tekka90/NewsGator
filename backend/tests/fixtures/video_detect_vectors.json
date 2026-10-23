@@ -1,0 +1,487 @@
+{
+ "version": 1,
+ "description": "Shared Python/Swift video detection vectors (VIDEO_ARTICLES_PLAN §4/§6). HTML in video_pages/.",
+ "main_content_max_chars": 1500,
+ "min_body_paragraph_chars": 80,
+ "duration": [
+  {
+   "input": "PT52S",
+   "seconds": 52
+  },
+  {
+   "input": "P0DT0H0M52S",
+   "seconds": 52
+  },
+  {
+   "input": "PT1H2M3S",
+   "seconds": 3723
+  },
+  {
+   "input": "pt1m",
+   "seconds": 60
+  },
+  {
+   "input": "P1DT1S",
+   "seconds": 86401
+  },
+  {
+   "input": "P1W",
+   "seconds": 604800
+  },
+  {
+   "input": "PT0S",
+   "seconds": 0
+  },
+  {
+   "input": "PT52.5S",
+   "seconds": 52
+  },
+  {
+   "input": " PT10S ",
+   "seconds": 10
+  },
+  {
+   "input": "P",
+   "seconds": null
+  },
+  {
+   "input": "PT",
+   "seconds": null
+  },
+  {
+   "input": "52",
+   "seconds": null
+  },
+  {
+   "input": "junk",
+   "seconds": null
+  },
+  {
+   "input": "",
+   "seconds": null
+  },
+  {
+   "input": "PT-5S",
+   "seconds": null
+  },
+  {
+   "input": "P1Y",
+   "seconds": null
+  }
+ ],
+ "cases": [
+  {
+   "name": "consent_wall",
+   "file": "consent_wall.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 0,
+   "expect": null
+  },
+  {
+   "name": "dailymotion_iframe",
+   "file": "dailymotion_iframe.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 0,
+   "expect": {
+    "url": "https://www.dailymotion.com/embed/video/x8abcd1",
+    "provider": "embed",
+    "embed_url": "https://www.dailymotion.com/embed/video/x8abcd1",
+    "youtube_id": null,
+    "duration_s": null,
+    "description": null
+   }
+  },
+  {
+   "name": "france24_cei8",
+   "file": "france24_cei8.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 0,
+   "expect": {
+    "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    "provider": "youtube",
+    "embed_url": "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+    "youtube_id": "dQw4w9WgXcQ",
+    "duration_s": 52,
+    "description": "Dozens of aid trucks entered Gaza on Tuesday as the ceasefire held, according to the UN."
+   }
+  },
+  {
+   "name": "jsonld_article_video",
+   "file": "jsonld_article_video.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 0,
+   "expect": {
+    "url": "https://player.vimeo.com/video/123456",
+    "provider": "embed",
+    "embed_url": "https://player.vimeo.com/video/123456",
+    "youtube_id": null,
+    "duration_s": 45,
+    "description": "Nested description"
+   }
+  },
+  {
+   "name": "jsonld_graph",
+   "file": "jsonld_graph.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 0,
+   "expect": {
+    "url": "https://example.com/videos/graph-clip.mp4",
+    "provider": "file",
+    "embed_url": null,
+    "youtube_id": null,
+    "duration_s": 3723,
+    "description": "A clip described in a graph."
+   }
+  },
+  {
+   "name": "malformed_jsonld",
+   "file": "malformed_jsonld.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 0,
+   "expect": {
+    "url": "https://player.vimeo.com/video/555",
+    "provider": "embed",
+    "embed_url": "https://player.vimeo.com/video/555",
+    "youtube_id": null,
+    "duration_s": null,
+    "description": null
+   }
+  },
+  {
+   "name": "multiple_content_videos",
+   "file": "multiple_content_videos.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 0,
+   "expect": {
+    "url": "https://cdn.example.com/second.mov",
+    "provider": "file",
+    "embed_url": null,
+    "youtube_id": null,
+    "duration_s": null,
+    "description": null
+   }
+  },
+  {
+   "name": "multiple_videos",
+   "file": "multiple_videos.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 0,
+   "expect": {
+    "url": "https://cdn.example.com/main.mp4",
+    "provider": "file",
+    "embed_url": null,
+    "youtube_id": null,
+    "duration_s": 30,
+    "description": null
+   }
+  },
+  {
+   "name": "native_video_mp4",
+   "file": "native_video_mp4.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 0,
+   "expect": {
+    "url": "https://example.com/media/launch.mp4?token=a&b=2",
+    "provider": "file",
+    "embed_url": null,
+    "youtube_id": null,
+    "duration_s": null,
+    "description": null
+   }
+  },
+  {
+   "name": "native_video_src",
+   "file": "native_video_src.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 0,
+   "expect": {
+    "url": "https://cdn.example.com/clips/stream.m3u8",
+    "provider": "file",
+    "embed_url": null,
+    "youtube_id": null,
+    "duration_s": null,
+    "description": null
+   }
+  },
+  {
+   "name": "no_video",
+   "file": "no_video.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 0,
+   "expect": null
+  },
+  {
+   "name": "og_type_video",
+   "file": "og_type_video.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 0,
+   "expect": {
+    "url": "https://cdn.example.com/live/master.m3u8",
+    "provider": "file",
+    "embed_url": null,
+    "youtube_id": null,
+    "duration_s": null,
+    "description": null
+   }
+  },
+  {
+   "name": "og_video",
+   "file": "og_video.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 0,
+   "expect": {
+    "url": "https://cdn.example.com/og/clip.mp4",
+    "provider": "file",
+    "embed_url": "https://player.example.com/embed/42",
+    "youtube_id": null,
+    "duration_s": null,
+    "description": null
+   }
+  },
+  {
+   "name": "text_article_small_embed",
+   "file": "text_article_small_embed.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 0,
+   "expect": {
+    "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    "provider": "youtube",
+    "embed_url": "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+    "youtube_id": "dQw4w9WgXcQ",
+    "duration_s": null,
+    "description": null
+   }
+  },
+  {
+   "name": "twitter_player",
+   "file": "twitter_player.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 0,
+   "expect": {
+    "url": "https://www.youtube.com/watch?v=9bZkp7q19f0",
+    "provider": "youtube",
+    "embed_url": "https://www.youtube-nocookie.com/embed/9bZkp7q19f0",
+    "youtube_id": "9bZkp7q19f0",
+    "duration_s": null,
+    "description": null
+   }
+  },
+  {
+   "name": "twitter_stream",
+   "file": "twitter_stream.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 0,
+   "expect": {
+    "url": "https://cdn.example.com/tw/stream.bin",
+    "provider": "file",
+    "embed_url": null,
+    "youtube_id": null,
+    "duration_s": null,
+    "description": null
+   }
+  },
+  {
+   "name": "unsafe_urls",
+   "file": "unsafe_urls.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 0,
+   "expect": null
+  },
+  {
+   "name": "video_after_body",
+   "file": "video_after_body.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 0,
+   "expect": {
+    "url": "https://cdn.example.com/after.mp4",
+    "provider": "file",
+    "embed_url": null,
+    "youtube_id": null,
+    "duration_s": null,
+    "description": null
+   }
+  },
+  {
+   "name": "video_before_short_paragraph",
+   "file": "video_before_short_paragraph.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 0,
+   "expect": {
+    "url": "https://cdn.example.com/before.mp4",
+    "provider": "file",
+    "embed_url": null,
+    "youtube_id": null,
+    "duration_s": null,
+    "description": null
+   }
+  },
+  {
+   "name": "vimeo_iframe",
+   "file": "vimeo_iframe.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 0,
+   "expect": {
+    "url": "https://player.vimeo.com/video/76979871?h=8272103f6e",
+    "provider": "embed",
+    "embed_url": "https://player.vimeo.com/video/76979871?h=8272103f6e",
+    "youtube_id": null,
+    "duration_s": null,
+    "description": null
+   }
+  },
+  {
+   "name": "youtube_nocookie_iframe",
+   "file": "youtube_nocookie_iframe.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 0,
+   "expect": {
+    "url": "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+    "provider": "youtube",
+    "embed_url": "https://www.youtube-nocookie.com/embed/aqz-KE-bpKQ",
+    "youtube_id": "aqz-KE-bpKQ",
+    "duration_s": null,
+    "description": null
+   }
+  },
+  {
+   "name": "text_article_small_embed_just_below_threshold",
+   "file": "text_article_small_embed.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 1499,
+   "expect": {
+    "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    "provider": "youtube",
+    "embed_url": "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+    "youtube_id": "dQw4w9WgXcQ",
+    "duration_s": null,
+    "description": null
+   }
+  },
+  {
+   "name": "text_article_small_embed_at_threshold",
+   "file": "text_article_small_embed.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 1500,
+   "expect": null
+  },
+  {
+   "name": "text_article_small_embed_long_body",
+   "file": "text_article_small_embed.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 5000,
+   "expect": null
+  },
+  {
+   "name": "video_after_body_just_below_threshold",
+   "file": "video_after_body.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 1499,
+   "expect": {
+    "url": "https://cdn.example.com/after.mp4",
+    "provider": "file",
+    "embed_url": null,
+    "youtube_id": null,
+    "duration_s": null,
+    "description": null
+   }
+  },
+  {
+   "name": "video_after_body_long_body",
+   "file": "video_after_body.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 5000,
+   "expect": null
+  },
+  {
+   "name": "video_before_short_paragraph_long_body",
+   "file": "video_before_short_paragraph.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 5000,
+   "expect": {
+    "url": "https://cdn.example.com/before.mp4",
+    "provider": "file",
+    "embed_url": null,
+    "youtube_id": null,
+    "duration_s": null,
+    "description": null
+   }
+  },
+  {
+   "name": "og_video_long_body",
+   "file": "og_video.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 5000,
+   "expect": null
+  },
+  {
+   "name": "twitter_player_long_body",
+   "file": "twitter_player.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 5000,
+   "expect": null
+  },
+  {
+   "name": "jsonld_article_video_long_body",
+   "file": "jsonld_article_video.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 5000,
+   "expect": null
+  },
+  {
+   "name": "jsonld_graph_long_body",
+   "file": "jsonld_graph.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 5000,
+   "expect": {
+    "url": "https://example.com/videos/graph-clip.mp4",
+    "provider": "file",
+    "embed_url": null,
+    "youtube_id": null,
+    "duration_s": 3723,
+    "description": "A clip described in a graph."
+   }
+  },
+  {
+   "name": "france24_cei8_long_body",
+   "file": "france24_cei8.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 5000,
+   "expect": {
+    "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    "provider": "youtube",
+    "embed_url": "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+    "youtube_id": "dQw4w9WgXcQ",
+    "duration_s": 52,
+    "description": "Dozens of aid trucks entered Gaza on Tuesday as the ceasefire held, according to the UN."
+   }
+  },
+  {
+   "name": "og_type_video_long_body",
+   "file": "og_type_video.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 5000,
+   "expect": {
+    "url": "https://cdn.example.com/live/master.m3u8",
+    "provider": "file",
+    "embed_url": null,
+    "youtube_id": null,
+    "duration_s": null,
+    "description": null
+   }
+  },
+  {
+   "name": "multiple_videos_long_body",
+   "file": "multiple_videos.html",
+   "base_url": "https://example.com/a/b",
+   "body_chars": 5000,
+   "expect": {
+    "url": "https://cdn.example.com/main.mp4",
+    "provider": "file",
+    "embed_url": null,
+    "youtube_id": null,
+    "duration_s": 30,
+    "description": null
+   }
+  }
+ ]
+}

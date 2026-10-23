@@ -1,8 +1,9 @@
 """YouTube support (YOUTUBE_PLAN.md) — the only module that knows about YouTube.
 
 A YouTube channel is an ordinary `rss` feed (`videos.xml?channel_id=UC…`); a video is any
-article whose canonical link is `https://www.youtube.com/watch?v=<id>`. Everything here is
-derived from URLs — no schema, no stored state.
+article whose canonical link is `https://www.youtube.com/watch?v=<id>`. URL parsing lives here;
+the persisted video flag (`article.media_kind`, VIDEO_ARTICLES_PLAN) is set from it at ingest and
+by `video_detect` for videos embedded in article pages.
 
 The transcript endpoints are unofficial: every network failure is mapped to a typed
 `YouTubeError` and the pipeline never trusts a response shape (see `fulltext.py`).
@@ -132,15 +133,6 @@ def canonical_url(url: str) -> str | None:
 
 def is_video_url(url: str) -> bool:
     return parse_video_id(url) is not None
-
-
-def video_id_for_link(link: str | None) -> str | None:
-    return parse_video_id(link) if link else None
-
-
-def media_kind_for_link(link: str | None) -> str | None:
-    """`"video"` when the link is a YouTube video, else None (absent in the API)."""
-    return "video" if video_id_for_link(link) else None
 
 
 _OFFSET_RE = re.compile(r"^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s?)?$")
@@ -585,8 +577,12 @@ class VideoResult:
     reason: str = ""
 
 
-async def fetch_video(video_id: str) -> VideoResult:
+async def fetch_video(video_id: str, *, allow_short: bool = False) -> VideoResult:
     """Player info + filtering + transcript for one video.
+
+    ``allow_short`` is for videos embedded in an article page (VIDEO_ARTICLES_PLAN D5): the
+    news clip is the news, so the Shorts filter (≤ 60 s / `/shorts/` probe) is not applied.
+    Direct YouTube feed items keep the default and are still dropped when short.
 
     Returns an `Outcome` for every expected situation; raises YouTubeError(network|blocked|
     parseFailed) only for transient/unknown failures the caller should retry later.
@@ -600,7 +596,9 @@ async def fetch_video(video_id: str) -> VideoResult:
     if verdict is Verdict.UNPLAYABLE:
         reason = f"{info.playability_status}: {info.playability_reason}".strip(": ")
         return VideoResult(Outcome.UNPLAYABLE, info, reason=reason[:300])
-    if verdict is Verdict.SHORT or await is_short(video_id, info.length_seconds):
+    if not allow_short and (
+        verdict is Verdict.SHORT or await is_short(video_id, info.length_seconds)
+    ):
         return VideoResult(Outcome.SHORT, info, reason="short-form video")
 
     track = choose_track(info.tracks, info.original_language)

@@ -1,0 +1,9 @@
+<html><head><title>Unsafe</title>
+<meta property="og:video" content="javascript:alert(1)">
+<script type="application/ld+json">{"@type":"VideoObject","contentUrl":"data:video/mp4;base64,AAAA","embedUrl":"ftp://example.com/v"}</script>
+</head><body>
+<iframe src="javascript:void(0)"></iframe>
+<video src="data:video/mp4;base64,AAAA"></video>
+<!-- <iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ"></iframe> -->
+<script>document.write('<iframe src="https://player.vimeo.com/video/9"></iframe>')</script>
+<p>Short page.</p></body></html>

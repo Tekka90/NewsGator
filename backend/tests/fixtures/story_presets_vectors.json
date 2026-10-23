@@ -186,7 +186,8 @@
     "articles": [
      {
       "feed_id": 2,
-      "published_at": "2026-10-18T09:00:00Z"
+      "published_at": "2026-10-18T09:00:00Z",
+      "media_kind": "video"
      },
      {
       "feed_id": 1,
@@ -232,7 +233,8 @@
      },
      {
       "feed_id": 2,
-      "published_at": "2026-10-21T08:00:00Z"
+      "published_at": "2026-10-21T08:00:00Z",
+      "media_kind": "video"
      },
      {
       "feed_id": 3,
@@ -424,10 +426,10 @@
    ]
   },
   {
-   "name": "kind_youtube",
+   "name": "kind_video",
    "criteria": {
     "source_kinds": [
-     "youtube"
+     "video"
     ]
    },
    "sort": "published",
@@ -470,7 +472,7 @@
    "name": "kind_or",
    "criteria": {
     "source_kinds": [
-     "youtube",
+     "video",
      "saved"
     ]
    },
@@ -3330,6 +3332,116 @@
     "expect_code": "invalid_enum"
    },
    {
+    "name": "removed_source_kind_youtube",
+    "payload": {
+     "presets": [
+      {
+       "id": "all",
+       "kind": "builtin",
+       "label": null,
+       "icon": "list",
+       "display": "icon+label",
+       "enabled": true,
+       "position": 0,
+       "sort": "published",
+       "order": "desc",
+       "show_count": true,
+       "criteria": {
+        "status": "any",
+        "feed_ids": [],
+        "category_ids": [],
+        "source_kinds": [],
+        "query": null,
+        "max_age_days": null
+       }
+      },
+      {
+       "id": "unread",
+       "kind": "builtin",
+       "label": null,
+       "icon": "circle-dot",
+       "display": "icon+label",
+       "enabled": true,
+       "position": 1,
+       "sort": "published",
+       "order": "asc",
+       "show_count": true,
+       "criteria": {
+        "status": "unread",
+        "feed_ids": [],
+        "category_ids": [],
+        "source_kinds": [],
+        "query": null,
+        "max_age_days": null
+       }
+      },
+      {
+       "id": "updated",
+       "kind": "builtin",
+       "label": null,
+       "icon": "refresh",
+       "display": "icon+label",
+       "enabled": true,
+       "position": 2,
+       "sort": "sources",
+       "order": "desc",
+       "show_count": true,
+       "criteria": {
+        "status": "updated",
+        "feed_ids": [],
+        "category_ids": [],
+        "source_kinds": [],
+        "query": null,
+        "max_age_days": null
+       }
+      },
+      {
+       "id": "saved",
+       "kind": "builtin",
+       "label": null,
+       "icon": "bookmark",
+       "display": "icon+label",
+       "enabled": true,
+       "position": 3,
+       "sort": "saved_at",
+       "order": "desc",
+       "show_count": true,
+       "criteria": {
+        "status": "saved",
+        "feed_ids": [],
+        "category_ids": [],
+        "source_kinds": [],
+        "query": null,
+        "max_age_days": null
+       }
+      },
+      {
+       "id": "c1",
+       "kind": "custom",
+       "label": "Garage",
+       "icon": "wrench",
+       "display": "icon+label",
+       "enabled": true,
+       "position": 4,
+       "sort": "published",
+       "order": "desc",
+       "show_count": true,
+       "criteria": {
+        "status": "any",
+        "feed_ids": [],
+        "category_ids": [],
+        "source_kinds": [
+         "youtube"
+        ],
+        "query": null,
+        "max_age_days": null
+       }
+      }
+     ]
+    },
+    "expect_code": "invalid_enum"
+   },
+   {
     "name": "builtin_id_custom_kind",
     "payload": {
      "presets": [
@@ -4049,7 +4161,7 @@
          "Tech"
         ],
         "source_kinds": [
-         "youtube",
+         "video",
          "rss"
         ],
         "query": "vélo",
@@ -4317,8 +4429,8 @@
    "valid": false
   }
  ],
- "youtube_link_vectors": {
-  "description": "source kind youtube = a YouTube VIDEO link on any article OR a channel feed; kinds are not disjoint",
+ "video_flag_vectors": {
+  "description": "source kind video = a story with an article flagged media_kind=video (YouTube feed item, shared link or page-detected embedded video) in a subscribed feed; kinds are not disjoint; the removed `youtube` kind is not valid",
   "dataset": {
    "feeds": [
     {
@@ -4349,7 +4461,8 @@
       {
        "feed_id": 3,
        "published_at": null,
-       "url": "https://youtu.be/dQw4w9WgXcQ"
+       "url": "https://youtu.be/dQw4w9WgXcQ",
+       "media_kind": "video"
       }
      ],
      "state": {
@@ -4369,7 +4482,8 @@
       {
        "feed_id": 3,
        "published_at": null,
-       "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=5"
+       "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=5",
+       "media_kind": "video"
       }
      ],
      "state": null
@@ -4433,7 +4547,8 @@
       {
        "feed_id": 2,
        "published_at": null,
-       "url": "https://www.youtube.com/watch?v=aaaaaaaaaaa"
+       "url": "https://www.youtube.com/watch?v=aaaaaaaaaaa",
+       "media_kind": "video"
       }
      ],
      "state": null
@@ -4470,7 +4585,8 @@
       {
        "feed_id": 3,
        "published_at": null,
-       "url": "https://www.youtube.com/shorts/dQw4w9WgXcQ"
+       "url": "https://www.youtube.com/shorts/dQw4w9WgXcQ",
+       "media_kind": "video"
       }
      ],
      "state": null
@@ -4490,23 +4606,56 @@
       }
      ],
      "state": null
+    },
+    {
+     "id": 20,
+     "title": "Link story 20",
+     "summary": "links",
+     "category": "Video",
+     "version": 1,
+     "last_updated_at": "2026-10-20T10:00:00Z",
+     "articles": [
+      {
+       "feed_id": 1,
+       "published_at": null,
+       "url": "https://www.france24.com/en/video/20261020-clip",
+       "media_kind": "video"
+      }
+     ],
+     "state": null
+    },
+    {
+     "id": 21,
+     "title": "Link story 21",
+     "summary": "links",
+     "category": "Other",
+     "version": 1,
+     "last_updated_at": "2026-10-20T10:00:00Z",
+     "articles": [
+      {
+       "feed_id": 2,
+       "published_at": null,
+       "url": "https://example.com/channel-text-post"
+      }
+     ],
+     "state": null
     }
    ]
   },
   "cases": [
    {
-    "name": "youtube_link_or_channel",
+    "name": "video_flag",
     "criteria": {
      "source_kinds": [
-      "youtube"
+      "video"
      ]
     },
     "expect_ids": [
      11,
      12,
      16,
-     17,
-     18
+     18,
+     20
     ]
    },
    {
@@ -4534,14 +4683,15 @@
     "expect_ids": [
      13,
      14,
-     18
+     18,
+     20
     ]
    },
    {
-    "name": "youtube_or_rss",
+    "name": "video_or_rss",
     "criteria": {
      "source_kinds": [
-      "youtube",
+      "video",
       "rss"
      ]
     },
@@ -4551,16 +4701,16 @@
      13,
      14,
      16,
-     17,
-     18
+     18,
+     20
     ]
    },
    {
-    "name": "youtube_and_saved_status",
+    "name": "video_and_saved_status",
     "criteria": {
      "status": "saved",
      "source_kinds": [
-      "youtube"
+      "video"
      ]
     },
     "expect_ids": [
@@ -4568,35 +4718,65 @@
     ]
    },
    {
-    "name": "youtube_and_category",
+    "name": "video_and_category",
     "criteria": {
      "category_ids": [
       "Video"
      ],
      "source_kinds": [
-      "youtube"
+      "video"
      ]
     },
     "expect_ids": [
      11,
      12,
-     16
+     16,
+     20
     ]
    },
    {
-    "name": "youtube_and_feed",
+    "name": "video_and_feed",
     "criteria": {
      "feed_ids": [
       3
      ],
      "source_kinds": [
-      "youtube"
+      "video"
      ]
     },
     "expect_ids": [
      11,
      12,
      18
+    ]
+   },
+   {
+    "name": "video_and_page_detected_feed",
+    "criteria": {
+     "feed_ids": [
+      1
+     ],
+     "source_kinds": [
+      "video"
+     ]
+    },
+    "expect_ids": [
+     18,
+     20
+    ]
+   },
+   {
+    "name": "youtube_only_is_video_plus_channel_feed",
+    "criteria": {
+     "feed_ids": [
+      2
+     ],
+     "source_kinds": [
+      "video"
+     ]
+    },
+    "expect_ids": [
+     16
     ]
    }
   ]

@@ -19,7 +19,9 @@ from typing import Any
 
 BUILTIN_IDS: tuple[str, ...] = ("all", "unread", "updated", "saved")
 STATUSES: tuple[str, ...] = ("any", "unread", "updated", "saved")
-SOURCE_KINDS: tuple[str, ...] = ("rss", "mail", "youtube", "saved", "reader_api")
+# `video` is not a feed kind: any story with a flagged video article (VIDEO_ARTICLES_PLAN D8).
+# The former `youtube` kind is gone (unknown kind → validation error).
+SOURCE_KINDS: tuple[str, ...] = ("rss", "mail", "video", "saved", "reader_api")
 SORTS: tuple[str, ...] = ("published", "updated", "sources", "saved_at")
 ORDERS: tuple[str, ...] = ("asc", "desc")
 DISPLAYS: tuple[str, ...] = ("icon+label", "icon", "label")
@@ -369,7 +371,8 @@ def visible_presets(presets: list[dict[str, Any]], feed_ids: set[int]) -> list[d
 # --- criteria evaluation (reference semantics) --------------------------------------
 
 def effective_source_kind(kind: str, url: str) -> str:
-    """Source kind of a feed: YouTube channel feeds are RSS feeds with a YouTube URL."""
+    """Feed kind: YouTube channel feeds are RSS feeds with a YouTube URL (``youtube``, a feed
+    description — not a preset source kind: presets filter videos with ``video``)."""
     from app.services import youtube
 
     if kind == "rss" and youtube.is_channel_feed_url(url):
@@ -389,32 +392,26 @@ class EvalStory:
     last_updated_at: datetime
     article_feed_ids: tuple[int, ...]
     article_published: tuple[datetime | None, ...]
-    # Link of each source article, parallel to ``article_feed_ids`` (YouTube video detection).
-    article_links: tuple[str | None, ...] = ()
+    # Video flag (``media_kind == "video"``) of each source article, parallel to
+    # ``article_feed_ids``.
+    article_is_video: tuple[bool, ...] = ()
     is_read: bool = False
     read_at_version: int = 0
     saved_at: datetime | None = None
 
 
-def is_youtube_video_link(link: str | None) -> bool:
-    from app.services import youtube
-
-    return bool(link) and youtube.parse_video_id(link or "") is not None
-
-
 def _matches_source_kinds(
     story: EvalStory, kinds: list[str], feed_kinds: Mapping[int, str]
 ) -> bool:
-    """A feed of a listed kind, or (for ``youtube``) a YouTube video link on an article of a
-    subscribed feed. Kinds are not disjoint: a shared YouTube link is both ``saved`` and
-    ``youtube``."""
+    """A feed of a listed kind, or (for ``video``) a flagged video article of a subscribed
+    feed. Kinds are not disjoint: a shared video link is both ``saved`` and ``video``."""
     if any(feed_kinds.get(f) in kinds for f in set(story.article_feed_ids)):
         return True
-    if "youtube" not in kinds:
+    if "video" not in kinds:
         return False
     return any(
-        feed in feed_kinds and is_youtube_video_link(link)
-        for feed, link in zip(story.article_feed_ids, story.article_links, strict=False)
+        feed in feed_kinds and is_video
+        for feed, is_video in zip(story.article_feed_ids, story.article_is_video, strict=False)
     )
 
 

@@ -9,6 +9,7 @@ Polite crawling: per-domain rate limit, robots.txt respected, archive.is failure
 cached for `archive_failure_cache_hours`. All extraction runs via anyio.to_thread.
 """
 
+import html as html_lib
 import json
 import re
 import time
@@ -23,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.db import get_session
 from app.models import Article, Feed
-from app.services import activity, youtube
+from app.services import activity, video_detect, youtube
 
 # Coarse markers — good enough to route to the next fallback (SPEC §9)
 PAYWALL_MARKERS = (
@@ -290,16 +291,47 @@ def _archive_url(url: str) -> str:
     return f"https://archive.is/newest/{quote(url, safe='')}"
 
 
-async def _fetch_video_text(session: AsyncSession, article: Article, video_id: str) -> None:
+_TAG_STRIP_RE = re.compile(r"<[^>]+>")
+
+
+def _plain_text(raw: str | None) -> str:
+    """RSS/newsletter content (possibly HTML) as plain text."""
+    return " ".join(html_lib.unescape(_TAG_STRIP_RE.sub(" ", raw or "")).split())
+
+
+def _join_paragraphs(*parts: str | None) -> str:
+    """Non-empty distinct parts separated by a blank line."""
+    kept: list[str] = []
+    for part in parts:
+        text = (part or "").strip()
+        if text and text not in kept and not any(text in other for other in kept):
+            kept.append(text)
+    return "\n\n".join(kept)
+
+
+async def _fetch_video_text(
+    session: AsyncSession,
+    article: Article,
+    video_id: str,
+    *,
+    hint: video_detect.VideoHint | None = None,
+    blurb: str = "",
+) -> None:
     """YouTube video: the paragraphed transcript is the article text (YOUTUBE_PLAN 3.5-3.8).
 
-    Shorts are dropped (state `clustered`, no story); live/upcoming videos and transient
-    failures stay in `fetched` for the backlog sweep; unplayable videos and videos without
-    captions fall back to the RSS description with a visible warning.
+    Direct feed item (``hint is None``): shorts are dropped (state `clustered`, no story).
+    Video embedded in an article page (``hint`` set, VIDEO_ARTICLES_PLAN D3-D5): the page blurb
+    plus the transcript is the text and shorts are kept — the clip is the news.
+    Live/upcoming videos and transient failures stay in `fetched` for the backlog sweep;
+    unplayable videos and videos without captions fall back to the description with a visible
+    warning.
     """
+    embedded = hint is not None
     payload: dict[str, object] = {"article_id": article.id, "video_id": video_id}
+    if embedded:
+        payload["embedded"] = True
     try:
-        result = await youtube.fetch_video(video_id)
+        result = await youtube.fetch_video(video_id, allow_short=embedded)
     except youtube.YouTubeError as exc:
         await activity.emit(
             session,
@@ -337,27 +369,33 @@ async def _fetch_video_text(session: AsyncSession, article: Article, video_id: s
         await session.commit()
         return
 
-    if info.title and (not article.title or article.title == urlparse(article.url).hostname):
+    if not embedded and info.title and (
+        not article.title or article.title == urlparse(article.url).hostname
+    ):
         article.title = info.title[:1024]
     if article.image_url is None:
         article.image_url = youtube.thumbnail_url(video_id)
+    if info.length_seconds > 0 and not article.video_duration:
+        article.video_duration = info.length_seconds
 
     reason: str | None = None
     if outcome is youtube.Outcome.TRANSCRIPT:
-        text = result.text
-        path = "youtube_transcript"
+        text = _join_paragraphs(blurb, result.text) if embedded else result.text
+        path = "video_embedded_transcript" if embedded else "youtube_transcript"
         article.content_status = "full"
         article.content_warning = None
     else:
         reason = result.reason
-        text = result.text or article.raw_content
+        extra = ((hint.description if hint else None) or result.text) if hint else None
+        description = _join_paragraphs(blurb, extra)
+        text = description or result.text or article.raw_content
         article.content_status = "partial"
         if outcome is youtube.Outcome.UNPLAYABLE:
-            path = "youtube_unavailable"
-            text = article.raw_content
+            path = "video_embedded_unavailable" if embedded else "youtube_unavailable"
+            text = description or article.raw_content
             article.content_warning = f"Video unavailable: {result.reason}"
         else:
-            path = "youtube_description"
+            path = "video_embedded_description" if embedded else "youtube_description"
             article.content_warning = "No captions available; summary based on the description"
     article.full_text = text
     article.processing_state = "fulltext"
@@ -380,10 +418,50 @@ async def _fetch_video_text(session: AsyncSession, article: Article, video_id: s
     await session.commit()
 
 
+async def _finish_other_video(
+    session: AsyncSession, article: Article, hint: video_detect.VideoHint, blurb: str
+) -> None:
+    """Non-YouTube video page (file / Vimeo / Dailymotion…): flagged, no transcript (D4)."""
+    text = _join_paragraphs(blurb, hint.description)
+    article.full_text = text
+    article.content_status = "partial"
+    article.content_warning = "No captions available; summary based on the description"
+    article.processing_state = "fulltext"
+    await activity.emit(
+        session,
+        "fulltext",
+        "fulltext_fetch",
+        {
+            "article_id": article.id,
+            "path": "video_embedded_description",
+            "provider": hint.provider,
+            "embedded": True,
+            "chars": len(text),
+            "reason": f"{hint.provider} video: no transcript source",
+        },
+        level="warn",
+    )
+    await session.commit()
+
+
+async def _handle_page_video(
+    session: AsyncSession, article: Article, hint: video_detect.VideoHint, blurb: str
+) -> None:
+    """The page's main content is a video: persist the flag, then transcript/description."""
+    for column, value in video_detect.video_fields(hint).items():
+        setattr(article, column, value)
+    if hint.youtube_id:
+        await _fetch_video_text(session, article, hint.youtube_id, hint=hint, blurb=blurb)
+    else:
+        await _finish_other_video(session, article, hint, blurb)
+
+
 async def fetch_full_text(session: AsyncSession, article: Article, feed: Feed) -> None:
     """Run the fetch chain for one article; persist outcome immediately."""
     video_id = youtube.parse_video_id(article.url)
     if video_id:
+        for column, value in video_detect.youtube_video_fields(article.url).items():
+            setattr(article, column, value)
         await _fetch_video_text(session, article, video_id)
         return
     cookies = _parse_cookies(feed.auth_cookies)
@@ -412,6 +490,17 @@ async def fetch_full_text(session: AsyncSession, article: Article, feed: Feed) -
                 article.published_at = page_date
                 date_recovered = True
         candidate = await anyio.to_thread.run_sync(_extract_text, html)
+        # A page whose main content is a video (VIDEO_ARTICLES_PLAN): flag it, transcript when
+        # possible. The page text is the blurb; paywalled text never is.
+        hint = await anyio.to_thread.run_sync(
+            video_detect.detect_video, html, article.url, len(candidate or "")
+        )
+        if hint is not None:
+            blurb = candidate if candidate and not _looks_paywalled(candidate) else ""
+            await _handle_page_video(
+                session, article, hint, blurb or _plain_text(article.raw_content)
+            )
+            return
         if candidate and len(candidate) >= settings.fulltext_min_chars:
             if not _looks_paywalled(candidate):
                 text, path = candidate, "direct"

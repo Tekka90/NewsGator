@@ -12,7 +12,15 @@ from tests.conftest import setup_admin
 
 from app.core.config import settings
 from app.models import ActivityEvent, Article, Feed, LLMUsage, Story, UserFeed
-from app.services import condense, fulltext, llm_budget, llm_client, process, youtube
+from app.services import (
+    condense,
+    fulltext,
+    llm_budget,
+    llm_client,
+    process,
+    video_detect,
+    youtube,
+)
 from app.services.ingest import canonicalize_url
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -129,6 +137,7 @@ async def _video_article(db_session, url: str = f"https://www.youtube.com/watch?
             title="www.youtube.com",
             raw_content="RSS description",
             processing_state="fetched",
+            **video_detect.youtube_video_fields(url),
         )
         s.add(art)
         await s.commit()
@@ -144,7 +153,7 @@ def _result(outcome: youtube.Outcome, text: str = "", **info_kwargs: Any) -> you
 async def _run_fulltext(db_session, monkeypatch, result_or_exc) -> tuple[Article, list[dict]]:
     article_id = await _video_article(db_session)
 
-    async def fake(video_id: str) -> youtube.VideoResult:
+    async def fake(video_id: str, **_: Any) -> youtube.VideoResult:
         if isinstance(result_or_exc, Exception):
             raise result_or_exc
         return result_or_exc

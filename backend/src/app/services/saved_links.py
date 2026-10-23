@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Article, Feed, StoryState, User, UserFeed, utcnow
-from app.services import activity, youtube
+from app.services import activity, video_detect, youtube
 from app.services.ingest import canonicalize_url
 
 SAVED_FEED_PREFIX = "saved:"
@@ -118,6 +118,7 @@ async def import_url(session: AsyncSession, user: User, raw_url: str) -> tuple[A
         origin_feed_title=channel,
         published_at=utcnow(),
         processing_state="fetched",
+        **video_detect.youtube_video_fields(url),
     )
     session.add(article)
     await session.flush()

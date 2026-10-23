@@ -3,7 +3,8 @@
   import { page } from '$app/state';
   import { api, faviconUrl, imageSrc } from '$lib/api';
   import { currentUser } from '$lib/stores';
-  import YouTubePlayer from '$lib/components/YouTubePlayer.svelte';
+  import VideoPlayer from '$lib/components/VideoPlayer.svelte';
+  import { formatDuration, providerLabel } from '$lib/video';
   import ReadeckIcon from '$lib/components/ReadeckIcon.svelte';
   import ShareButton from '$lib/components/ShareButton.svelte';
   import PresetBar from '$lib/components/PresetBar.svelte';
@@ -599,7 +600,7 @@
         <span class="chip">{current.category}</span>
         {#if !current.is_read}<span class="dot" title="Unread story"></span>{/if}
         {#if current.updated_since_read}<span class="badge updated">UPDATED</span>{/if}
-        {#if current.media_kind === 'video'}<span class="badge video">▶ YouTube</span>{/if}
+        {#if current.media_kind === 'video'}<span class="badge video">▶ {providerLabel(current.video_provider)}{#if current.video_duration} · {formatDuration(current.video_duration)}{/if}</span>{/if}
         {#if current.is_frozen}<span class="badge frozen">archived</span>{/if}
         <span class="spacer"></span>
         <button
@@ -628,9 +629,9 @@
         <ShareButton storyId={current.id} iconOnly buttonClass="readbtn" />
         <span class="age">{ago(current.published_at ?? current.last_updated_at)}</span>
       </div>
-      {#if current.video_id}
+      {#if current.media_kind === 'video'}
         {#key current.id}
-          <div class="deckvideo"><YouTubePlayer videoId={current.video_id} title={current.title} /></div>
+          <div class="deckvideo"><VideoPlayer videoId={current.video_id} provider={current.video_provider} url={current.video_url} embedUrl={current.video_embed_url} posterUrl={current.image_url} title={current.title} /></div>
         {/key}
       {:else if current.image_url}
         {#key current.id}
@@ -683,7 +684,7 @@
         <span class="chip">{story.category}</span>
         {#if !story.is_read}<span class="dot" title="Unread story"></span>{/if}
         {#if story.updated_since_read}<span class="badge updated">UPDATED</span>{/if}
-        {#if story.media_kind === 'video'}<span class="badge video">▶ YouTube</span>{/if}
+        {#if story.media_kind === 'video'}<span class="badge video">▶ {providerLabel(story.video_provider)}{#if story.video_duration} · {formatDuration(story.video_duration)}{/if}</span>{/if}
         {#if story.is_frozen}<span class="badge frozen">archived</span>{/if}
         <span class="spacer"></span>
         <button
