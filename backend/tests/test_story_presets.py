@@ -188,6 +188,24 @@ async def test_default_presets_order_lists_and_counts(
     assert counts == {k: len(v) for k, v in expected.items()}
 
 
+async def test_include_read_and_cursor_paging(client: AsyncClient, db_session, fixed_now) -> None:
+    await setup_admin(client)
+    await _load_dataset(db_session)
+    relaxed = _ids(await client.get("/api/stories?preset=unread&include_read=true"))
+    strict = _ids(await client.get("/api/stories?preset=unread"))
+    # read stories come back in the same ordering; the strict list is a subsequence
+    assert len(relaxed) > len(strict)
+    assert [i for i in relaxed if i in strict] == strict
+    anchor = strict[0]
+    at = relaxed.index(anchor)
+    base = "/api/stories?preset=unread&include_read=true&limit=2&"
+    assert _ids(await client.get(base + f"before={anchor}")) == relaxed[max(0, at - 2) : at]
+    assert _ids(await client.get(base + f"after={anchor}")) == relaxed[at + 1 : at + 3]
+    assert _ids(await client.get(base + "before=999")) == []
+    assert (await client.get("/api/stories?before=1")).status_code == 422
+    assert (await client.get(base + f"before={anchor}&after={anchor}")).status_code == 422
+
+
 async def test_criteria_matrix_via_list_and_counts(
     client: AsyncClient, db_session, fixed_now
 ) -> None:

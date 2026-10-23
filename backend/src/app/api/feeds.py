@@ -282,7 +282,7 @@ async def _resolve_youtube_feed_url(raw: str) -> str:
         return (await youtube.resolve_channel(raw)).feed_url
     except youtube.YouTubeError as exc:
         code = (
-            status.HTTP_422_UNPROCESSABLE_ENTITY
+            422
             if exc.code is youtube.ErrorCode.UNAVAILABLE
             else status.HTTP_502_BAD_GATEWAY
         )

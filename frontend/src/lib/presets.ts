@@ -129,6 +129,16 @@ export interface ListQuery {
   order?: PresetOrder;
   category?: string;
   feedId?: number;
+  /** Drop the read-status criterion so already-read stories stay reachable. */
+  includeRead?: boolean;
+  /** Cursor paging: the `limit` stories right before this story id (needs `limit`). */
+  before?: number;
+  limit?: number;
+}
+
+/** History pages only make sense for date-sorted views that exclude read stories. */
+export function supportsHistory(p: StoryPreset | null, sort: PresetSort): boolean {
+  return p?.criteria.status === 'unread' && (sort === 'published' || sort === 'updated');
 }
 
 /** Query string of GET /stories — overrides are sent only when the user set them. */
@@ -138,6 +148,9 @@ export function storiesQuery(q: ListQuery): URLSearchParams {
   if (q.order) params.set('order', q.order);
   if (q.category) params.set('category', q.category);
   if (q.feedId) params.set('feed', String(q.feedId));
+  if (q.includeRead) params.set('include_read', 'true');
+  if (q.before) params.set('before', String(q.before));
+  if (q.limit) params.set('limit', String(q.limit));
   return params;
 }
 

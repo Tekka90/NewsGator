@@ -587,6 +587,7 @@ keyword match is accent- and case-insensitive on stored `title + summary` (SQLit
 `ng_norm`, registered in `core/db.py`); validation errors are `422 {detail:{code,message}}`;
 default Unread = oldest first, Updated = most sources first, Saved = most recently saved.
 Keep `_criteria_conditions` (SQL) in sync with `story_matches` (pure reference).
+Deck history (2026-10-23): `GET /stories` accepts `include_read=true` (unread status → all, other criteria kept) and `before|after=<story_id>` + `limit` (cursor paging over the final ordering, via `_filtered_stories` ids; empty when the cursor is not in the list). The mobile deck (web `routes/+page.svelte`, Apple compact deck) prepends 10 read stories before the first unread one for date-sorted views whose status is `unread`, pages older ones near the start and offers "Back to unread"; counts are unchanged.
 Web side (Phase 2): `routes/+page.svelte` uses `PresetBar` + `api.presets.*`; manual sort/feed/category
 are session overrides (never persisted into a preset); settings editor `StoryViewsSettings.svelte`; pure logic
 `lib/presets.ts` and the single icon catalog `lib/presetIcons.ts` are tested with `npm test` (Node's built-in

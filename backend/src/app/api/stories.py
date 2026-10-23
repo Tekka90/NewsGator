@@ -582,9 +582,23 @@ async def list_stories(
     # optional paging, applied after filtering and sorting; omitted = the full list
     limit: int | None = Query(default=None, ge=1),
     offset: int = Query(default=0, ge=0),
+    # drop the read-status criterion (an `unread` filter/preset status becomes `all`) so
+    # already-read stories stay reachable; every other criterion still applies
+    include_read: bool = False,
+    # cursor paging over the final ordering (needs `limit`): the `limit` stories right
+    # before / after this story, in display order. Offsets shift as stories get read;
+    # a story id does not. Empty when the story is not part of the list.
+    before: int | None = Query(default=None, ge=1),
+    after: int | None = Query(default=None, ge=1),
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[StoryListItem]:
+    if before is not None and after is not None:
+        raise HTTPException(422, "Use either before or after")
+    if (before is not None or after is not None) and limit is None:
+        raise HTTPException(422, "Cursor paging needs a limit")
+    if include_read and filter == "unread":
+        filter = "all"
     user_feed_ids = await _user_feed_ids(session, user)
     stored: dict[str, Any] | None = None
     if preset is not None:
@@ -604,6 +618,8 @@ async def list_stories(
     extra: list[ColumnElement[bool]] = []
     if stored is not None:
         criteria = stored["criteria"]
+        if include_read and criteria["status"] == "unread":
+            criteria = {**criteria, "status": "all"}
         kinds = (
             await _feed_source_kinds(session, user_feed_ids) if criteria["source_kinds"] else {}
         )
@@ -628,6 +644,18 @@ async def list_stories(
         since=since,
         extra=extra,
     )
+    cursor = before if before is not None else after
+    if cursor is not None and limit is not None:
+        ordered_ids = list((await session.scalars(query.with_only_columns(Story.id))).all())
+        if cursor not in ordered_ids:
+            return []
+        at = ordered_ids.index(cursor)
+        ids = ordered_ids[max(0, at - limit) : at] if before is not None else (
+            ordered_ids[at + 1 : at + 1 + limit]
+        )
+        found = (await session.scalars(select(Story).where(Story.id.in_(ids)))).all()
+        rows = {s.id: s for s in found}
+        return await _page_items(session, user, [rows[i] for i in ids if i in rows])
     if limit is not None:
         query = query.limit(limit)
     if offset:

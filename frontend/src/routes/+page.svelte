@@ -8,7 +8,14 @@
   import ReadeckIcon from '$lib/components/ReadeckIcon.svelte';
   import ShareButton from '$lib/components/ShareButton.svelte';
   import PresetBar from '$lib/components/PresetBar.svelte';
-  import { adjustSavedCounts, defaultPresets, pickActivePreset, SORT_LABELS } from '$lib/presets';
+  import {
+    adjustSavedCounts,
+    defaultPresets,
+    pickActivePreset,
+    SORT_LABELS,
+    supportsHistory,
+    type ListQuery
+  } from '$lib/presets';
   import type {
     Category,
     FeedOption,
@@ -63,6 +70,14 @@
   let axisLock: 'x' | 'y' | null = null;
   let startScrollY = 0;
   let swipeDownAllowed = false;
+
+  // Read stories kept behind the first unread card: `anchorIndex` is where the strict
+  // (unread) list starts, so swiping right from it walks back through what was read.
+  const HISTORY_PAGE = 10;
+  let anchorIndex = $state(0);
+  let historyDone = $state(true);
+  let historyLoading = false;
+  let historyEnabled = $derived(isMobile && supportsHistory(activePreset, sort));
 
   let current = $derived(index < stories.length ? stories[index] : null);
   // Past the last card = the "all caught up" end card
@@ -221,10 +236,73 @@
     stories = fetchedStories;
     if (counts) presetCounts = counts.counts;
     index = 0;
+    anchorIndex = 0;
+    historyDone = true;
+    if (historyEnabled) await loadInitialHistory(fetchedStories);
     dx = 0;
     dy = 0;
     loading = false;
   }
+
+  function historyQuery(extra: Partial<ListQuery>): ListQuery {
+    return {
+      preset: activeId ?? 'all',
+      sort: sortOverride ?? undefined,
+      order: orderOverride ?? undefined,
+      category: category || undefined,
+      feedId: feedId || undefined,
+      includeRead: true,
+      limit: HISTORY_PAGE,
+      ...extra
+    };
+  }
+
+  /** Puts up to one page of read stories in front of the unread ones. When everything is
+      read there is no anchor: take the tail of the relaxed list via the flipped order. */
+  async function loadInitialHistory(strict: StoryListItem[]) {
+    try {
+      let older: StoryListItem[];
+      if (strict.length > 0) {
+        older = await api.stories.listPreset(historyQuery({ before: strict[0].id }));
+      } else {
+        const flipped: PresetOrder = order === 'desc' ? 'asc' : 'desc';
+        older = (await api.stories.listPreset(historyQuery({ order: flipped }))).reverse();
+      }
+      stories = [...older, ...strict];
+      index = anchorIndex = older.length;
+      historyDone = older.length < HISTORY_PAGE;
+    } catch {
+      /* history is a convenience: the unread deck still works without it */
+    }
+  }
+
+  /** Called while swiping back: fetches the next page of older read stories near the edge. */
+  async function loadMoreHistory() {
+    if (!historyEnabled || historyDone || historyLoading || stories.length === 0) return;
+    historyLoading = true;
+    try {
+      const older = await api.stories.listPreset(historyQuery({ before: stories[0].id }));
+      if (older.length) {
+        stories = [...older, ...stories];
+        index += older.length;
+        anchorIndex += older.length;
+      }
+      if (older.length < HISTORY_PAGE) historyDone = true;
+    } catch {
+      /* retried on the next swipe */
+    } finally {
+      historyLoading = false;
+    }
+  }
+
+  function backToUnread() {
+    heroLoaded = false;
+    index = anchorIndex;
+  }
+
+  $effect(() => {
+    if (index <= 3) void loadMoreHistory();
+  });
 
   /** Selecting a view applies its criteria + sort/order and drops every manual override. */
   function selectPreset(p: StoryPreset) {
@@ -455,7 +533,13 @@
       <!-- stays visible while scrolling (pagehead is sticky) — on mobile this
            doubles as the deck position, which used to scroll away with deckmeta -->
       <span class="count" title="Stories matching the current filter">
-        {isMobile ? `${Math.min(index + 1, stories.length)} / ${stories.length}` : stories.length}
+        {#if !isMobile}
+          {stories.length}
+        {:else if index < anchorIndex}
+          ↩ {anchorIndex - index} read
+        {:else}
+          {Math.min(index - anchorIndex + 1, stories.length - anchorIndex)} / {stories.length - anchorIndex}
+        {/if}
       </span>
     {/if}
   </h1>
@@ -572,7 +656,9 @@
        Swipe ↓ toggles saved; past the last story, a final "all caught up" card closes the deck. -->
   <div class="deckmeta">
     <button class="navbtn" onclick={() => commit('right')} disabled={index === 0}>‹ Prev</button>
-    {#if atEnd}
+    {#if index < anchorIndex}
+      <button class="navbtn" onclick={backToUnread}>↩ Back to unread</button>
+    {:else if atEnd}
       <span>✓ done</span>
       <span class="hint">swipe → back to stories</span>
     {:else}

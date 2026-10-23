@@ -16,6 +16,7 @@ import {
   removePreset,
   setEnabled,
   storiesQuery,
+  supportsHistory,
   validateDraft
 } from './presets.ts';
 
@@ -94,6 +95,18 @@ test('stories query sends overrides only when set', () => {
     storiesQuery({ preset: 'x', sort: 'saved_at', order: 'asc', category: 'Tech', feedId: 3 }).toString(),
     'preset=x&sort=saved_at&order=asc&category=Tech&feed=3'
   );
+});
+
+test('history query and eligibility', () => {
+  assert.equal(
+    storiesQuery({ preset: 'unread', includeRead: true, before: 7, limit: 10 }).toString(),
+    'preset=unread&include_read=true&before=7&limit=10'
+  );
+  const [all, unread] = [defaultPresets().find((p) => p.id === 'all')!, defaultPresets().find((p) => p.id === 'unread')!];
+  assert.equal(supportsHistory(unread, 'published'), true);
+  assert.equal(supportsHistory(unread, 'sources'), false);
+  assert.equal(supportsHistory(all, 'published'), false);
+  assert.equal(supportsHistory(null, 'published'), false);
 });
 
 test('draft validation and normalisation', () => {
