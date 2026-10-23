@@ -286,3 +286,6 @@ class CategorySuggestionAction(BaseModel):
 class HealthOut(BaseModel):
     status: str
     version: str
+    commit: str = "unknown"
+    started_at: str = ""
+    features: list[str] = []

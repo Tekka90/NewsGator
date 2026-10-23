@@ -21,6 +21,8 @@ async def test_health(client: AsyncClient) -> None:
     r = await client.get("/api/health")
     assert r.status_code == 200
     assert r.json()["status"] == "ok"
+    assert "story_history" in r.json()["features"]
+    assert r.json()["commit"]
 
 
 async def test_categories_crud(client: AsyncClient) -> None:
