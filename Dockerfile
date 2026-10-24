@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # --- frontend build (glibc node so the runtime binary works on debian-slim) ---
-FROM node:22-bookworm-slim AS frontend
+FROM node:25-bookworm-slim AS frontend
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm ci --no-audit --no-fund || npm install --no-audit --no-fund
