@@ -1,0 +1,16 @@
+{
+  "shareStory": "Share story",
+  "share": "Share",
+  "closeMenu": "Close share menu",
+  "asIs": "As is",
+  "closePreview": "Close share preview",
+  "preview": "Share preview",
+  "shareEllipsis": "Share…",
+  "copied": "✓ Copied",
+  "copy": "Copy",
+  "close": "Close",
+  "loadLanguagesFailed": "Could not load languages",
+  "failed": "Share failed",
+  "clipboardUnavailable": "Clipboard is unavailable on this browser",
+  "copyFailed": "Copy failed"
+}

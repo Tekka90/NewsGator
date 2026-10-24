@@ -1,0 +1,68 @@
+{
+  "title": "피드 찾기",
+  "close_dialog": "대화상자 닫기",
+  "close": "닫기",
+  "subtitle": "내 국가의 카테고리나 주제에 맞는 고품질 RSS 및 Atom 피드를 찾아 보세요.",
+  "country": "국가",
+  "themes": "주제 및 카테고리",
+  "themes_hint": "(하나를 선택하거나 아래의 기타를 사용하세요)",
+  "other": "기타",
+  "other_hint": "(자유 입력 — 카테고리를 대체합니다)",
+  "other_placeholder": "예: '프랑스 사이클 뉴스', 'AI 연구 블로그', '인디 게임 개발'…",
+  "ai_toggle": "AI에게 추천 요청 (서버에 LLM 설정 필요)",
+  "cancel": "취소",
+  "researching": "피드 조사 중…",
+  "research": "피드 조사",
+  "stage_formulating": "검색어 구성 중…",
+  "stage_verifying": "{total}개 중 {current}번째 확인 중: {target}…",
+  "stage_complete": "완료!",
+  "no_additional": "이 조건에 맞는 추가 피드를 찾지 못했습니다.",
+  "found_additional": {
+    "other": "추가 피드 {count}개를 찾았습니다."
+  },
+  "no_feeds": "이 조건에 맞는 활성 피드를 찾지 못했습니다. 다른 카테고리, 텍스트 또는 국가를 시도해 보세요.",
+  "research_failed": "피드 조사에 실패했습니다",
+  "added": {
+    "other": "피드 {count}개를 추가했습니다"
+  },
+  "added_with_failed": {
+    "other": "피드 {count}개를 추가했습니다 ({failed}개 실패)"
+  },
+  "found_candidates": {
+    "other": "후보 피드 {count}개를 찾았습니다"
+  },
+  "selected_of": "{total}개 중 {selected}개 선택됨",
+  "select_all": "모두 선택",
+  "deselect_all": "모두 선택 해제",
+  "paywall": "유료",
+  "paywall_title": "구독 또는 유료 페이월 감지됨",
+  "free_full": "무료 (전문)",
+  "free_full_title": "전문 기사까지 100% 무료",
+  "free_excerpt": "무료 (발췌)",
+  "free_excerpt_title": "무료로 접근 가능하며 RSS는 요약 발췌를 제공합니다",
+  "scope_local": "지역",
+  "scope_regional": "광역",
+  "scope_national": "전국",
+  "hide_articles": "최신 기사 숨기기",
+  "preview_articles": "최신 기사 미리보기 ({count})",
+  "search_again": "다시 검색",
+  "searching": "검색 중…",
+  "propose_more": "더 제안",
+  "subscribing": "구독 중…",
+  "subscribe": {
+    "other": "피드 {count}개 구독"
+  },
+  "category_general_news": "일반 뉴스",
+  "category_world": "국제",
+  "category_politics": "정치",
+  "category_finance": "금융",
+  "category_technology": "기술",
+  "category_science": "과학",
+  "category_health": "건강",
+  "category_environment": "환경",
+  "category_sports": "스포츠",
+  "category_culture": "문화",
+  "category_gaming": "게임",
+  "category_food": "음식",
+  "category_travel": "여행"
+}

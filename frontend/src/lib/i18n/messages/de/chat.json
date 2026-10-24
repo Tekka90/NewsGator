@@ -1,0 +1,12 @@
+{
+  "pageTitle": "Chat · NewsGator",
+  "heading": "Fragen Sie Ihr Archiv",
+  "clear": "Löschen",
+  "emptyPrompt": "Fragen Sie alles zu den Meldungen, die Sie geladen haben.",
+  "emptyHint": "z. B. „Was gibt es Neues zum EU-KI-Gesetz?“ · „Gibt es diese Woche Neuigkeiten zu SpaceX?“",
+  "cited": "zitiert",
+  "thinking": "Denkt nach…",
+  "placeholder": "Stellen Sie eine Frage…",
+  "send": "Senden",
+  "failed": "Chat fehlgeschlagen"
+}

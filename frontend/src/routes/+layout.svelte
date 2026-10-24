@@ -4,6 +4,7 @@
   import { page } from '$app/state';
   import { api, streamUrl } from '$lib/api';
   import { currentUser } from '$lib/stores';
+  import { initLocale, setLocale, t } from '$lib/i18n';
   import '$lib/theme.css';
 
   let { children } = $props();
@@ -28,6 +29,8 @@
   });
 
   onMount(async () => {
+    // Stored/browser language first so login and setup render localized too
+    await initLocale();
     try {
       const { setup_needed } = await api.setupNeeded();
       if (setup_needed && page.url.pathname !== '/setup') {
@@ -40,6 +43,8 @@
       }
       if (!isPublic) {
         $currentUser = await api.me();
+        // The saved per-user language follows the account across devices
+        await setLocale($currentUser.ui_language);
         connectActivity();
       }
     } catch {
@@ -69,27 +74,27 @@
 <svelte:head><title>NewsGator</title></svelte:head>
 
 {#if !ready}
-  <main class="center"><p>Loading…</p></main>
+  <main class="center"><p>{$t('nav.loading')}</p></main>
 {:else if isPublic}
   {@render children()}
 {:else}
   <div class="shell">
     <nav bind:this={navEl}>
       <strong class="brand">NewsGator</strong>
-      <a href="/" class:active={page.url.pathname === '/'}>Stories</a>
-      <a href="/chat" class:active={page.url.pathname.startsWith('/chat')}>Chat</a>
-      <a href="/feeds" class:active={page.url.pathname.startsWith('/feeds')}>Feeds</a>
-      <a href="/activity" class:active={page.url.pathname.startsWith('/activity')}>Activity</a>
+      <a href="/" class:active={page.url.pathname === '/'}>{$t('nav.stories')}</a>
+      <a href="/chat" class:active={page.url.pathname.startsWith('/chat')}>{$t('nav.chat')}</a>
+      <a href="/feeds" class:active={page.url.pathname.startsWith('/feeds')}>{$t('nav.feeds')}</a>
+      <a href="/activity" class:active={page.url.pathname.startsWith('/activity')}>{$t('nav.activity')}</a>
       {#if $currentUser?.is_admin}
-        <a href="/usage" class:active={page.url.pathname.startsWith('/usage')}>Usage</a>
+        <a href="/usage" class:active={page.url.pathname.startsWith('/usage')}>{$t('nav.usage')}</a>
       {/if}
-      <a href="/settings" class:active={page.url.pathname.startsWith('/settings')}>Settings</a>
+      <a href="/settings" class:active={page.url.pathname.startsWith('/settings')}>{$t('nav.settings')}</a>
       <span class="spacer"></span>
       {#if queueDepth > 0}
         <span class="processing">⚙ {queueDepth}</span>
       {/if}
       <span class="user">{$currentUser?.username}</span>
-      <button class="logoutbtn" onclick={logout} title="Log out" aria-label="Log out">
+      <button class="logoutbtn" onclick={logout} title={$t('nav.logout')} aria-label={$t('nav.logout')}>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
         </svg>

@@ -3,6 +3,7 @@
   import { currentUser } from '$lib/stores';
   import { api, authHeaders, streamUrl } from '$lib/api';
   import type { LLMInteraction, PipelineRow } from '$lib/types';
+  import { t, fmt } from '$lib/i18n';
 
   interface ActivityEvent {
     ts?: string;
@@ -124,7 +125,7 @@
     componentFilter ? events.filter((e) => e.component === componentFilter) : events
   );
 
-  function fmt(e: ActivityEvent): string {
+  function fmtDetail(e: ActivityEvent): string {
     const d = e.detail ?? {};
     const parts = Object.entries(d)
       .filter(([, v]) => v !== null && v !== '')
@@ -141,15 +142,15 @@
 </script>
 
 <h1>
-  Activity
-  <span class="dot" class:on={live} title={live ? 'live' : 'reconnecting…'}></span>
+  {$t('activity.title')}
+  <span class="dot" class:on={live} title={live ? $t('activity.live') : $t('activity.reconnecting')}></span>
 </h1>
 
 <div class="card status">
-  <span>LLM queue: <strong>{queueDepth}</strong> article{queueDepth === 1 ? '' : 's'} waiting or processing</span>
+  <span>{$t('activity.queueLabel')} <strong>{queueDepth}</strong> {$t('activity.queueWaiting', { count: queueDepth })}</span>
   <span class="spacer"></span>
   <select bind:value={componentFilter}>
-    <option value="">all components</option>
+    <option value="">{$t('activity.allComponents')}</option>
     {#each ['ingest', 'fulltext', 'llm', 'cluster', 'retention'] as c}
       <option value={c}>{c}</option>
     {/each}
@@ -158,7 +159,7 @@
 
 {#if llmTraceEnabled}
   <div class="card">
-    <h2>LLM interactions</h2>
+    <h2>{$t('activity.llmInteractions')}</h2>
     <div class="llmlist">
       {#each llmInteractions as it (it.id)}
         <details class="llmitem" open={it.status === 'running'}>
@@ -170,36 +171,36 @@
               {it.model}
               {#if it.status === 'done' && it.latency_ms !== null}· {(it.latency_ms / 1000).toFixed(1)}s{/if}
               {#if it.usage?.total_tokens}· {it.usage.total_tokens} tok{/if}
-              {#if it.attempts > 1}· {it.attempts} attempts{/if}
+              {#if it.attempts > 1}· {$t('activity.attempts', { count: it.attempts })}{/if}
             </span>
-            <span class="lts">{new Date(it.ts).toLocaleTimeString()}</span>
+            <span class="lts">{$fmt.time(it.ts)}</span>
           </summary>
           <div class="lbody">
             {#if it.endpoint === 'chat'}
               <h3>
-                System prompt
+                {$t('activity.systemPrompt')}
                 {#if it.request.system_chars}
-                  <span class="chars">{it.request.system_chars} chars</span>
+                  <span class="chars">{$t('activity.chars', { count: it.request.system_chars })}</span>
                 {/if}
               </h3>
               <pre>{it.request.system}</pre>
               <h3>
-                User prompt
+                {$t('activity.userPrompt')}
                 {#if it.request.user_chars}
                   <span class="chars">
-                    {it.request.user_chars} chars{#if it.request.truncated}, truncated{/if}
+                    {$t(it.request.truncated ? 'activity.charsTruncated' : 'activity.chars', { count: it.request.user_chars })}
                   </span>
                 {/if}
               </h3>
               <pre>{it.request.user}</pre>
             {:else}
-              <h3>Embedding input</h3>
-              <p class="embedinfo">{it.request.texts} text(s), {it.request.chars} chars total</p>
+              <h3>{$t('activity.embeddingInput')}</h3>
+              <p class="embedinfo">{$t('activity.embedInfo', { texts: it.request.texts ?? 0, chars: it.request.chars ?? 0 })}</p>
               <pre>{it.request.sample}</pre>
             {/if}
-            <h3>Response</h3>
+            <h3>{$t('activity.response')}</h3>
             {#if it.status === 'running'}
-              <p class="waiting">waiting for the LLM…</p>
+              <p class="waiting">{$t('activity.waiting')}</p>
             {:else if it.status === 'error'}
               <pre class="errtext">{it.error}</pre>
             {:else}
@@ -208,7 +209,7 @@
           </div>
         </details>
       {:else}
-        <p class="empty">No LLM calls yet — prompts and replies appear here live as the pipeline runs.</p>
+        <p class="empty">{$t('activity.noLlm')}</p>
       {/each}
     </div>
   </div>
@@ -216,16 +217,16 @@
 
 {#if pipelineRows.length}
   <div class="card">
-    <h2>Pipeline</h2>
+    <h2>{$t('activity.pipeline')}</h2>
     <p class="sub">
-      {pipelineInFlight} in flight{pipelineTruncated ? ' (showing first 500)' : ''}
-      · last {Math.max(0, pipelineRows.length - pipelineInFlight)} finished
+      {$t('activity.inFlight', { count: pipelineInFlight })}{pipelineTruncated ? ' ' + $t('activity.showingFirst') : ''}
+      · {$t('activity.lastFinished', { count: Math.max(0, pipelineRows.length - pipelineInFlight) })}
     </p>
     <div class="tablewrap">
       <table>
       <thead>
         <tr>
-          <th>Article</th>
+          <th>{$t('activity.colArticle')}</th>
           {#each pipelineStates as s}<th>{s}</th>{/each}
           <th></th>
         </tr>
@@ -243,7 +244,7 @@
               </div>
               <div class="sub">
                 {row.feed_title}
-                {#if row.content_status === 'partial'}<span class="badge partial">partial</span>{/if}
+                {#if row.content_status === 'partial'}<span class="badge partial">{$t('activity.partial')}</span>{/if}
               </div>
             </td>
             {#each pipelineStates as stage}
@@ -257,7 +258,7 @@
             {/each}
             <td class="stage">
               <button class="link" onclick={() => reprocess(row.id)} disabled={reprocessing === row.id}>
-                {reprocessing === row.id ? '…' : 'reprocess'}
+                {reprocessing === row.id ? '…' : $t('activity.reprocess')}
               </button>
             </td>
           </tr>
@@ -271,13 +272,13 @@
 <div class="card log">
   {#each [...filtered].reverse() as e, i (i)}
     <div class="line {e.level}">
-      <span class="ts">{e.ts ? new Date(e.ts).toLocaleTimeString() : ''}</span>
+      <span class="ts">{e.ts ? $fmt.time(e.ts) : ''}</span>
       <span class="comp">{e.component}</span>
       <span class="action">{e.action}</span>
-      <span class="detail">{fmt(e)}</span>
+      <span class="detail">{fmtDetail(e)}</span>
     </div>
   {:else}
-    <p>No activity yet — events appear here in real time as the pipeline runs.</p>
+    <p>{$t('activity.noActivity')}</p>
   {/each}
 </div>
 

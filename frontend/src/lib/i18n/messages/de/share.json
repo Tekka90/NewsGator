@@ -1,0 +1,16 @@
+{
+  "shareStory": "Story teilen",
+  "share": "Teilen",
+  "closeMenu": "Teilen-Menü schließen",
+  "asIs": "Unverändert",
+  "closePreview": "Teilen-Vorschau schließen",
+  "preview": "Teilen-Vorschau",
+  "shareEllipsis": "Teilen…",
+  "copied": "✓ Kopiert",
+  "copy": "Kopieren",
+  "close": "Schließen",
+  "loadLanguagesFailed": "Sprachen konnten nicht geladen werden",
+  "failed": "Teilen fehlgeschlagen",
+  "clipboardUnavailable": "Die Zwischenablage ist in diesem Browser nicht verfügbar",
+  "copyFailed": "Kopieren fehlgeschlagen"
+}

@@ -1,0 +1,73 @@
+{
+  "title": "Découvrir des flux",
+  "close_dialog": "Fermer la fenêtre",
+  "close": "Fermer",
+  "subtitle": "Trouvez des flux RSS et Atom de qualité pour une catégorie ou un sujet, dans votre pays.",
+  "country": "Pays",
+  "themes": "Thèmes et catégories",
+  "themes_hint": "(choisissez-en un, ou utilisez Autre ci-dessous)",
+  "other": "Autre",
+  "other_hint": "(texte libre — remplace les catégories)",
+  "other_placeholder": "p. ex. « actualité du cyclisme en France », « blogs de recherche en IA », « développement de jeux indépendants »…",
+  "ai_toggle": "Demander des suggestions à l’IA (nécessite un LLM configuré sur le serveur)",
+  "cancel": "Annuler",
+  "researching": "Recherche de flux…",
+  "research": "Rechercher des flux",
+  "stage_formulating": "Formulation des requêtes de recherche…",
+  "stage_verifying": "Vérification {current} sur {total} : {target}…",
+  "stage_complete": "Terminé !",
+  "no_additional": "Aucun flux supplémentaire trouvé pour ces critères.",
+  "found_additional": {
+    "one": "{count} flux supplémentaire trouvé.",
+    "other": "{count} flux supplémentaires trouvés."
+  },
+  "no_feeds": "Aucun flux actif trouvé pour ces critères. Essayez une autre catégorie, un autre texte ou un autre pays.",
+  "research_failed": "Échec de la recherche de flux",
+  "added": {
+    "one": "{count} flux ajouté",
+    "other": "{count} flux ajoutés"
+  },
+  "added_with_failed": {
+    "one": "{count} flux ajouté ({failed} en échec)",
+    "other": "{count} flux ajoutés ({failed} en échec)"
+  },
+  "found_candidates": {
+    "one": "{count} flux candidat trouvé",
+    "other": "{count} flux candidats trouvés"
+  },
+  "selected_of": "{selected} sélectionné(s) sur {total}",
+  "select_all": "Tout sélectionner",
+  "deselect_all": "Tout désélectionner",
+  "paywall": "Paywall",
+  "paywall_title": "Abonnement ou paywall payant détecté",
+  "free_full": "Gratuit (complet)",
+  "free_full_title": "100 % gratuit avec articles en texte intégral",
+  "free_excerpt": "Gratuit (extraits)",
+  "free_excerpt_title": "Accès gratuit, le RSS fournit des extraits résumés",
+  "scope_local": "Local",
+  "scope_regional": "Régional",
+  "scope_national": "National",
+  "hide_articles": "Masquer les derniers articles",
+  "preview_articles": "Aperçu des derniers articles ({count})",
+  "search_again": "Rechercher à nouveau",
+  "searching": "Recherche…",
+  "propose_more": "Proposer plus",
+  "subscribing": "Abonnement…",
+  "subscribe": {
+    "one": "S’abonner à {count} flux",
+    "other": "S’abonner à {count} flux"
+  },
+  "category_general_news": "Actualités générales",
+  "category_world": "Monde",
+  "category_politics": "Politique",
+  "category_finance": "Finance",
+  "category_technology": "Technologie",
+  "category_science": "Science",
+  "category_health": "Santé",
+  "category_environment": "Environnement",
+  "category_sports": "Sport",
+  "category_culture": "Culture",
+  "category_gaming": "Jeux vidéo",
+  "category_food": "Cuisine",
+  "category_travel": "Voyage"
+}

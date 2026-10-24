@@ -4,6 +4,7 @@
   // in a sandboxed iframe loaded on tap; anything else falls back to a link.
   import { planPlayer, safeHttpUrl } from '$lib/video';
   import type { VideoProvider } from '$lib/types';
+  import { t } from '$lib/i18n';
 
   let {
     videoId = null,
@@ -25,7 +26,9 @@
   let failed = $state(false);
   const plan = $derived(planPlayer({ provider, videoId, url, embedUrl }));
   const poster = $derived(safeHttpUrl(posterUrl));
-  const label = $derived(`Play video${title ? `: ${title}` : ''}`);
+  const label = $derived(
+    title ? $t('video.playNamed', { title }) : $t('video.play')
+  );
   // HLS plays natively on Safari only; elsewhere we link out instead of bundling a player.
   const hlsUnsupported = $derived(
     plan.mode === 'file' &&
@@ -44,7 +47,7 @@
     {#if loaded}
       <iframe
         src="https://www.youtube-nocookie.com/embed/{plan.id}?autoplay=1&rel=0&playsinline=1"
-        title={title || 'YouTube video'}
+        title={title || $t('video.youtube')}
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
         allowfullscreen
         referrerpolicy="strict-origin-when-cross-origin"
@@ -67,7 +70,7 @@
       controls
       playsinline
       preload="metadata"
-      aria-label={title || 'Video'}
+      aria-label={title || $t('video.video')}
       onerror={() => (failed = true)}
     ></video>
   </div>
@@ -76,7 +79,7 @@
     {#if loaded}
       <iframe
         src={plan.src}
-        title={title || 'Video'}
+        title={title || $t('video.video')}
         sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
         allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
         allowfullscreen
@@ -93,7 +96,7 @@
   </div>
 {:else if fallbackHref}
   <a class="openlink" href={fallbackHref} target="_blank" rel="noopener noreferrer" data-no-swipe>
-    ▶ Open video in browser
+    ▶ {$t('video.openInBrowser')}
   </a>
 {/if}
 

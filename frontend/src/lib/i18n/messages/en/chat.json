@@ -1,0 +1,12 @@
+{
+  "pageTitle": "Chat · NewsGator",
+  "heading": "Ask your archive",
+  "clear": "Clear",
+  "emptyPrompt": "Ask anything across the stories you've loaded.",
+  "emptyHint": "e.g. “What's the latest on the EU AI Act?” · “Any news about SpaceX this week?”",
+  "cited": "cited",
+  "thinking": "Thinking…",
+  "placeholder": "Ask a question…",
+  "send": "Send",
+  "failed": "Chat failed"
+}

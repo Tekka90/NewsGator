@@ -1,0 +1,73 @@
+{
+  "title": "Scopri feed",
+  "close_dialog": "Chiudi finestra",
+  "close": "Chiudi",
+  "subtitle": "Trova feed RSS e Atom di qualità per una categoria o un argomento, per il tuo paese.",
+  "country": "Paese",
+  "themes": "Temi e categorie",
+  "themes_hint": "(scegline uno o usa Altro qui sotto)",
+  "other": "Altro",
+  "other_hint": "(testo libero — sostituisce le categorie)",
+  "other_placeholder": "es. «notizie di ciclismo in Francia», «blog di ricerca sull’IA», «sviluppo di giochi indie»…",
+  "ai_toggle": "Chiedi suggerimenti all’IA (richiede un LLM configurato sul server)",
+  "cancel": "Annulla",
+  "researching": "Ricerca dei feed…",
+  "research": "Cerca feed",
+  "stage_formulating": "Formulazione delle query di ricerca…",
+  "stage_verifying": "Verifica {current} di {total}: {target}…",
+  "stage_complete": "Completato!",
+  "no_additional": "Nessun feed aggiuntivo trovato per questi criteri.",
+  "found_additional": {
+    "one": "Trovato {count} feed aggiuntivo.",
+    "other": "Trovati {count} feed aggiuntivi."
+  },
+  "no_feeds": "Nessun feed attivo trovato per questi criteri. Prova un’altra categoria, un altro testo o un altro paese.",
+  "research_failed": "Ricerca dei feed non riuscita",
+  "added": {
+    "one": "{count} feed aggiunto",
+    "other": "{count} feed aggiunti"
+  },
+  "added_with_failed": {
+    "one": "{count} feed aggiunto ({failed} non riusciti)",
+    "other": "{count} feed aggiunti ({failed} non riusciti)"
+  },
+  "found_candidates": {
+    "one": "Trovato {count} feed candidato",
+    "other": "Trovati {count} feed candidati"
+  },
+  "selected_of": "{selected} di {total} selezionati",
+  "select_all": "Seleziona tutto",
+  "deselect_all": "Deseleziona tutto",
+  "paywall": "Paywall",
+  "paywall_title": "Rilevato abbonamento o paywall a pagamento",
+  "free_full": "Gratuito (completo)",
+  "free_full_title": "100% gratuito con articoli a testo completo",
+  "free_excerpt": "Gratuito (estratti)",
+  "free_excerpt_title": "Accesso gratuito, l’RSS fornisce estratti riassuntivi",
+  "scope_local": "Locale",
+  "scope_regional": "Regionale",
+  "scope_national": "Nazionale",
+  "hide_articles": "Nascondi ultimi articoli",
+  "preview_articles": "Anteprima ultimi articoli ({count})",
+  "search_again": "Cerca di nuovo",
+  "searching": "Ricerca…",
+  "propose_more": "Proponi altri",
+  "subscribing": "Iscrizione…",
+  "subscribe": {
+    "one": "Iscriviti a {count} feed",
+    "other": "Iscriviti a {count} feed"
+  },
+  "category_general_news": "Notizie generali",
+  "category_world": "Mondo",
+  "category_politics": "Politica",
+  "category_finance": "Finanza",
+  "category_technology": "Tecnologia",
+  "category_science": "Scienza",
+  "category_health": "Salute",
+  "category_environment": "Ambiente",
+  "category_sports": "Sport",
+  "category_culture": "Cultura",
+  "category_gaming": "Videogiochi",
+  "category_food": "Cibo",
+  "category_travel": "Viaggi"
+}

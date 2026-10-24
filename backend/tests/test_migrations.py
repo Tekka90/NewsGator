@@ -89,6 +89,8 @@ async def test_legacy_create_all_db_stamped_and_upgraded(
     # 0026 (article video flag) later again
     # 0028 (article translation cache) later still
     # 0029 (listen position) later again, 0030 (validity stamps) with it
+    # 0031 (user.ui_language) after that
+    sync_conn.execute("ALTER TABLE user DROP COLUMN ui_language")
     sync_conn.execute("DROP TABLE listen_position")
     sync_conn.execute("DROP TABLE article_translation")
     sync_conn.execute("DROP INDEX ix_article_media_kind")

@@ -1,0 +1,16 @@
+{
+  "shareStory": "Compartir historia",
+  "share": "Compartir",
+  "closeMenu": "Cerrar menú de compartir",
+  "asIs": "Tal cual",
+  "closePreview": "Cerrar vista previa de compartir",
+  "preview": "Vista previa de compartir",
+  "shareEllipsis": "Compartir…",
+  "copied": "✓ Copiado",
+  "copy": "Copiar",
+  "close": "Cerrar",
+  "loadLanguagesFailed": "No se pudieron cargar los idiomas",
+  "failed": "Error al compartir",
+  "clipboardUnavailable": "El portapapeles no está disponible en este navegador",
+  "copyFailed": "Error al copiar"
+}

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from '$lib/api';
+  import { t, tNow } from '$lib/i18n';
   import PresetBar from './PresetBar.svelte';
   import PresetIcon from './PresetIcon.svelte';
   import { ICON_KEYS, isEmojiIcon } from '$lib/presetIcons';
@@ -22,14 +23,19 @@
   } from '$lib/presets';
   import type { Feed, PresetSourceKind, PresetsDoc, StoryPreset } from '$lib/types';
 
-  const KIND_LABELS: Record<PresetSourceKind, string> = {
-    rss: 'RSS',
-    mail: 'Newsletter',
-    video: 'Video',
-    saved: 'Saved page',
-    reader_api: 'Reader account'
+  const KIND_KEYS: Record<PresetSourceKind, string> = {
+    rss: 'views.kindRss',
+    mail: 'views.kindMail',
+    video: 'views.kindVideo',
+    saved: 'views.kindSaved',
+    reader_api: 'views.kindReader'
   };
-  const VIDEO_HINT = 'Video: articles whose main content is a video (YouTube channels or links, embedded players, video files)';
+  const SORT_KEYS: Record<string, string> = {
+    published: 'views.sortPublished',
+    updated: 'views.sortUpdated',
+    sources: 'views.sortSources',
+    saved_at: 'views.sortSavedAt'
+  };
 
   let draft = $state<StoryPreset[]>([]);
   let compact = $state(false);
@@ -124,7 +130,7 @@
     busy = true;
     try {
       apply(await api.presets.save({ presets: normalizeForSave($state.snapshot(draft) as StoryPreset[]), last_preset_id: lastId, compact }));
-      status = 'Saved ✓';
+      status = tNow('views.saved');
       void refreshCounts();
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
@@ -136,14 +142,14 @@
   async function reset(scope: 'builtin' | 'all') {
     const msg =
       scope === 'all'
-        ? 'Delete all your custom views and restore the four default views? This cannot be undone.'
-        : 'Restore the four default views (names, icons, order, sorting)? Your custom views are kept.';
+        ? tNow('views.confirmResetAll')
+        : tNow('views.confirmResetBuiltin');
     if (!confirm(msg)) return;
     error = status = '';
     busy = true;
     try {
       apply(await api.presets.reset(scope));
-      status = 'Reset ✓';
+      status = tNow('views.resetDone');
       void refreshCounts();
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
@@ -154,22 +160,20 @@
 </script>
 
 <div class="card">
-  <h2>Story views</h2>
+  <h2>{$t('views.title')}</h2>
   <p class="hint">
-    Views are the buttons above the story list. Each has its own filter, sort order and icon. The sort
-    menu and the feed and category filters on the Stories page stay as temporary overrides on top of the
-    selected view.
+    {$t('views.intro')}
   </p>
 
   {#if loading}
-    <p class="hint">Loading…</p>
+    <p class="hint">{$t('views.loading')}</p>
   {:else}
     <div class="preview">
-      <span class="hint">Preview</span>
-      <PresetBar presets={draft} activeId={editingId ?? ordered.find((p) => p.enabled)?.id ?? null} {counts} {compact} label="Preview of the story views bar" />
+      <span class="hint">{$t('views.preview')}</span>
+      <PresetBar presets={draft} activeId={editingId ?? ordered.find((p) => p.enabled)?.id ?? null} {counts} {compact} label={$t('views.previewBar')} />
       {#if editing}
         <span class="hint">
-          Matching stories: {editing.show_count && counts[editing.id] !== undefined ? counts[editing.id] : '—'}{dirty ? ' (saved version — save to refresh)' : ''}
+          {$t('views.matching', { count: editing.show_count && counts[editing.id] !== undefined ? counts[editing.id]! : '—' })}{dirty ? ' ' + $t('views.matchingStale') : ''}
         </span>
       {/if}
     </div>
@@ -187,27 +191,27 @@
               class="handle"
               draggable="true"
               role="img"
-              aria-label="Drag to reorder"
-              title="Drag to reorder"
+              aria-label={$t('views.dragReorder')}
+              title={$t('views.dragReorder')}
               ondragstart={(e) => { dragFrom = i; e.dataTransfer?.setData('text/plain', p.id); }}
               ondragend={() => (dragFrom = dragOver = null)}
             >⠿</span>
             <span class="glyph"><PresetIcon icon={p.icon} size={16} /></span>
             <span class="vname">
               {presetLabel(p)}
-              {#if p.kind === 'builtin'}<span class="tag">built-in</span>{/if}
+              {#if p.kind === 'builtin'}<span class="tag">{$t('views.builtinTag')}</span>{/if}
             </span>
             <span class="actions">
-              <button type="button" class="ghost" disabled={i === 0} aria-label={`Move ${presetLabel(p)} up`} title="Move up" onclick={() => (draft = movePreset(draft, i, i - 1))}>↑</button>
-              <button type="button" class="ghost" disabled={i === ordered.length - 1} aria-label={`Move ${presetLabel(p)} down`} title="Move down" onclick={() => (draft = movePreset(draft, i, i + 1))}>↓</button>
-              <label class="switch" title={!p.enabled || canDisable(draft, p.id) ? 'Show in the bar' : 'At least one view must stay enabled'}>
-                <input type="checkbox" checked={p.enabled} disabled={p.enabled && !canDisable(draft, p.id)} onchange={(e) => toggleEnabled(p, e.currentTarget.checked)} aria-label={`Show ${presetLabel(p)} in the bar`} />
-                Shown
+              <button type="button" class="ghost" disabled={i === 0} aria-label={$t('views.moveItemUp', { name: presetLabel(p) })} title={$t('views.moveUp')} onclick={() => (draft = movePreset(draft, i, i - 1))}>↑</button>
+              <button type="button" class="ghost" disabled={i === ordered.length - 1} aria-label={$t('views.moveItemDown', { name: presetLabel(p) })} title={$t('views.moveDown')} onclick={() => (draft = movePreset(draft, i, i + 1))}>↓</button>
+              <label class="switch" title={!p.enabled || canDisable(draft, p.id) ? $t('views.showInBar') : $t('views.mustStayEnabled')}>
+                <input type="checkbox" checked={p.enabled} disabled={p.enabled && !canDisable(draft, p.id)} onchange={(e) => toggleEnabled(p, e.currentTarget.checked)} aria-label={$t('views.showItemInBar', { name: presetLabel(p) })} />
+                {$t('views.shown')}
               </label>
-              <button type="button" aria-expanded={editingId === p.id} onclick={() => edit(p)}>{editingId === p.id ? 'Close' : 'Edit'}</button>
-              <button type="button" onclick={() => { draft = duplicatePreset(draft, p.id); }}>Duplicate</button>
+              <button type="button" aria-expanded={editingId === p.id} onclick={() => edit(p)}>{editingId === p.id ? $t('views.close') : $t('views.edit')}</button>
+              <button type="button" onclick={() => { draft = duplicatePreset(draft, p.id); }}>{$t('views.duplicate')}</button>
               {#if p.kind === 'custom'}
-                <button type="button" class="danger" disabled={!canDisable(draft, p.id)} onclick={() => { if (editingId === p.id) editingId = null; draft = removePreset(draft, p.id); }}>Delete</button>
+                <button type="button" class="danger" disabled={!canDisable(draft, p.id)} onclick={() => { if (editingId === p.id) editingId = null; draft = removePreset(draft, p.id); }}>{$t('views.delete')}</button>
               {/if}
             </span>
           </div>
@@ -216,13 +220,13 @@
             {@const e = p}
             <div class="editor">
               <label>
-                Name {#if p.kind === 'builtin'}<span class="hint">(empty = default name)</span>{/if}
-                <input bind:value={e.label} maxlength={MAX_LABEL} placeholder={p.kind === 'builtin' ? presetLabel({ ...p, label: null }) : 'Name'} />
+                {$t('views.name')} {#if p.kind === 'builtin'}<span class="hint">{$t('views.defaultNameHint')}</span>{/if}
+                <input bind:value={e.label} maxlength={MAX_LABEL} placeholder={p.kind === 'builtin' ? presetLabel({ ...p, label: null }) : $t('views.name')} />
               </label>
 
               <fieldset>
-                <legend>Icon</legend>
-                <div class="icons" role="group" aria-label="Icon">
+                <legend>{$t('views.icon')}</legend>
+                <div class="icons" role="group" aria-label={$t('views.icon')}>
                   {#each ICON_KEYS as key (key)}
                     <button type="button" class="ico" class:sel={e.icon === key} aria-pressed={e.icon === key} aria-label={key} title={key} onclick={() => (e.icon = key)}>
                       <PresetIcon icon={key} size={18} />
@@ -230,92 +234,92 @@
                   {/each}
                 </div>
                 <div class="emojirow">
-                  <input bind:value={emojiText} placeholder="…or one emoji" size="10" aria-label="Emoji icon" aria-invalid={emojiError} onchange={pickEmoji} onkeydown={(ev) => { if (ev.key === 'Enter') { ev.preventDefault(); pickEmoji(); } }} />
-                  <button type="button" onclick={pickEmoji}>Use emoji</button>
-                  {#if emojiError}<span class="err">Enter a single emoji.</span>{/if}
+                  <input bind:value={emojiText} placeholder={$t('views.emojiPlaceholder')} size="10" aria-label={$t('views.emojiLabel')} aria-invalid={emojiError} onchange={pickEmoji} onkeydown={(ev) => { if (ev.key === 'Enter') { ev.preventDefault(); pickEmoji(); } }} />
+                  <button type="button" onclick={pickEmoji}>{$t('views.useEmoji')}</button>
+                  {#if emojiError}<span class="err">{$t('views.emojiError')}</span>{/if}
                 </div>
               </fieldset>
 
               <div class="grid">
                 <label>
-                  Display
+                  {$t('views.display')}
                   <select bind:value={e.display}>
-                    <option value="icon+label">Icon + name</option>
-                    <option value="icon">Icon only</option>
-                    <option value="label">Name only</option>
+                    <option value="icon+label">{$t('views.displayIconLabel')}</option>
+                    <option value="icon">{$t('views.displayIcon')}</option>
+                    <option value="label">{$t('views.displayLabel')}</option>
                   </select>
                 </label>
                 <label>
-                  Sort by
+                  {$t('views.sortBy')}
                   <select bind:value={e.sort}>
-                    {#each Object.entries(SORT_LABELS) as [value, text] (value)}<option {value}>{text}</option>{/each}
+                    {#each Object.entries(SORT_LABELS) as [value] (value)}<option {value}>{$t(SORT_KEYS[value] ?? 'views.sortPublished')}</option>{/each}
                   </select>
                 </label>
                 <label>
-                  Order
+                  {$t('views.order')}
                   <select bind:value={e.order}>
-                    <option value="desc">Newest / most first</option>
-                    <option value="asc">Oldest / least first</option>
+                    <option value="desc">{$t('views.orderDesc')}</option>
+                    <option value="asc">{$t('views.orderAsc')}</option>
                   </select>
                 </label>
               </div>
-              <label class="check"><input type="checkbox" bind:checked={e.show_count} /> Show the story count</label>
+              <label class="check"><input type="checkbox" bind:checked={e.show_count} /> {$t('views.showCount')}</label>
 
               {#if p.kind === 'custom'}
                 <div class="grid">
                   <label>
-                    Status
+                    {$t('views.status')}
                     <select bind:value={e.criteria.status}>
-                      <option value="any">Any</option>
-                      <option value="unread">Unread</option>
-                      <option value="updated">Updated</option>
-                      <option value="saved">Saved</option>
+                      <option value="any">{$t('views.statusAny')}</option>
+                      <option value="unread">{$t('views.statusUnread')}</option>
+                      <option value="updated">{$t('views.statusUpdated')}</option>
+                      <option value="saved">{$t('views.statusSaved')}</option>
                     </select>
                   </label>
                   <label>
-                    Max age (days since last update)
-                    <input type="number" min="1" max="3650" bind:value={e.criteria.max_age_days} placeholder="No limit" />
+                    {$t('views.maxAge')}
+                    <input type="number" min="1" max="3650" bind:value={e.criteria.max_age_days} placeholder={$t('views.noLimit')} />
                   </label>
                 </div>
                 <label>
-                  Keywords
-                  <input bind:value={e.criteria.query} maxlength={MAX_QUERY} placeholder="e.g. electric bike" />
-                  <span class="hint">All words must appear in the title or summary. Case and accents are ignored.</span>
+                  {$t('views.keywords')}
+                  <input bind:value={e.criteria.query} maxlength={MAX_QUERY} placeholder={$t('views.keywordsPlaceholder')} />
+                  <span class="hint">{$t('views.keywordsHint')}</span>
                 </label>
                 <fieldset>
-                  <legend>Source types <span class="hint">(any of)</span></legend>
+                  <legend>{$t('views.sourceTypes')} <span class="hint">{$t('views.anyOf')}</span></legend>
                   <div class="checks">
-                    {#each Object.entries(KIND_LABELS) as [kind, text] (kind)}
-                      <label class="check"><input type="checkbox" checked={e.criteria.source_kinds.includes(kind as PresetSourceKind)} onchange={() => (e.criteria.source_kinds = toggleInList(e.criteria.source_kinds, kind as PresetSourceKind))} /> {text}</label>
+                    {#each Object.entries(KIND_KEYS) as [kind, key] (kind)}
+                      <label class="check"><input type="checkbox" checked={e.criteria.source_kinds.includes(kind as PresetSourceKind)} onchange={() => (e.criteria.source_kinds = toggleInList(e.criteria.source_kinds, kind as PresetSourceKind))} /> {$t(key)}</label>
                     {/each}
                   </div>
-                  <span class="hint">{VIDEO_HINT}.</span>
+                  <span class="hint">{$t('views.videoHint')}</span>
                 </fieldset>
                 <fieldset>
-                  <legend>Feeds <span class="hint">(any of; none = all)</span></legend>
+                  <legend>{$t('views.feeds')} <span class="hint">{$t('views.anyOfAll')}</span></legend>
                   <div class="checks scroll">
                     {#each feeds as f (f.id)}
                       <label class="check"><input type="checkbox" checked={e.criteria.feed_ids.includes(f.id)} onchange={() => (e.criteria.feed_ids = toggleInList(e.criteria.feed_ids, f.id))} /> {f.title || f.url}</label>
                     {:else}
-                      <span class="hint">No feeds.</span>
+                      <span class="hint">{$t('views.noFeeds')}</span>
                     {/each}
                     {#each e.criteria.feed_ids.filter((id) => feeds.length && !known.has(id)) as id (id)}
-                      <label class="check"><input type="checkbox" checked onchange={() => (e.criteria.feed_ids = toggleInList(e.criteria.feed_ids, id))} /> Feed #{id} (unavailable)</label>
+                      <label class="check"><input type="checkbox" checked onchange={() => (e.criteria.feed_ids = toggleInList(e.criteria.feed_ids, id))} /> {$t('views.feedUnavailable', { id })}</label>
                     {/each}
                   </div>
                 </fieldset>
                 <fieldset>
-                  <legend>Categories <span class="hint">(any of; none = all)</span></legend>
+                  <legend>{$t('views.categories')} <span class="hint">{$t('views.anyOfAll')}</span></legend>
                   <div class="checks">
                     {#each [...new Set([...categoryNames, ...e.criteria.category_ids])].sort() as c (c)}
                       <label class="check"><input type="checkbox" checked={e.criteria.category_ids.includes(c)} onchange={() => (e.criteria.category_ids = toggleInList(e.criteria.category_ids, c))} /> {c}</label>
                     {:else}
-                      <span class="hint">No categories yet.</span>
+                      <span class="hint">{$t('views.noCategories')}</span>
                     {/each}
                   </div>
                 </fieldset>
               {:else}
-                <p class="hint">Built-in views have a fixed filter; you can change their name, icon, display and sorting.</p>
+                <p class="hint">{$t('views.builtinHint')}</p>
               {/if}
             </div>
           {/if}
@@ -324,16 +328,16 @@
     </ul>
 
     <div class="footer">
-      <button type="button" onclick={add}>Add custom view</button>
-      <label class="check inline"><input type="checkbox" bind:checked={compact} /> Compact bar (icons only)</label>
+      <button type="button" onclick={add}>{$t('views.addCustom')}</button>
+      <label class="check inline"><input type="checkbox" bind:checked={compact} /> {$t('views.compactBar')}</label>
     </div>
 
     <div class="footer">
-      <button type="button" class="primary" disabled={busy || !dirty} onclick={save}>Save views</button>
-      {#if dirty}<button type="button" disabled={busy} onclick={() => { error = status = ''; void api.presets.get().then(apply); }}>Discard changes</button>{/if}
+      <button type="button" class="primary" disabled={busy || !dirty} onclick={save}>{$t('views.saveViews')}</button>
+      {#if dirty}<button type="button" disabled={busy} onclick={() => { error = status = ''; void api.presets.get().then(apply); }}>{$t('views.discard')}</button>{/if}
       <span class="spacer"></span>
-      <button type="button" disabled={busy} onclick={() => reset('builtin')}>Reset built-ins to defaults</button>
-      <button type="button" class="danger" disabled={busy} onclick={() => reset('all')}>Reset everything</button>
+      <button type="button" disabled={busy} onclick={() => reset('builtin')}>{$t('views.resetBuiltins')}</button>
+      <button type="button" class="danger" disabled={busy} onclick={() => reset('all')}>{$t('views.resetAll')}</button>
     </div>
     <div role="status" aria-live="polite">
       {#if error}<p class="err">{error}</p>{/if}

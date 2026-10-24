@@ -5,6 +5,8 @@ export interface User {
   username: string;
   is_admin: boolean;
   summary_language: string;
+  // web UI language; '' = follow the browser
+  ui_language: '' | 'en' | 'fr' | 'de' | 'es' | 'it' | 'pt' | 'ja' | 'ko' | 'zh-Hans' | 'zh-Hant';
   // '' = follow the server default (published, oldest first)
   story_sort: '' | 'updated' | 'published' | 'sources';
   story_order: '' | 'asc' | 'desc';

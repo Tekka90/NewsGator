@@ -1,0 +1,12 @@
+{
+  "pageTitle": "チャット · NewsGator",
+  "heading": "アーカイブに質問",
+  "clear": "消去",
+  "emptyPrompt": "読み込んだストーリー全体について何でも質問できます。",
+  "emptyHint": "例：「EU AI法の最新情報は？」・「今週のSpaceXに関するニュースは？」",
+  "cited": "引用",
+  "thinking": "考え中…",
+  "placeholder": "質問する…",
+  "send": "送信",
+  "failed": "チャットに失敗しました"
+}

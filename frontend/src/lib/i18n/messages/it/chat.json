@@ -1,0 +1,12 @@
+{
+  "pageTitle": "Chat · NewsGator",
+  "heading": "Chiedi al tuo archivio",
+  "clear": "Cancella",
+  "emptyPrompt": "Chiedi qualsiasi cosa sulle storie che hai caricato.",
+  "emptyHint": "es. «Ultime novità sull’AI Act dell’UE?» · «Notizie su SpaceX questa settimana?»",
+  "cited": "citata",
+  "thinking": "Sto pensando…",
+  "placeholder": "Fai una domanda…",
+  "send": "Invia",
+  "failed": "Chat non riuscita"
+}

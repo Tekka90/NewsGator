@@ -1,0 +1,68 @@
+{
+  "title": "探索訂閱源",
+  "close_dialog": "關閉對話框",
+  "close": "關閉",
+  "subtitle": "為你所在國家或地區的某個類別或主題，尋找高品質的 RSS 和 Atom 訂閱源。",
+  "country": "國家或地區",
+  "themes": "主題與類別",
+  "themes_hint": "（選擇一項，或使用下方的「其他」）",
+  "other": "其他",
+  "other_hint": "（自由文字 — 將取代類別）",
+  "other_placeholder": "例如：「法國自行車新聞」「AI 研究部落格」「獨立遊戲開發」…",
+  "ai_toggle": "向 AI 徵詢建議（需要在伺服器上設定 LLM）",
+  "cancel": "取消",
+  "researching": "正在尋找訂閱源…",
+  "research": "尋找訂閱源",
+  "stage_formulating": "正在產生搜尋查詢…",
+  "stage_verifying": "正在驗證第 {current} 個，共 {total} 個：{target}…",
+  "stage_complete": "完成！",
+  "no_additional": "找不到符合這些條件的更多訂閱源。",
+  "found_additional": {
+    "other": "找到 {count} 個其他訂閱源。"
+  },
+  "no_feeds": "找不到符合這些條件的有效訂閱源。請嘗試其他類別、文字或國家或地區。",
+  "research_failed": "尋找訂閱源失敗",
+  "added": {
+    "other": "已加入 {count} 個訂閱源"
+  },
+  "added_with_failed": {
+    "other": "已加入 {count} 個訂閱源（{failed} 個失敗）"
+  },
+  "found_candidates": {
+    "other": "找到 {count} 個候選訂閱源"
+  },
+  "selected_of": "已選取 {selected} 個，共 {total} 個",
+  "select_all": "全選",
+  "deselect_all": "取消全選",
+  "paywall": "付費牆",
+  "paywall_title": "偵測到訂閱或付費牆",
+  "free_full": "免費（全文）",
+  "free_full_title": "完全免費，提供全文文章",
+  "free_excerpt": "免費（摘錄）",
+  "free_excerpt_title": "可免費存取，RSS 僅提供摘要摘錄",
+  "scope_local": "本地",
+  "scope_regional": "區域",
+  "scope_national": "全國",
+  "hide_articles": "隱藏最新文章",
+  "preview_articles": "預覽最新文章（{count}）",
+  "search_again": "再次搜尋",
+  "searching": "正在搜尋…",
+  "propose_more": "提出更多",
+  "subscribing": "正在訂閱…",
+  "subscribe": {
+    "other": "訂閱 {count} 個訂閱源"
+  },
+  "category_general_news": "綜合新聞",
+  "category_world": "國際",
+  "category_politics": "政治",
+  "category_finance": "金融",
+  "category_technology": "科技",
+  "category_science": "科學",
+  "category_health": "健康",
+  "category_environment": "環境",
+  "category_sports": "體育",
+  "category_culture": "文化",
+  "category_gaming": "遊戲",
+  "category_food": "美食",
+  "category_travel": "旅遊"
+}

@@ -23,14 +23,15 @@ links back to each original article.
 
 **Language policy:** all summaries are written in a **user-configured summary language**
 (`SUMMARY_LANGUAGE`, e.g. `en`, `fr`, `de`) — one language for everything, chosen by the
-user, not hardcoded to English. The GUI itself (labels, buttons, navigation) is
-**English-only for v1**. Article embeddings are computed from the summary-language text so
+user, not hardcoded to English. The web GUI itself (labels, buttons, navigation) is
+localized in 10 languages (en fr de es it pt ja ko zh-Hans zh-Hant), chosen per user
+(`ui_language`, default: the browser language). Article embeddings are computed from the summary-language text so
 clustering stays consistent regardless of source language.
 
 **Multi-user from day one:** accounts with per-user read state and per-user settings.
 Small user count (family/friends scale) — no org/team concepts.
 
-Non-goals (v1): non-RSS sources (kept pluggable), mobile app, localized GUI, notifications.
+Non-goals (v1): non-RSS sources (kept pluggable), mobile app, notifications.
 
 ---
 
@@ -388,7 +389,7 @@ v1 is **data-first, no online learning**:
 |---|---|
 | `POST /auth/login`, `POST /auth/logout` | session auth; login/setup also return the signed token in the body — clients that cannot persist cookies (iOS standalone PWAs) send it as `Authorization: Bearer <token>` (or `?token=` for SSE) |
 | `POST /auth/session-token` | issue a fresh portable token for the authenticated user — for flows that can't use cookies/headers (RSS readers on `/feed.xml`); works even when the client lost its localStorage token mid-session (valid cookie suffices) |
-| `GET/PATCH /me` | profile + per-user preferences: summary language, story-list filter (`story_filter`, default `unread`) and ordering (`story_sort`/`story_order`) — shared across the user's devices; the payload also carries `last_preset_id` and `PATCH` accepts it (`""` clears, unknown id → `422 invalid_last_preset_id`); `story_*` stay for older clients |
+| `GET/PATCH /me` | profile + per-user preferences: summary language, web interface language (`ui_language`: `""` = follow the browser, else one of `en fr de es it pt ja ko zh-Hans zh-Hant`, `422` otherwise; interface chrome only — content stays in `summary_language`), story-list filter (`story_filter`, default `unread`) and ordering (`story_sort`/`story_order`) — shared across the user's devices; the payload also carries `last_preset_id` and `PATCH` accepts it (`""` clears, unknown id → `422 invalid_last_preset_id`); `story_*` stay for older clients |
 | `GET /users`, `POST /users`, `PATCH /users/{id}`, `DELETE /users/{id}` | user management (admin): list, create (username/password/admin flag), reset password or toggle admin, delete. First-run `/auth/setup` only creates the initial admin; additional users come from here. Guards: the last admin can be neither demoted nor deleted, and a user cannot delete themselves; deleting a user bulk-removes their `STORY_STATE` and `LISTEN_POSITION` rows |
 | `GET /stories?preset=<id>&feed_ids=&filter=all\|unread\|updated&category=&feed=&sort=updated\|published\|sources\|saved_at&order=asc\|desc&since=<ISO datetime>` | story list scoped to the requesting user's subscribed feeds with **per-user** flags; `feed` keeps only stories with at least one source article from that feed; sort by article publication date (default), last update, or source count, ascending (default: oldest first) or descending; undated stories sort by last update; `since` keeps only stories with source articles published (else fetched) at or after that instant, and with `sort=sources` ranks by that recent source count; optional `limit`/`offset` slice the result after filtering and sorting (omitted = full list) and per-story hosts/translations are only computed for the returned slice; `preset=<id>` applies a stored preset's criteria + sort + order (explicit `sort`/`order` replace the preset's; `feed`, repeatable `feed_ids`, `category`, `filter`, `saved`, `since` are ANDed on top; unknown or disabled preset → `404 {"detail": "Preset not found"}`); `sort=saved_at` orders by the user's save time (never-saved stories sort as the smallest value); `include_read=true` drops the read-status criterion (`unread` → `all`, other criteria still apply) so the deck can page back through already-read stories; `before=<story_id>`/`after=<story_id>` with `limit` return the stories immediately before/after that story in the final ordering (cursor paging, stable while stories get read; empty if the story is not in the list; 422 without `limit` or with both) |
 | `GET /stories/widget-snapshot?since=<ISO datetime>&limit=12` | one lightweight call for the Apple widgets: `unread_count` plus `lists` (`latest`, `latest_unread`, `oldest`, `oldest_unread`, `most_sources`, `most_sources_unread`), each up to `limit` story items; `most_sources*` rank by sources published since `since` |
@@ -485,7 +486,7 @@ and `user.presets_compact` (global icon-only bar). Reference implementation:
   overridable, persisted server-side), default-sorted by article publication date
   (oldest first — per-user overridable, persisted server-side) with read stories
   dimmed or in a separate tab. All story content is in the configured `SUMMARY_LANGUAGE`;
-  GUI chrome (labels, buttons) is English-only in v1. The title and filter bar
+  GUI chrome (labels, buttons) is localized in 10 languages via `ui_language` (see §6 `/me`). The title and filter bar
   are sticky: story cards scroll behind them, and marking a story read in the
   desktop list smooth-scrolls down so the dimmed card slides out behind the
   header and the next story takes its place. On narrow screens the main
@@ -820,7 +821,7 @@ Everything above is normative; this section is just a quick-reference recap.
 - **LLM**: external OpenAI-compatible server (`LLM_BASE_URL`) — the tool never serves
   models itself. Suggested models for an M1 Max 64 GB baseline in §8.
 - **Language**: all summaries/embeddings in one configurable `SUMMARY_LANGUAGE`
-  (default English at first setup, per-user override); GUI chrome English-only.
+  (default English at first setup, per-user override); GUI chrome localized per user (`ui_language`).
 - **Clustering**: summarize-then-embed in `SUMMARY_LANGUAGE`; two-threshold cosine
   matching with gray-zone LLM confirmation; stories freeze after a configurable window
   (default 72h) and late matches spawn cross-linked new stories.

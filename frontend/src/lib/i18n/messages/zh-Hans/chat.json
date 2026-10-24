@@ -1,0 +1,12 @@
+{
+  "pageTitle": "聊天 · NewsGator",
+  "heading": "询问你的档案库",
+  "clear": "清除",
+  "emptyPrompt": "可以针对已加载的报道提出任何问题。",
+  "emptyHint": "例如：“欧盟 AI 法案有什么最新进展？”·“本周有关于 SpaceX 的新闻吗？”",
+  "cited": "已引用",
+  "thinking": "在思考……",
+  "placeholder": "提出一个问题……",
+  "send": "发送",
+  "failed": "聊天失败"
+}

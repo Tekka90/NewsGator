@@ -14,6 +14,15 @@
    *
    *  Always available — unlike Readeck there is nothing to configure. */
   import { api } from '$lib/api';
+  import { t, fmt, tNow } from '$lib/i18n';
+
+  function langLabel(code: string, name: string, f: { languageName: (c: string) => string }) {
+    try {
+      return f.languageName(code) || name;
+    } catch {
+      return name;
+    }
+  }
 
   let {
     storyId,
@@ -48,7 +57,7 @@
     menuOpen = !menuOpen;
     if (menuOpen && !langs) {
       langs = await api.stories.shareLanguages().catch(() => null);
-      if (!langs) error = 'Could not load languages';
+      if (!langs) error = tNow('share.loadLanguagesFailed');
     }
   }
 
@@ -73,7 +82,7 @@
     try {
       card = await api.stories.share(storyId, language);
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Share failed';
+      error = err instanceof Error ? err.message : tNow('share.failed');
     } finally {
       busy = false;
     }
@@ -94,7 +103,7 @@
     } catch (err) {
       // user dismissed the native share sheet — not an error
       if (err instanceof DOMException && err.name === 'AbortError') return;
-      error = err instanceof Error ? err.message : 'Share failed';
+      error = err instanceof Error ? err.message : tNow('share.failed');
     }
   }
 
@@ -126,12 +135,12 @@
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(full);
       } else if (!legacyCopy(full)) {
-        throw new Error('Clipboard is unavailable on this browser');
+        throw new Error(tNow('share.clipboardUnavailable'));
       }
       copied = true;
       setTimeout(() => (copied = false), 2000);
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Copy failed';
+      error = err instanceof Error ? err.message : tNow('share.copyFailed');
     }
   }
 </script>
@@ -141,8 +150,8 @@
     class="iconbtn {buttonClass}"
     onclick={toggle}
     disabled={busy}
-    aria-label="Share story"
-    title="Share story"
+    aria-label={$t('share.shareStory')}
+    title={$t('share.shareStory')}
   >
     {#if busy}
       …
@@ -161,15 +170,15 @@
         <path d="M12 3v13" /><path d="m7 8 5-5 5 5" />
         <path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" />
       </svg>
-      {#if !iconOnly}Share{/if}
+      {#if !iconOnly}{$t('share.share')}{/if}
     {/if}
   </button>
   {#if menuOpen}
-    <button class="backdrop" aria-label="Close share menu" onclick={onBackdrop} tabindex="-1"></button>
+    <button class="backdrop" aria-label={$t('share.closeMenu')} onclick={onBackdrop} tabindex="-1"></button>
     <div class="menu" role="menu">
-      <button role="menuitem" onclick={(e) => pick(null, e)}>As is</button>
+      <button role="menuitem" onclick={(e) => pick(null, e)}>{$t('share.asIs')}</button>
       {#each (langs?.languages ?? []).filter((l) => l.code !== langs?.summary_language) as l (l.code)}
-        <button role="menuitem" onclick={(e) => pick(l.code, e)}>{l.name}</button>
+        <button role="menuitem" onclick={(e) => pick(l.code, e)}>{langLabel(l.code, l.name, $fmt)}</button>
       {/each}
     </div>
   {/if}
@@ -177,9 +186,9 @@
 </span>
 
 {#if card}
-  <button class="sheetbg" aria-label="Close share preview" onclick={onBackdrop} tabindex="-1"></button>
+  <button class="sheetbg" aria-label={$t('share.closePreview')} onclick={onBackdrop} tabindex="-1"></button>
   <div class="sheetwrap">
-    <div class="sheet" role="dialog" aria-label="Share preview">
+    <div class="sheet" role="dialog" aria-label={$t('share.preview')}>
       <div class="sheethead">
         <strong>{card.title}</strong>
         {#if card.translated}<span class="langbadge">{card.language}</span>{/if}
@@ -188,10 +197,10 @@
       {#if error}<p class="shareerr">{error}</p>{/if}
       <div class="sheetactions">
         {#if canNativeShare}
-          <button class="primary" onclick={shareNative}>Share…</button>
+          <button class="primary" onclick={shareNative}>{$t('share.shareEllipsis')}</button>
         {/if}
-        <button onclick={copyCard}>{copied ? '✓ Copied' : 'Copy'}</button>
-        <button class="linkbtn" onclick={onBackdrop}>Close</button>
+        <button onclick={copyCard}>{copied ? $t('share.copied') : $t('share.copy')}</button>
+        <button class="linkbtn" onclick={onBackdrop}>{$t('share.close')}</button>
       </div>
     </div>
   </div>

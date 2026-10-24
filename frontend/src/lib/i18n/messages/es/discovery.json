@@ -1,0 +1,73 @@
+{
+  "title": "Descubrir feeds",
+  "close_dialog": "Cerrar diálogo",
+  "close": "Cerrar",
+  "subtitle": "Encuentra feeds RSS y Atom de calidad para una categoría o tema, en tu país.",
+  "country": "País",
+  "themes": "Temas y categorías",
+  "themes_hint": "(elige uno o usa Otro más abajo)",
+  "other": "Otro",
+  "other_hint": "(texto libre: sustituye a las categorías)",
+  "other_placeholder": "p. ej. «noticias de ciclismo en Francia», «blogs de investigación en IA», «desarrollo de juegos indie»…",
+  "ai_toggle": "Pedir sugerencias a la IA (requiere un LLM configurado en el servidor)",
+  "cancel": "Cancelar",
+  "researching": "Buscando feeds…",
+  "research": "Buscar feeds",
+  "stage_formulating": "Formulando consultas de búsqueda…",
+  "stage_verifying": "Verificando {current} de {total}: {target}…",
+  "stage_complete": "¡Listo!",
+  "no_additional": "No se encontraron más feeds para estos criterios.",
+  "found_additional": {
+    "one": "Se encontró {count} feed adicional.",
+    "other": "Se encontraron {count} feeds adicionales."
+  },
+  "no_feeds": "No se encontraron feeds activos para estos criterios. Prueba con otra categoría, texto o país.",
+  "research_failed": "Error en la búsqueda de feeds",
+  "added": {
+    "one": "{count} feed añadido",
+    "other": "{count} feeds añadidos"
+  },
+  "added_with_failed": {
+    "one": "{count} feed añadido ({failed} con error)",
+    "other": "{count} feeds añadidos ({failed} con error)"
+  },
+  "found_candidates": {
+    "one": "{count} feed candidato encontrado",
+    "other": "{count} feeds candidatos encontrados"
+  },
+  "selected_of": "{selected} de {total} seleccionados",
+  "select_all": "Seleccionar todo",
+  "deselect_all": "Deseleccionar todo",
+  "paywall": "Muro de pago",
+  "paywall_title": "Se detectó una suscripción o muro de pago",
+  "free_full": "Gratis (completo)",
+  "free_full_title": "100 % gratis con artículos de texto completo",
+  "free_excerpt": "Gratis (extractos)",
+  "free_excerpt_title": "Acceso gratuito; el RSS ofrece extractos resumidos",
+  "scope_local": "Local",
+  "scope_regional": "Regional",
+  "scope_national": "Nacional",
+  "hide_articles": "Ocultar últimos artículos",
+  "preview_articles": "Vista previa de los últimos artículos ({count})",
+  "search_again": "Buscar de nuevo",
+  "searching": "Buscando…",
+  "propose_more": "Proponer más",
+  "subscribing": "Suscribiendo…",
+  "subscribe": {
+    "one": "Suscribirse a {count} feed",
+    "other": "Suscribirse a {count} feeds"
+  },
+  "category_general_news": "Noticias generales",
+  "category_world": "Mundo",
+  "category_politics": "Política",
+  "category_finance": "Finanzas",
+  "category_technology": "Tecnología",
+  "category_science": "Ciencia",
+  "category_health": "Salud",
+  "category_environment": "Medio ambiente",
+  "category_sports": "Deportes",
+  "category_culture": "Cultura",
+  "category_gaming": "Videojuegos",
+  "category_food": "Gastronomía",
+  "category_travel": "Viajes"
+}

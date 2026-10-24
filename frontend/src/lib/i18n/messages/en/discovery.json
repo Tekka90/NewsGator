@@ -1,0 +1,73 @@
+{
+  "title": "Discover Feeds",
+  "close_dialog": "Close dialog",
+  "close": "Close",
+  "subtitle": "Find high-quality RSS and Atom feeds for a category or topic, for your country.",
+  "country": "Country",
+  "themes": "Themes & Categories",
+  "themes_hint": "(pick one, or use Other below)",
+  "other": "Other",
+  "other_hint": "(free text — replaces the categories)",
+  "other_placeholder": "e.g. 'cycling news in France', 'AI research blogs', 'indie game dev'...",
+  "ai_toggle": "Ask the AI for suggestions (needs an LLM configured on the server)",
+  "cancel": "Cancel",
+  "researching": "Researching feeds…",
+  "research": "Research Feeds",
+  "stage_formulating": "Formulating search queries…",
+  "stage_verifying": "Verifying {current} of {total}: {target}…",
+  "stage_complete": "Complete!",
+  "no_additional": "No additional feeds found for these criteria.",
+  "found_additional": {
+    "one": "Found {count} additional feed.",
+    "other": "Found {count} additional feeds."
+  },
+  "no_feeds": "No active feeds discovered for these criteria. Try another category, text or country.",
+  "research_failed": "Discovery research failed",
+  "added": {
+    "one": "Added {count} feed",
+    "other": "Added {count} feeds"
+  },
+  "added_with_failed": {
+    "one": "Added {count} feed ({failed} failed)",
+    "other": "Added {count} feeds ({failed} failed)"
+  },
+  "found_candidates": {
+    "one": "Found {count} Candidate Feed",
+    "other": "Found {count} Candidate Feeds"
+  },
+  "selected_of": "Selected {selected} of {total}",
+  "select_all": "Select all",
+  "deselect_all": "Deselect all",
+  "paywall": "Paywall",
+  "paywall_title": "Subscription or paid paywall detected",
+  "free_full": "Free (Full)",
+  "free_full_title": "100% Free with full-text articles",
+  "free_excerpt": "Free (Excerpts)",
+  "free_excerpt_title": "Free to access, RSS delivers summary excerpts",
+  "scope_local": "Local",
+  "scope_regional": "Regional",
+  "scope_national": "National",
+  "hide_articles": "Hide latest articles",
+  "preview_articles": "Preview latest articles ({count})",
+  "search_again": "Search Again",
+  "searching": "Searching…",
+  "propose_more": "Propose More",
+  "subscribing": "Subscribing…",
+  "subscribe": {
+    "one": "Subscribe to {count} Feed",
+    "other": "Subscribe to {count} Feeds"
+  },
+  "category_general_news": "General News",
+  "category_world": "World",
+  "category_politics": "Politics",
+  "category_finance": "Finance",
+  "category_technology": "Technology",
+  "category_science": "Science",
+  "category_health": "Health",
+  "category_environment": "Environment",
+  "category_sports": "Sports",
+  "category_culture": "Culture",
+  "category_gaming": "Gaming",
+  "category_food": "Food",
+  "category_travel": "Travel"
+}

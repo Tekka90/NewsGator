@@ -268,23 +268,6 @@ async def _article_stats(
     return stats
 
 
-async def _recent_source_counts(
-    session: AsyncSession, story_ids: list[int], since: datetime
-) -> dict[int, int]:
-    """story_id → number of source articles published (else fetched) at or after ``since``."""
-    counts: dict[int, int] = {}
-    moment = func.coalesce(Article.published_at, Article.fetched_at)
-    for chunk in _chunked(story_ids):
-        rows = await session.execute(
-            select(Article.story_id, func.count(Article.id))
-            .where(Article.story_id.in_(chunk), moment >= since)
-            .group_by(Article.story_id)
-        )
-        for story_id, count in rows.all():
-            counts[story_id] = count
-    return counts
-
-
 async def _article_urls(
     session: AsyncSession, story_ids: list[int]
 ) -> list[tuple[int | None, str]]:
@@ -301,20 +284,6 @@ async def _user_feed_ids(session: AsyncSession, user: User) -> set[int]:
     return set(
         (await session.scalars(select(UserFeed.feed_id).where(UserFeed.user_id == user.id))).all()
     )
-
-
-async def _story_ids_of_feeds(session: AsyncSession, feed_ids: set[int]) -> set[int]:
-    return {
-        story_id
-        for story_id in (
-            await session.scalars(
-                select(Article.story_id).where(
-                    Article.feed_id.in_(feed_ids), Article.story_id.is_not(None)
-                )
-            )
-        ).all()
-        if story_id is not None
-    }
 
 
 async def _story_items(
@@ -378,34 +347,6 @@ async def _story_items(
     return out
 
 
-def _order_stories(
-    selected: list[Story],
-    stats: dict[int, tuple[int, datetime | None]],
-    recent_counts: dict[int, int],
-    since: datetime | None,
-    sort: str,
-    reverse: bool,
-) -> list[Story]:
-    """Order stories by publication date, last update or source count."""
-    ordered = list(selected)
-    if sort == "published":
-        # article publication date; undated stories use last_updated_at, as the GUI displays
-        def published_of(story: Story) -> datetime:
-            first = stats.get(story.id, (0, None))[1]
-            return first if first is not None else story.last_updated_at
-
-        ordered.sort(key=published_of, reverse=reverse)
-    elif sort == "sources":
-        ordered.sort(
-            key=lambda s: (
-                recent_counts.get(s.id, 0) if since is not None else stats.get(s.id, (0, None))[0],
-                s.last_updated_at,
-            ),
-            reverse=reverse,
-        )
-    return ordered
-
-
 def _is_read_sql() -> ColumnElement[bool]:
     return func.coalesce(StoryState.is_read, false())
 
@@ -436,7 +377,7 @@ def _filtered_stories(
     since: datetime | None,
     extra: Sequence[ColumnElement[bool]] = (),
 ) -> Select[tuple[Story]]:
-    """Visible stories of the user, filtered, ordered like ``_order_stories``, in SQL.
+    """Visible stories of the user, filtered and ordered (published, sources, ...), in SQL.
 
     ``extra`` are additional AND conditions (preset criteria, feed sets); ``sort="saved_at"``
     orders by the user's save time (never-saved stories count as the smallest value)."""
@@ -1187,9 +1128,7 @@ async def save_to_readeck(
 
     if not readeck.is_enabled():
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Readeck integration is not configured")
-    story = await session.get(Story, story_id)
-    if story is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Story not found")
+    story = await _require_visible_story(session, user, story_id)
     articles = list(
         (
             await session.scalars(
@@ -1258,9 +1197,7 @@ async def share_story(
     Emits activity events per invariant 6."""
     from app.services import llm_client, share
 
-    story = await session.get(Story, story_id)
-    if story is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Story not found")
+    story = await _require_visible_story(session, user, story_id)
     articles = list(
         (
             await session.scalars(
@@ -1424,9 +1361,7 @@ async def mark_read(
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ) -> None:
-    story = await session.get(Story, story_id)
-    if story is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Story not found")
+    story = await _require_visible_story(session, user, story_id)
     state = await session.get(StoryState, (user.id, story_id))
     if state is None:
         state = StoryState(user_id=user.id, story_id=story_id)
@@ -1467,6 +1402,7 @@ async def story_diff(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, object]:
     """What changed since a given version (SPEC §5/§6)."""
+    await _require_visible_story(session, user, story_id)
     revisions = (
         await session.scalars(
             select(StoryRevision)
@@ -1477,8 +1413,6 @@ async def story_diff(
             .order_by(StoryRevision.version)
         )
     ).all()
-    if not revisions and await session.get(Story, story_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Story not found")
     return {
         "from_version": from_version,
         "changes": [
@@ -1557,9 +1491,7 @@ async def similar_stories(
 ) -> list[SimilarStoryOut]:
     """Merge candidates for the story picker, ranked by proximity
     (centroid-vs-centroid cosine). Read-only probe — no activity event."""
-    story = await session.get(Story, story_id)
-    if story is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Story not found")
+    await _require_visible_story(session, user, story_id)
     centroid = await get_vector_store(session).get_story_centroid(story_id)
     if centroid is None:
         return await _recent_candidates(session, {story_id})
@@ -1734,10 +1666,8 @@ async def merge_story(
     session: AsyncSession = Depends(get_session),
 ) -> None:
     """Merge source story into this one; corrections logged as labeled pairs."""
-    target = await session.get(Story, story_id)
-    source = await session.get(Story, body.source_story_id)
-    if target is None or source is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Story not found")
+    target = await _require_visible_story(session, user, story_id)
+    source = await _require_visible_story(session, user, body.source_story_id)
     if target.id == source.id:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cannot merge a story into itself")
 
@@ -1778,9 +1708,16 @@ async def move_article(
 ) -> None:
     """Move an article to a different story (manual clustering correction)."""
     article = await session.get(Article, article_id)
-    target = await session.get(Story, body.story_id)
-    if article is None or target is None:
+    if article is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
+    if article.story_id is not None:
+        await _require_visible_story(session, user, article.story_id)
+    target = await session.get(Story, body.story_id)
+    if target is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
+    # An empty story has no feed owner yet; any other target must be visible to the caller.
+    if await session.scalar(select(Article.id).where(Article.story_id == target.id).limit(1)):
+        await _require_visible_story(session, user, target.id)
     if article.story_id is not None and article.story_id != target.id:
         # correction: "this article does NOT belong to its old story"
         session.add(

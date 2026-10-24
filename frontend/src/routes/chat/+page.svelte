@@ -7,6 +7,7 @@
   import { onMount, tick } from 'svelte';
   import { api, faviconUrl } from '$lib/api';
   import type { ChatStory } from '$lib/types';
+  import { t, tNow } from '$lib/i18n';
 
   type Turn =
     | { role: 'user'; text: string }
@@ -79,7 +80,7 @@
         }
       ];
     } catch (e) {
-      turns = [...turns, { role: 'error', text: e instanceof Error ? e.message : 'Chat failed' }];
+      turns = [...turns, { role: 'error', text: e instanceof Error ? e.message : tNow('chat.failed') }];
     } finally {
       busy = false;
       scrollToBottom();
@@ -99,21 +100,21 @@
   }
 </script>
 
-<svelte:head><title>Chat · NewsGator</title></svelte:head>
+<svelte:head><title>{$t('chat.pageTitle')}</title></svelte:head>
 
 <div class="chatwrap">
   <header class="chathead">
-    <h1>Ask your archive</h1>
+    <h1>{$t('chat.heading')}</h1>
     {#if turns.length}
-      <button class="clearbtn" onclick={clear} disabled={busy}>Clear</button>
+      <button class="clearbtn" onclick={clear} disabled={busy}>{$t('chat.clear')}</button>
     {/if}
   </header>
 
   <div class="turns" bind:this={listEl}>
     {#if turns.length === 0}
       <div class="empty">
-        <p>Ask anything across the stories you've loaded.</p>
-        <p class="hint">e.g. “What's the latest on the EU AI Act?” · “Any news about SpaceX this week?”</p>
+        <p>{$t('chat.emptyPrompt')}</p>
+        <p class="hint">{$t('chat.emptyHint')}</p>
       </div>
     {/if}
     {#each turns as turn}
@@ -132,7 +133,7 @@
                     <img class="favicon" src={faviconUrl(s.source_hosts[0])} alt="" loading="lazy" />
                   {/if}
                   <span class="cite-title">{s.title}</span>
-                  {#if s.cited}<span class="citedchip">cited</span>{/if}
+                  {#if s.cited}<span class="citedchip">{$t('chat.cited')}</span>{/if}
                 </a>
               {/each}
             </div>
@@ -141,7 +142,7 @@
       {/if}
     {/each}
     {#if busy}
-      <div class="bubble assistant thinking">Thinking…</div>
+      <div class="bubble assistant thinking">{$t('chat.thinking')}</div>
     {/if}
   </div>
 
@@ -151,12 +152,12 @@
       bind:value={question}
       onkeydown={onKeydown}
       oninput={autogrow}
-      placeholder="Ask a question…"
+      placeholder={$t('chat.placeholder')}
       rows="1"
       enterkeyhint="send"
       disabled={busy}
     ></textarea>
-    <button type="submit" disabled={busy || !question.trim()}>Send</button>
+    <button type="submit" disabled={busy || !question.trim()}>{$t('chat.send')}</button>
   </form>
 </div>
 

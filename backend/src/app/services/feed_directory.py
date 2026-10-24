@@ -92,7 +92,7 @@ def parse_feeds(data: Any, key: str) -> list[dict[str, Any]]:
                 "title": str(item.get("title") or "").strip(),
                 "website": item.get("website") if isinstance(item.get("website"), str) else None,
                 "description": str(item.get("description") or "").strip(),
-                "subscribers": int(item.get("subscribers") or 0),
+                "subscribers": _as_int(item.get("subscribers")),
                 "language": item.get("language") if isinstance(item.get("language"), str) else None,
                 "icon_url": item.get("iconUrl") or item.get("visualUrl"),
             }
@@ -154,3 +154,12 @@ async def search_feeds(query: str, language: str | None, count: int) -> list[dic
 def clear_cache() -> None:
     """Forget cached answers (tests)."""
     _cache.clear()
+
+
+def _as_int(value: object) -> int:
+    try:
+        if isinstance(value, float):
+            return int(value)
+        return int(str(value or 0))
+    except (TypeError, ValueError):
+        return 0

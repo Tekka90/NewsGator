@@ -1,0 +1,68 @@
+{
+  "title": "发现订阅源",
+  "close_dialog": "关闭对话框",
+  "close": "关闭",
+  "subtitle": "为你所在国家/地区的某个类别或主题查找高质量的 RSS 和 Atom 订阅源。",
+  "country": "国家/地区",
+  "themes": "主题和类别",
+  "themes_hint": "（选择一项，或使用下方的“其他”）",
+  "other": "其他",
+  "other_hint": "（自由文本 — 将替代类别）",
+  "other_placeholder": "例如：“法国自行车新闻”“AI 研究博客”“独立游戏开发”…",
+  "ai_toggle": "向 AI 征求建议（需要在服务器上配置 LLM）",
+  "cancel": "取消",
+  "researching": "正在查找订阅源…",
+  "research": "查找订阅源",
+  "stage_formulating": "正在生成搜索查询…",
+  "stage_verifying": "正在验证第 {current} 个，共 {total} 个：{target}…",
+  "stage_complete": "完成！",
+  "no_additional": "未找到符合这些条件的更多订阅源。",
+  "found_additional": {
+    "other": "找到 {count} 个其他订阅源。"
+  },
+  "no_feeds": "未找到符合这些条件的活跃订阅源。请尝试其他类别、文本或国家/地区。",
+  "research_failed": "查找订阅源失败",
+  "added": {
+    "other": "已添加 {count} 个订阅源"
+  },
+  "added_with_failed": {
+    "other": "已添加 {count} 个订阅源（{failed} 个失败）"
+  },
+  "found_candidates": {
+    "other": "找到 {count} 个候选订阅源"
+  },
+  "selected_of": "已选择 {selected} 个，共 {total} 个",
+  "select_all": "全选",
+  "deselect_all": "取消全选",
+  "paywall": "付费墙",
+  "paywall_title": "检测到订阅或付费墙",
+  "free_full": "免费（全文）",
+  "free_full_title": "完全免费，提供全文文章",
+  "free_excerpt": "免费（摘录）",
+  "free_excerpt_title": "可免费访问，RSS 仅提供摘要摘录",
+  "scope_local": "本地",
+  "scope_regional": "区域",
+  "scope_national": "全国",
+  "hide_articles": "隐藏最新文章",
+  "preview_articles": "预览最新文章（{count}）",
+  "search_again": "再次搜索",
+  "searching": "正在搜索…",
+  "propose_more": "提出更多",
+  "subscribing": "正在订阅…",
+  "subscribe": {
+    "other": "订阅 {count} 个订阅源"
+  },
+  "category_general_news": "综合新闻",
+  "category_world": "国际",
+  "category_politics": "政治",
+  "category_finance": "金融",
+  "category_technology": "科技",
+  "category_science": "科学",
+  "category_health": "健康",
+  "category_environment": "环境",
+  "category_sports": "体育",
+  "category_culture": "文化",
+  "category_gaming": "游戏",
+  "category_food": "美食",
+  "category_travel": "旅行"
+}

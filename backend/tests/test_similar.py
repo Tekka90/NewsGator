@@ -9,10 +9,11 @@ unscored recency order when no query vector exists.
 import numpy as np
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 from tests.conftest import setup_admin
 
 from app.api import stories as stories_api
-from app.models import Article, Feed, Story
+from app.models import Article, Feed, Story, User, UserFeed
 from app.services.vectorstore import InMemoryVectorStore
 
 
@@ -44,6 +45,17 @@ async def _mk_story(s, title: str) -> Story:
     return story
 
 
+async def _make_visible(s, story: Story, guid: str) -> None:
+    """Give a story an article in a feed every existing user subscribes to."""
+    feed = Feed(url=f"https://{guid}.example.com/rss", title=guid)
+    s.add(feed)
+    await s.flush()
+    s.add(Article(feed_id=feed.id, guid=guid, url=f"https://{guid}.example.com/1",
+                  story_id=story.id, processing_state="clustered"))
+    for user_id in (await s.scalars(select(User.id))).all():
+        s.add(UserFeed(user_id=user_id, feed_id=feed.id))
+
+
 async def test_similar_requires_auth(client: AsyncClient) -> None:
     assert (await client.get("/api/stories/1/similar")).status_code == 401
     assert (await client.get("/api/stories/articles/1/similar-stories")).status_code == 401
@@ -63,6 +75,7 @@ async def test_similar_stories_ranked_by_cosine(
         target = await _mk_story(s, "Target")
         close = await _mk_story(s, "Close match")
         far = await _mk_story(s, "Far match")
+        await _make_visible(s, target, "tgt")
         await s.commit()
         ids = (target.id, close.id, far.id)
     await store.upsert_story_centroid(ids[0], _vec(0))
@@ -87,6 +100,7 @@ async def test_similar_fallback_when_no_centroid(
     async with db_session() as s:
         target = await _mk_story(s, "No centroid")
         other = await _mk_story(s, "Other")
+        await _make_visible(s, target, "tgt")
         await s.commit()
         target_id, other_id = target.id, other.id
     # `other` gets a centroid, target doesn't → fallback path for the query

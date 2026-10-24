@@ -40,8 +40,8 @@ the full normative spec — **read it before non-trivial changes**.
    mirrored in the Apple app and web modal) and the web modal's region/language list are
    API identifiers, not heuristics. Free text is never mapped; it is passed through as-is.
 1. **Language**: all summaries are written in the configured `SUMMARY_LANGUAGE`
-   (default English, per-user override). Never hardcode English. GUI chrome is
-   English-only for now.
+   (default English, per-user override). Never hardcode English. The web GUI chrome is
+   localized separately (per-user `ui_language`, see "GUI strings and localization").
 2. **Embeddings consistency**: embeddings are computed from `SUMMARY_LANGUAGE` text
    with the configured `EMBED_MODEL`. All embeddings must be produced the same way.
    Changing language or embedding model requires the full reprocessing job.
@@ -92,8 +92,15 @@ the full normative spec — **read it before non-trivial changes**.
 
 ## GUI strings and localization
 
-The **web GUI is English-only by design** (SPEC non-goal: localized GUI) — keep new web strings short,
-plain and in one place so they are easy to localize later. But every GUI feature that also appears in
+The **web GUI is localized in 10 languages** (`en fr de es it pt ja ko zh-Hans zh-Hant`). Never hardcode
+user-visible text in Svelte: add a key to `frontend/src/lib/i18n/messages/en/<area>.json` (area = page or
+component; id `<area>.<key>`) and the **same key to all 9 other locale folders**, then use `{$t('area.key')}`
+(`{name}` placeholders; plurals are `{one, other}` objects selected by `count`). Dates/numbers go through
+`$fmt` so they follow the interface language. Run `npm run i18n:check` in `frontend/` (it must print
+`translations OK`). Runtime: `src/lib/i18n/index.ts` (reactive; English fallback). Language choice:
+per-user `user.ui_language` (`""` = browser language), saved via `PATCH /auth/me`, picked in Settings; it is
+separate from `summary_language` (content). Server-provided data (story text, category/preset names, backend
+error details) is never translated by the GUI layer. Every GUI feature that also appears in
 the native apps is **localized there in all 10 languages** (`de es fr it ja ko pt zh-Hans zh-Hant`) in the Shared
 **and** NewsGatorMac/NewsGatorIOS `Localizable.xcstrings`; see the "Localization" checklist in
 `Newsgator-Apple/.github/copilot-instructions.md` and run `Newsgator-Apple/scripts/check-localizations.py`.

@@ -8,6 +8,7 @@
   import { formatDuration, providerLabel } from '$lib/video';
   import StoryPicker from '$lib/components/StoryPicker.svelte';
   import type { SimilarStory, StoryDetail } from '$lib/types';
+  import { t, fmt, tNow } from '$lib/i18n';
 
   let story = $state<StoryDetail | null>(null);
   let mergeSel = $state<SimilarStory | null>(null);
@@ -59,7 +60,7 @@
       mergeSel = null;
       await load();
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Merge failed';
+      error = e instanceof Error ? e.message : tNow('story.mergeFailed');
     }
   }
 
@@ -72,7 +73,7 @@
       moveSels[articleId] = null;
       await load();
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Move failed';
+      error = e instanceof Error ? e.message : tNow('story.moveFailed');
     }
   }
 
@@ -83,23 +84,20 @@
       const r = await api.stories.reprocessArticle(articleId);
       reprocessMsg[articleId] =
         r.content_status === 'full'
-          ? `✓ full text fetched (${r.chars} chars)${r.requeued ? ' — re-summarizing' : ''}`
-          : `still partial: ${r.content_warning ?? 'unknown reason'}`;
+          ? tNow(r.requeued ? 'story.fullFetchedResummarizing' : 'story.fullFetched', { chars: r.chars })
+          : tNow('story.stillPartial', {
+              reason: r.content_warning ?? tNow('story.unknownReason')
+            });
       await load();
     } catch (e) {
-      reprocessMsg[articleId] = e instanceof Error ? e.message : 'Reprocess failed';
+      reprocessMsg[articleId] = e instanceof Error ? e.message : tNow('story.reprocessFailed');
     } finally {
       reprocessing = null;
     }
   }
 
   /** Compact timestamp — no seconds; wraps better on narrow screens. */
-  function fmt(iso: string) {
-    return new Date(iso).toLocaleString(undefined, {
-      dateStyle: 'medium',
-      timeStyle: 'short'
-    });
-  }
+  const dtOpts: Intl.DateTimeFormatOptions = { dateStyle: 'medium', timeStyle: 'short' };
 
   /** Source logo via our own cached favicon proxy (never a third-party service). */
   function favicon(url: string): string {
@@ -119,10 +117,10 @@
     readeckMsg = '';
     try {
       const r = await api.stories.saveToReadeck(id);
-      readeckMsg = `✓ saved to Readeck (${r.latency_ms} ms)`;
+      readeckMsg = tNow('story.readeckSaved', { ms: r.latency_ms });
       if (story) story.readeck_bookmark_id = r.bookmark_id; // grey the button
     } catch (e) {
-      readeckMsg = e instanceof Error ? e.message : 'Save failed';
+      readeckMsg = e instanceof Error ? e.message : tNow('story.saveFailed');
     } finally {
       savingReadeck = false;
     }
@@ -131,17 +129,17 @@
 
 {#if story}
   <div class="row">
-    <a href="/">← back</a>
+    <a href="/">{$t('story.back')}</a>
     <span class="spacer"></span>
     <button
       class="savebtn"
       class:active={story.saved}
       onclick={toggleSaved}
-      aria-label={story.saved ? 'Remove saved story' : 'Save story'}
-      title={story.saved ? 'Saved story — click to remove' : 'Save story'}
+      aria-label={story.saved ? $t('story.removeSaved') : $t('story.saveStory')}
+      title={story.saved ? $t('story.savedClickRemove') : $t('story.saveStory')}
     >
       <span class="star" aria-hidden="true">★</span>
-      {story.saved ? 'Saved' : 'Save'}
+      {story.saved ? $t('story.saved') : $t('story.save')}
     </button>
     {#if readeckEnabled}
       {@const saved = Boolean(story.readeck_bookmark_id)}
@@ -150,23 +148,23 @@
         class:saved
         onclick={saveReadeck}
         disabled={savingReadeck}
-        aria-label="Save to Readeck"
-        title={saved ? 'Already saved to Readeck — save again' : 'Save to Readeck'}
+        aria-label={$t('story.saveToReadeck')}
+        title={saved ? $t('story.readeckAlready') : $t('story.saveToReadeck')}
       >
-        {#if savingReadeck}Saving…{:else}<ReadeckIcon size={15} /> Save to Readeck{/if}
+        {#if savingReadeck}{$t('story.saving')}{:else}<ReadeckIcon size={15} /> {$t('story.saveToReadeck')}{/if}
       </button>
     {/if}
     <ShareButton storyId={id} />
-    <button onclick={toggleRead}>{story.is_read ? 'Mark unread' : 'Mark read'}</button>
+    <button onclick={toggleRead}>{story.is_read ? $t('story.markUnread') : $t('story.markRead')}</button>
   </div>
   {#if readeckMsg}<p class="ok">{readeckMsg}</p>{/if}
 
   <div class="card">
     <div class="row">
       <span class="chip">{story.category}</span>
-      {#if story.updated_since_read}<span class="badge updated">UPDATED since you read it</span>{/if}
+      {#if story.updated_since_read}<span class="badge updated">{$t('story.updatedSinceRead')}</span>{/if}
       {#if story.media_kind === 'video'}<span class="badge video">▶ {providerLabel(story.video_provider)}{#if story.video_duration} · {formatDuration(story.video_duration)}{/if}</span>{/if}
-      {#if story.is_frozen}<span class="badge frozen">archived</span>{/if}
+      {#if story.is_frozen}<span class="badge frozen">{$t('story.archived')}</span>{/if}
     </div>
     <h1>{story.title}</h1>
     {#if story.media_kind === 'video'}
@@ -176,23 +174,23 @@
     {/if}
     {#if story.summary}
       <details class="summary-details">
-        <summary>Summary</summary>
+        <summary>{$t('story.summary')}</summary>
         <p class="summary">{story.summary}</p>
       </details>
     {/if}
     <div class="meta">
-      <span>first seen {fmt(story.first_seen_at)}</span>
-      <span>updated {fmt(story.last_updated_at)}</span>
-      <span>version {story.version}</span>
+      <span>{$t('story.firstSeen', { date: $fmt.dateTime(story.first_seen_at, dtOpts) })}</span>
+      <span>{$t('story.updatedAt', { date: $fmt.dateTime(story.last_updated_at, dtOpts) })}</span>
+      <span>{$t('story.version', { version: story.version })}</span>
     </div>
   </div>
 
   {#if story.revisions.length > 1}
     <details class="card">
-      <summary>What changed ({story.revisions.length} versions)</summary>
+      <summary>{$t('story.whatChanged', { count: story.revisions.length })}</summary>
       {#each [...story.revisions].reverse() as rev (rev.version)}
         <div class="revision">
-          <strong>v{rev.version}</strong> <span class="age">{fmt(rev.created_at)}</span>
+          <strong>v{rev.version}</strong> <span class="age">{$fmt.dateTime(rev.created_at, dtOpts)}</span>
           <p>{rev.summary}</p>
         </div>
       {/each}
@@ -200,18 +198,18 @@
   {/if}
 
   <div class="card">
-    <h2>Sources ({story.articles.length})</h2>
+    <h2>{$t('story.sources', { count: story.articles.length })}</h2>
     {#each story.articles as article (article.id)}
       <div class="source">
         <div class="row">
           <img class="favicon" src={favicon(article.url)} alt="" loading="lazy" onerror={hideFav} />
-          <span class="srcname" title={article.origin_feed_title && article.feed_title ? `via ${article.feed_title}` : ''}>
-            {article.origin_feed_title || article.feed_title || 'Unknown source'}
+          <span class="srcname" title={article.origin_feed_title && article.feed_title ? `${$t('story.via', { feed: article.feed_title })}` : ''}>
+            {article.origin_feed_title || article.feed_title || $t('story.unknownSource')}
           </span>
-          {#if article.published_at}<span class="age">{fmt(article.published_at)}</span>{/if}
+          {#if article.published_at}<span class="age">{$fmt.dateTime(article.published_at, dtOpts)}</span>{/if}
           <span class="lang">{article.language || '?'}</span>
           {#if article.content_status === 'partial'}
-            <span class="badge partial" title={article.content_warning ?? ''}>partial</span>
+            <span class="badge partial" title={article.content_warning ?? ''}>{$t('story.partial')}</span>
           {/if}
         </div>
         <a class="link" href={article.url} target="_blank" rel="noopener noreferrer">{article.title}</a>
@@ -219,18 +217,18 @@
         {#if article.content_warning}<p class="warn small">⚠ {article.content_warning}</p>{/if}
         <div class="row small">
           <button onclick={() => reprocessArticle(article.id)} disabled={reprocessing === article.id}>
-            {reprocessing === article.id ? 'Reprocessing…' : 'Reprocess'}
+            {reprocessing === article.id ? $t('story.reprocessing') : $t('story.reprocess')}
           </button>
           {#if reprocessMsg[article.id]}<span class="small">{reprocessMsg[article.id]}</span>{/if}
           <span class="spacer"></span>
-          <span>move to:</span>
+          <span>{$t('story.moveTo')}</span>
           <StoryPicker
             load={() => api.stories.similarForArticle(article.id)}
-            placeholder="Filter stories…"
+            placeholder={$t('story.filterStories')}
             bind:selected={moveSels[article.id]}
           />
           <button onclick={() => moveArticle(article.id)} disabled={!moveSels[article.id]}>
-            Move
+            {$t('story.move')}
           </button>
         </div>
       </div>
@@ -238,19 +236,19 @@
   </div>
 
   <div class="card">
-    <h2>Merge another story into this one</h2>
+    <h2>{$t('story.mergeTitle')}</h2>
     {#if error}<p class="warn">{error}</p>{/if}
     <div class="row">
       <StoryPicker
         load={() => api.stories.similar(id)}
-        placeholder="Filter stories…"
+        placeholder={$t('story.filterStories')}
         bind:selected={mergeSel}
       />
-      <button onclick={merge} disabled={!mergeSel}>Merge</button>
+      <button onclick={merge} disabled={!mergeSel}>{$t('story.merge')}</button>
     </div>
   </div>
 {:else}
-  <div class="card"><p>Loading…</p></div>
+  <div class="card"><p>{$t('story.loading')}</p></div>
 {/if}
 
 <style>

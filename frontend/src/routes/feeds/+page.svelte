@@ -3,6 +3,7 @@
   import { api, faviconUrl, feedHost } from '$lib/api';
   import type { Feed } from '$lib/types';
   import FeedDiscoveryModal from '$lib/components/FeedDiscoveryModal.svelte';
+  import { t, fmt, tNow } from '$lib/i18n';
 
   let feeds = $state<Feed[]>([]);
   let url = $state('');
@@ -26,6 +27,13 @@
     feeds = await api.feeds.list();
   }
 
+  function importSummary(added: number, skipped: number, invalid: number): string {
+    const parts = [tNow('feeds.imported', { count: added })];
+    if (skipped) parts.push(tNow('feeds.import_skipped', { count: skipped }));
+    if (invalid) parts.push(tNow('feeds.import_invalid', { count: invalid }));
+    return parts.join(tNow('feeds.list_separator'));
+  }
+
   async function importOpml(e: Event) {
     const input = e.target as HTMLInputElement;
     const file = input.files?.[0];
@@ -34,12 +42,10 @@
     importResult = '';
     try {
       const r = await api.feeds.importOpml(file);
-      importResult = `Imported ${r.added} feed${r.added === 1 ? '' : 's'}` +
-        (r.skipped_existing ? `, ${r.skipped_existing} already existed` : '') +
-        (r.invalid ? `, ${r.invalid} invalid entries` : '');
+      importResult = importSummary(r.added, r.skipped_existing, r.invalid);
       await load();
     } catch (err) {
-      importResult = err instanceof Error ? err.message : 'Import failed';
+      importResult = err instanceof Error ? err.message : tNow('feeds.import_failed');
     } finally {
       importing = false;
       input.value = '';
@@ -54,12 +60,10 @@
     subsResult = '';
     try {
       const r = await api.feeds.importSubscriptions(file);
-      subsResult = `Imported ${r.added} feed${r.added === 1 ? '' : 's'}` +
-        (r.skipped ? `, ${r.skipped} already existed` : '') +
-        (r.invalid ? `, ${r.invalid} invalid entries` : '');
+      subsResult = importSummary(r.added, r.skipped, r.invalid);
       await load();
     } catch (err) {
-      subsResult = err instanceof Error ? err.message : 'Import failed';
+      subsResult = err instanceof Error ? err.message : tNow('feeds.import_failed');
     } finally {
       importingSubs = false;
       input.value = '';
@@ -77,7 +81,7 @@
       link.click();
       URL.revokeObjectURL(link.href);
     } catch (err) {
-      exportError = err instanceof Error ? err.message : 'Export failed';
+      exportError = err instanceof Error ? err.message : tNow('feeds.export_failed');
     } finally {
       exporting = false;
     }
@@ -96,7 +100,7 @@
       backfill = '';
       await load();
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to add feed';
+      error = err instanceof Error ? err.message : tNow('feeds.add_failed');
     } finally {
       adding = false;
     }
@@ -128,18 +132,18 @@
   }
 
   async function remove(feed: Feed) {
-    if (!confirm(`Delete ${feed.title || feed.url}?`)) return;
+    if (!confirm(tNow('feeds.delete_confirm', { name: feed.title || feed.url }))) return;
     error = '';
     try {
       await api.feeds.remove(feed.id);
       await load();
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to delete feed';
+      error = err instanceof Error ? err.message : tNow('feeds.delete_failed');
     }
   }
 
-  function fmt(d: string | null) {
-    return d ? new Date(d).toLocaleString() : 'never';
+  function lastFetched(d: string | null) {
+    return d ? $fmt.dateTime(d) : tNow('feeds.never');
   }
 
   /** Broken/missing favicon → drop the img instead of a broken-image glyph. */
@@ -148,26 +152,26 @@
   }
 </script>
 
-<h1>Feeds</h1>
+<h1>{$t('feeds.title')}</h1>
 
 {#if error}<p class="error">{error}</p>{/if}
 
 <form class="card add" onsubmit={add}>
-  <input placeholder="Feed URL, YouTube channel URL, video URL or @handle" bind:value={url} required type="text" />
+  <input placeholder={$t('feeds.url_placeholder')} bind:value={url} required type="text" />
   <label class="backfill">
-    Initial import
+    {$t('feeds.initial_import')}
     <select bind:value={backfill}>
-      <option value="">server default</option>
-      <option value="0">everything</option>
-      <option value="1">last 24 hours</option>
-      <option value="7">last 7 days</option>
-      <option value="30">last 30 days</option>
-      <option value="365">last year</option>
+      <option value="">{$t('feeds.backfill_default')}</option>
+      <option value="0">{$t('feeds.backfill_all')}</option>
+      <option value="1">{$t('feeds.backfill_24h')}</option>
+      <option value="7">{$t('feeds.backfill_7d')}</option>
+      <option value="30">{$t('feeds.backfill_30d')}</option>
+      <option value="365">{$t('feeds.backfill_year')}</option>
     </select>
   </label>
-  <button type="submit" disabled={adding}>{adding ? 'Adding…' : 'Add feed'}</button>
+  <button type="submit" disabled={adding}>{adding ? $t('feeds.adding') : $t('feeds.add')}</button>
   <button type="button" class="btn-discover" onclick={() => (discoverOpen = true)}>
-    ✨ Discover feeds
+    ✨ {$t('feeds.discover')}
   </button>
   {#if error}<span class="error">{error}</span>{/if}
 </form>
@@ -176,21 +180,21 @@
 
 <div class="card import">
   <label class="import-label">
-    📥 Import OPML (subscription list export from another reader)
+    📥 {$t('feeds.import_opml')}
     <input type="file" accept=".opml,.xml" onchange={importOpml} disabled={importing} />
   </label>
   {#if importResult}<p class="small">{importResult}</p>{/if}
   <label class="import-label" style="margin-top: 0.6rem">
-    ▶ Import YouTube subscriptions (Google Takeout subscriptions.csv or OPML)
+    ▶ {$t('feeds.import_youtube')}
     <input type="file" accept=".csv,.opml,.xml" onchange={importSubs} disabled={importingSubs} />
   </label>
   {#if subsResult}<p class="small">{subsResult}</p>{/if}
   <div class="row" style="margin-top: 0.6rem">
     <button onclick={refreshAll} disabled={refreshing}>
-      {refreshing ? 'Refreshing…' : '↻ Refresh all feeds now'}
+      {refreshing ? $t('feeds.refreshing') : `↻ ${$t('feeds.refresh_all')}`}
     </button>
     <button onclick={exportOpml} disabled={exporting}>
-      {exporting ? 'Exporting…' : '📤 Export OPML'}
+      {exporting ? $t('feeds.exporting') : `📤 ${$t('feeds.export_opml')}`}
     </button>
   </div>
   {#if exportError}<p class="small error">{exportError}</p>{/if}
@@ -205,66 +209,68 @@
       {/if}
       <strong>{feed.title || feed.url}</strong>
       {#if feed.kind === 'mail'}
-        <span class="badge mail">✉ newsletter</span>
+        <span class="badge mail">✉ {$t('feeds.badge_newsletter')}</span>
       {:else if feed.url.includes('youtube.com/feeds/videos.xml')}
         <span class="badge video">▶ YouTube</span>
       {:else if feed.kind === 'reader_api'}
-        <span class="badge reader">📡 reader api</span>
+        <span class="badge reader">📡 {$t('feeds.badge_reader')}</span>
       {/if}
       <span class="badge" class:off={!feed.is_enabled}>
-        {feed.is_enabled ? 'enabled' : 'disabled'}
+        {feed.is_enabled ? $t('feeds.enabled') : $t('feeds.disabled')}
       </span>
       {#if feed.story_count > 0}
         <a
           class="badge counts"
           href="/?feed={feed.id}"
-          title="Stories with a source from this feed — click to view"
+          title={$t('feeds.counts_title')}
         >
-          {feed.story_count}
-          {feed.story_count === 1 ? 'story' : 'stories'}{#if feed.unread_story_count > 0}
-            · {feed.unread_story_count} unread{/if}
+          {$t('feeds.story_count', { count: feed.story_count })}{#if feed.unread_story_count > 0}
+            · {$t('feeds.unread_count', { count: feed.unread_story_count })}{/if}
         </a>
       {:else}
-        <span class="badge counts none">no stories</span>
+        <span class="badge counts none">{$t('feeds.no_stories')}</span>
       {/if}
       {#if feed.consecutive_failures > 0}
-        <span class="badge warn">{feed.consecutive_failures} failures</span>
+        <span class="badge warn">{$t('feeds.failures', { count: feed.consecutive_failures })}</span>
       {/if}
       <span class="spacer"></span>
       {#if feed.kind === 'rss'}
         <button onclick={() => refresh(feed)} disabled={!feed.is_enabled || refreshingId === feed.id}>
-          {refreshingId === feed.id ? '…' : '↻ Refresh'}
+          {refreshingId === feed.id ? '…' : `↻ ${$t('feeds.refresh')}`}
         </button>
       {/if}
-      <button onclick={() => toggle(feed)}>{feed.is_enabled ? 'Disable' : 'Enable'}</button>
-      <button class="danger" onclick={() => remove(feed)}>Delete</button>
+      <button onclick={() => toggle(feed)}>{feed.is_enabled ? $t('feeds.disable') : $t('feeds.enable')}</button>
+      <button class="danger" onclick={() => remove(feed)}>{$t('feeds.delete')}</button>
     </div>
     <div class="meta">
       {#if feed.kind === 'mail'}
-        <span>from: {feed.sender_email}</span>
-        <span>{feed.email_count} email{feed.email_count === 1 ? '' : 's'} ingested</span>
-        <span>populated by the mailbox poll (Settings → Newsletter inboxes)</span>
+        <span>{$t('feeds.from', { email: feed.sender_email ?? '' })}</span>
+        <span>{$t('feeds.emails_ingested', { count: feed.email_count })}</span>
+        <span>{$t('feeds.mail_populated')}</span>
       {:else if feed.kind === 'reader_api'}
-        <span>virtual feed for connected RSS reader account</span>
-        <span>last fetched: {fmt(feed.last_fetched_at)}</span>
-        <span>managed under Settings → RSS Reader Accounts</span>
+        <span>{$t('feeds.reader_virtual')}</span>
+        <span>{$t('feeds.last_fetched', { date: lastFetched(feed.last_fetched_at) })}</span>
+        <span>{$t('feeds.reader_managed')}</span>
       {:else}
         <span>{feed.url}</span>
-        <span>polls every {feed.poll_interval_min} min</span>
+        <span>{$t('feeds.polls_every', { minutes: feed.poll_interval_min })}</span>
         <span>
-          initial import: {feed.backfill_days === null
-            ? 'server default'
-            : feed.backfill_days === 0
-              ? 'everything'
-              : `last ${feed.backfill_days}d`}
+          {$t('feeds.initial_import_value', {
+            value:
+              feed.backfill_days === null
+                ? $t('feeds.value_server_default')
+                : feed.backfill_days === 0
+                  ? $t('feeds.value_everything')
+                  : $t('feeds.value_last_days', { days: feed.backfill_days })
+          })}
         </span>
-        <span>last fetched: {fmt(feed.last_fetched_at)}</span>
+        <span>{$t('feeds.last_fetched', { date: lastFetched(feed.last_fetched_at) })}</span>
       {/if}
     </div>
-    {#if feed.last_error}<p class="error small">Last error: {feed.last_error}</p>{/if}
+    {#if feed.last_error}<p class="error small">{$t('feeds.last_error', { error: feed.last_error })}</p>{/if}
   </div>
 {:else}
-  <div class="card"><p>No feeds yet — add your first one above.</p></div>
+  <div class="card"><p>{$t('feeds.empty')}</p></div>
 {/each}
 
 <style>

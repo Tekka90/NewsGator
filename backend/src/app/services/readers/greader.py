@@ -166,8 +166,11 @@ class GReaderClient:
             "GET", token_url, headers=self._auth_headers()
         )
         if status_code in (401, 403):
-            # Attempt re-authentication once
+            # Attempt re-authentication once; drop the rejected token so
+            # authenticate() performs a real login instead of re-probing it
+            # (which would call back into get_token and recurse forever).
             if self.username and self.password:
+                self.auth_token = None
                 await self.authenticate()
                 status_code, content, _ = await _http_request(
                     "GET", token_url, headers=self._auth_headers()

@@ -1,0 +1,12 @@
+{
+  "pageTitle": "채팅 · NewsGator",
+  "heading": "보관함에 질문",
+  "clear": "지우기",
+  "emptyPrompt": "불러온 스토리 전체에 대해 무엇이든 질문하세요.",
+  "emptyHint": "예: “EU AI법의 최신 소식은?” · “이번 주 SpaceX 관련 뉴스가 있나요?”",
+  "cited": "인용됨",
+  "thinking": "생각 중…",
+  "placeholder": "질문하기…",
+  "send": "보내기",
+  "failed": "채팅 실패"
+}

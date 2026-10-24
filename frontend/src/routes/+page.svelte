@@ -8,6 +8,7 @@
   import ReadeckIcon from '$lib/components/ReadeckIcon.svelte';
   import ShareButton from '$lib/components/ShareButton.svelte';
   import PresetBar from '$lib/components/PresetBar.svelte';
+  import { t } from '$lib/i18n';
   import {
     adjustSavedCounts,
     defaultPresets,
@@ -90,31 +91,31 @@
     const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
     if (h >= 22 || h < 5)
       return pick([
-        { emoji: '🌙', title: 'All caught up', body: "It's late — the world will keep spinning without you. Go to sleep." },
-        { emoji: '😴', title: 'All caught up', body: 'Nothing left to read. Your pillow is calling.' },
+        { emoji: '🌙', title: 'stories.doneTitle', body: 'stories.done_night1' },
+        { emoji: '😴', title: 'stories.doneTitle', body: 'stories.done_night2' },
       ]);
     if (h < 9)
       return pick([
-        { emoji: '☀️', title: 'All caught up', body: 'Fresh news, fresh day. Grab a coffee — the world can wait.' },
-        { emoji: '☕', title: 'All caught up', body: 'Inbox zero, news zero. Go seize the morning.' },
+        { emoji: '☀️', title: 'stories.doneTitle', body: 'stories.done_early1' },
+        { emoji: '☕', title: 'stories.doneTitle', body: 'stories.done_early2' },
       ]);
     if (h < 12)
       return pick([
-        { emoji: '🌤', title: 'All caught up', body: "You're up to speed. Go make something great today." },
-        { emoji: '💪', title: 'All caught up', body: 'News done. Now go do that thing you were avoiding.' },
+        { emoji: '🌤', title: 'stories.doneTitle', body: 'stories.done_morning1' },
+        { emoji: '💪', title: 'stories.doneTitle', body: 'stories.done_morning2' },
       ]);
     if (h < 14)
       return pick([
-        { emoji: '🍽', title: 'All caught up', body: 'News digested. Time for an actual lunch.' },
+        { emoji: '🍽', title: 'stories.doneTitle', body: 'stories.done_noon1' },
       ]);
     if (h < 18)
       return pick([
-        { emoji: '🌤', title: 'All caught up', body: 'Nothing left to read. The afternoon is yours.' },
-        { emoji: '🚶', title: 'All caught up', body: "You're done. Go outside — the sun is still up." },
+        { emoji: '🌤', title: 'stories.doneTitle', body: 'stories.done_afternoon1' },
+        { emoji: '🚶', title: 'stories.doneTitle', body: 'stories.done_afternoon2' },
       ]);
     return pick([
-      { emoji: '🌆', title: 'All caught up', body: "That's the news. Go enjoy your evening." },
-      { emoji: '😎', title: 'All caught up', body: "You're done reading. Go back to your life — it's a good one." },
+      { emoji: '🌆', title: 'stories.doneTitle', body: 'stories.done_evening1' },
+      { emoji: '😎', title: 'stories.doneTitle', body: 'stories.done_evening2' },
     ]);
   }
 
@@ -346,12 +347,12 @@
     }
   }
 
-  function ago(iso: string): string {
+  function ago(iso: string, tr: (key: string, params?: Record<string, string | number>) => string): string {
     const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-    if (mins < 60) return `${mins}m ago`;
+    if (mins < 60) return tr('stories.agoMinutes', { n: mins });
     const h = Math.floor(mins / 60);
-    if (h < 24) return `${h}h ago`;
-    return `${Math.floor(h / 24)}d ago`;
+    if (h < 24) return tr('stories.agoHours', { n: h });
+    return tr('stories.agoDays', { n: Math.floor(h / 24) });
   }
 
   // Track hero-image load per story so a swiping change never shows the
@@ -528,15 +529,15 @@
 
 <div class="pagehead" bind:this={pagehead}>
   <h1>
-    Stories
+    {$t('stories.title')}
     {#if !loading && stories.length > 0}
       <!-- stays visible while scrolling (pagehead is sticky) — on mobile this
            doubles as the deck position, which used to scroll away with deckmeta -->
-      <span class="count" title="Stories matching the current filter">
+      <span class="count" title={$t('stories.countTitle')}>
         {#if !isMobile}
           {stories.length}
         {:else if index < anchorIndex}
-          ↩ {anchorIndex - index} read
+          {$t('stories.readCount', { n: anchorIndex - index })}
         {:else}
           {Math.min(index - anchorIndex + 1, stories.length - anchorIndex)} / {stories.length - anchorIndex}
         {/if}
@@ -547,7 +548,7 @@
   {#if isMobile && (pullDist > 0 || refreshing)}
     <div class="pullhint" style:height="{refreshing ? 36 : pullDist}px">
       <span class:spinning={refreshing}>↓</span>
-      <span class="pulltext">{refreshing ? 'Refreshing…' : pullDist >= 60 ? 'Release to refresh' : 'Pull to refresh'}</span>
+      <span class="pulltext">{refreshing ? $t('stories.refreshing') : pullDist >= 60 ? $t('stories.releaseToRefresh') : $t('stories.pullToRefresh')}</span>
     </div>
   {/if}
 
@@ -560,35 +561,35 @@
         class="filterbtn"
         onclick={() => (filterSheetOpen = true)}
         aria-haspopup="dialog"
-        title="Feed, category and sort filters"
+        title={$t('stories.filtersTitle')}
       >
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M22 3H2l8 9.46V19l4 2v-8.54z" />
         </svg>
-        Filters
+        {$t('stories.filters')}
         {#if advFilters}<span class="fbadge">{advFilters}</span>{/if}
       </button>
     {:else}
       <div class="tools">
         {#if feedOptions.length}
-          <select bind:value={feedId} onchange={load} title="Only stories with a source from this feed">
-            <option value={0}>All feeds</option>
+          <select bind:value={feedId} onchange={load} title={$t('stories.feedFilterTitle')}>
+            <option value={0}>{$t('stories.allFeeds')}</option>
             {#each feedOptions as f (f.id)}<option value={f.id}>{f.kind === 'mail' ? '✉ ' : ''}{f.title || f.url}</option>{/each}
           </select>
         {/if}
         {#if categories.length}
           <select bind:value={category} onchange={load}>
-            <option value="">All categories</option>
+            <option value="">{$t('stories.allCategories')}</option>
             {#each categories as c (c.id)}<option value={c.name}>{c.name}</option>{/each}
           </select>
         {/if}
-        <select value={sort} onchange={(e) => setSort(e.currentTarget.value as PresetSort)} aria-label="Sort by">
-          {#each Object.entries(SORT_LABELS) as [value, text] (value)}<option {value}>{text}</option>{/each}
+        <select value={sort} onchange={(e) => setSort(e.currentTarget.value as PresetSort)} aria-label={$t('stories.sortBy')}>
+          {#each Object.keys(SORT_LABELS) as value (value)}<option {value}>{$t('stories.sort_' + value)}</option>{/each}
         </select>
         <button
           class="dir"
-          title={order === 'desc' ? 'Newest / most first — click to reverse' : 'Oldest / least first — click to reverse'}
+          title={order === 'desc' ? $t('stories.orderDescTitle') : $t('stories.orderAscTitle')}
           onclick={toggleOrder}
         >
           {order === 'desc' ? '↓' : '↑'}
@@ -602,52 +603,51 @@
   <!-- iOS-style bottom sheet for the advanced filters (touch devices only).
        Backdrop + z-index pattern follows ShareButton.svelte; changes apply
        immediately, the sheet stays open until Done/backdrop. -->
-  <button class="sheetbg" aria-label="Close filters" onclick={() => (filterSheetOpen = false)} tabindex="-1"></button>
-  <div class="filtersheet" role="dialog" aria-label="Story filters">
+  <button class="sheetbg" aria-label={$t('stories.closeFilters')} onclick={() => (filterSheetOpen = false)} tabindex="-1"></button>
+  <div class="filtersheet" role="dialog" aria-label={$t('stories.storyFilters')}>
     {#if feedOptions.length}
       <label>
-        Feed
+        {$t('stories.feed')}
         <select bind:value={feedId} onchange={load}>
-          <option value={0}>All feeds</option>
+          <option value={0}>{$t('stories.allFeeds')}</option>
           {#each feedOptions as f (f.id)}<option value={f.id}>{f.kind === 'mail' ? '✉ ' : ''}{f.title || f.url}</option>{/each}
         </select>
       </label>
     {/if}
     {#if categories.length}
       <label>
-        Category
+        {$t('stories.category')}
         <select bind:value={category} onchange={load}>
-          <option value="">All categories</option>
+          <option value="">{$t('stories.allCategories')}</option>
           {#each categories as c (c.id)}<option value={c.name}>{c.name}</option>{/each}
         </select>
       </label>
     {/if}
     <label>
-      Sort by
+      {$t('stories.sortBy')}
       <select value={sort} onchange={(e) => setSort(e.currentTarget.value as PresetSort)}>
-        {#each Object.entries(SORT_LABELS) as [value, text] (value)}<option {value}>{text}</option>{/each}
+        {#each Object.keys(SORT_LABELS) as value (value)}<option {value}>{$t('stories.sort_' + value)}</option>{/each}
       </select>
     </label>
     <button
       class="orderbtn"
       onclick={toggleOrder}
     >
-      {order === 'desc' ? '↓ Newest / most first' : '↑ Oldest / least first'}
+      {order === 'desc' ? $t('stories.orderDesc') : $t('stories.orderAsc')}
     </button>
-    <button class="done" onclick={() => (filterSheetOpen = false)}>Done</button>
+    <button class="done" onclick={() => (filterSheetOpen = false)}>{$t('stories.done')}</button>
   </div>
 {/if}
 
 {#if loading}
-  <div class="card"><p>Loading…</p></div>
+  <div class="card"><p>{$t('stories.loading')}</p></div>
 {:else if stories.length === 0}
   <div class="card">
     <p>
       {#if savedOnly}
-        No saved stories yet.
+        {$t('stories.emptySaved')}
       {:else}
-        No stories yet. Add feeds on the <a href="/feeds">Feeds page</a> — articles are
-        clustered into stories automatically once the pipeline runs.
+        {$t('stories.emptyBefore')} <a href="/feeds">{$t('stories.emptyLink')}</a> {$t('stories.emptyAfter')}
       {/if}
     </p>
   </div>
@@ -655,21 +655,21 @@
   <!-- Mobile: story deck. Swipe ← marks read and opens the next story; → goes back.
        Swipe ↓ toggles saved; past the last story, a final "all caught up" card closes the deck. -->
   <div class="deckmeta">
-    <button class="navbtn" onclick={() => commit('right')} disabled={index === 0}>‹ Prev</button>
+    <button class="navbtn" onclick={() => commit('right')} disabled={index === 0}>{$t('stories.prev')}</button>
     {#if index < anchorIndex}
-      <button class="navbtn" onclick={backToUnread}>↩ Back to unread</button>
+      <button class="navbtn" onclick={backToUnread}>{$t('stories.backToUnread')}</button>
     {:else if atEnd}
-      <span>✓ done</span>
-      <span class="hint">swipe → back to stories</span>
+      <span>{$t('stories.doneLabel')}</span>
+      <span class="hint">{$t('stories.swipeBack')}</span>
     {:else}
-      <span class="hint">swipe ← read &amp; next · ↓ save</span>
+      <span class="hint">{$t('stories.swipeHint')}</span>
     {/if}
-    <button class="navbtn" onclick={() => commit('left')} disabled={atEnd}>Next ›</button>
+    <button class="navbtn" onclick={() => commit('left')} disabled={atEnd}>{$t('stories.next')}</button>
   </div>
   <div
     class="deckviewport"
     role="region"
-    aria-label="Story deck — swipe left to mark read and open the next story, swipe down to save"
+    aria-label={$t('stories.deckLabel')}
     onpointerdown={onPointerDown}
     onpointermove={onPointerMove}
     onpointerup={onPointerUp}
@@ -684,16 +684,16 @@
       >
       <div class="row">
         <span class="chip">{current.category}</span>
-        {#if !current.is_read}<span class="dot" title="Unread story"></span>{/if}
-        {#if current.updated_since_read}<span class="badge updated">UPDATED</span>{/if}
+        {#if !current.is_read}<span class="dot" title={$t('stories.unreadStory')}></span>{/if}
+        {#if current.updated_since_read}<span class="badge updated">{$t('stories.updatedBadge')}</span>{/if}
         {#if current.media_kind === 'video'}<span class="badge video">▶ {providerLabel(current.video_provider)}{#if current.video_duration} · {formatDuration(current.video_duration)}{/if}</span>{/if}
-        {#if current.is_frozen}<span class="badge frozen">archived</span>{/if}
+        {#if current.is_frozen}<span class="badge frozen">{$t('stories.archived')}</span>{/if}
         <span class="spacer"></span>
         <button
           class="readbtn starbtn"
           class:active={current.saved}
-          title={current.saved ? 'Saved story — click to remove' : 'Save story'}
-          aria-label={current.saved ? 'Remove saved story' : 'Save story'}
+          title={current.saved ? $t('stories.savedRemoveTitle') : $t('stories.saveStory')}
+          aria-label={current.saved ? $t('stories.removeSaved') : $t('stories.saveStory')}
           onclick={(e) => current && toggleSaved(current, e)}
           disabled={saving[current.id]}
         >
@@ -704,8 +704,8 @@
           <button
             class="readbtn iconbtn"
             class:saved={savedToReadeck}
-            title={savedToReadeck ? 'Already saved to Readeck — save again' : 'Save to Readeck'}
-            aria-label="Save to Readeck"
+            title={savedToReadeck ? $t('stories.readeckSavedTitle') : $t('stories.saveToReadeck')}
+            aria-label={$t('stories.saveToReadeck')}
             onclick={(e) => current && saveReadeck(current, e)}
             disabled={readeckSaving[current.id]}
           >
@@ -713,7 +713,7 @@
           </button>
         {/if}
         <ShareButton storyId={current.id} iconOnly buttonClass="readbtn" />
-        <span class="age">{ago(current.published_at ?? current.last_updated_at)}</span>
+        <span class="age">{ago(current.published_at ?? current.last_updated_at, $t)}</span>
       </div>
       {#if current.media_kind === 'video'}
         {#key current.id}
@@ -739,9 +739,9 @@
             >{host[0]}<img src={faviconUrl(host)} alt="" loading="lazy" onerror={hideFav} /></span
           >
         {/each}
-        <span>{current.source_count} source{current.source_count === 1 ? '' : 's'}</span>
+        <span>{$t('stories.sources', { count: current.source_count })}</span>
         <span>v{current.version}</span>
-        <a href="/stories/{current.id}">Full story &amp; sources →</a>
+        <a href="/stories/{current.id}">{$t('stories.fullStory')}</a>
       </div>
       </article>
     {:else}
@@ -752,32 +752,32 @@
         style:transition={dragging || snap ? 'none' : 'transform 0.22s ease-out'}
       >
         <span class="doneemoji">{doneMsg.emoji}</span>
-        <h2>{doneMsg.title}</h2>
-        <p>{doneMsg.body}</p>
-        <button class="navbtn" onclick={() => commit('right')}>‹ Back to stories</button>
+        <h2>{$t(doneMsg.title)}</h2>
+        <p>{$t(doneMsg.body)}</p>
+        <button class="navbtn" onclick={() => commit('right')}>{$t('stories.backToStories')}</button>
       </article>
     {/if}
   </div>
 {:else}
   {#if stories.some((s) => !s.is_read)}
     <div class="bulkrow">
-      <button class="linkbtn" onclick={markAllRead}>Mark all read ({stories.filter((s) => !s.is_read).length})</button>
+      <button class="linkbtn" onclick={markAllRead}>{$t('stories.markAllRead', { count: stories.filter((s) => !s.is_read).length })}</button>
     </div>
   {/if}
   {#each stories as story (story.id)}
     <div class="card story" class:read={story.is_read} data-story={story.id}>
       <div class="row">
         <span class="chip">{story.category}</span>
-        {#if !story.is_read}<span class="dot" title="Unread story"></span>{/if}
-        {#if story.updated_since_read}<span class="badge updated">UPDATED</span>{/if}
+        {#if !story.is_read}<span class="dot" title={$t('stories.unreadStory')}></span>{/if}
+        {#if story.updated_since_read}<span class="badge updated">{$t('stories.updatedBadge')}</span>{/if}
         {#if story.media_kind === 'video'}<span class="badge video">▶ {providerLabel(story.video_provider)}{#if story.video_duration} · {formatDuration(story.video_duration)}{/if}</span>{/if}
-        {#if story.is_frozen}<span class="badge frozen">archived</span>{/if}
+        {#if story.is_frozen}<span class="badge frozen">{$t('stories.archived')}</span>{/if}
         <span class="spacer"></span>
         <button
           class="readbtn starbtn"
           class:active={story.saved}
-          title={story.saved ? 'Saved story — click to remove' : 'Save story'}
-          aria-label={story.saved ? 'Remove saved story' : 'Save story'}
+          title={story.saved ? $t('stories.savedRemoveTitle') : $t('stories.saveStory')}
+          aria-label={story.saved ? $t('stories.removeSaved') : $t('stories.saveStory')}
           onclick={(e) => toggleSaved(story, e)}
           disabled={saving[story.id]}
         >
@@ -788,8 +788,8 @@
           <button
             class="readbtn iconbtn"
             class:saved={savedToReadeck}
-            title={savedToReadeck ? 'Already saved to Readeck — save again' : 'Save to Readeck'}
-            aria-label="Save to Readeck"
+            title={savedToReadeck ? $t('stories.readeckSavedTitle') : $t('stories.saveToReadeck')}
+            aria-label={$t('stories.saveToReadeck')}
             onclick={(e) => saveReadeck(story, e)}
             disabled={readeckSaving[story.id]}
           >
@@ -799,12 +799,12 @@
         <ShareButton storyId={story.id} iconOnly buttonClass="readbtn" />
         <button
           class="readbtn"
-          title={story.is_read ? 'Mark unread' : 'Mark read'}
+          title={story.is_read ? $t('stories.markUnread') : $t('stories.markRead')}
           onclick={() => toggleRead(story)}
         >
           {story.is_read ? '↺' : '✓'}
         </button>
-        <span class="age">{ago(story.published_at ?? story.last_updated_at)}</span>
+        <span class="age">{ago(story.published_at ?? story.last_updated_at, $t)}</span>
       </div>
       <a class="storylink" href="/stories/{story.id}">
         <div class="body">
@@ -825,9 +825,9 @@
                   /></span
                 >
               {/each}
-              <span>{story.source_count} source{story.source_count === 1 ? '' : 's'}</span>
+              <span>{$t('stories.sources', { count: story.source_count })}</span>
               <span>v{story.version}</span>
-              <span class="source-action">Read story &amp; sources →</span>
+              <span class="source-action">{$t('stories.readStory')}</span>
             </div>
           </div>
         </div>

@@ -1,0 +1,16 @@
+{
+  "shareStory": "스토리 공유",
+  "share": "공유",
+  "closeMenu": "공유 메뉴 닫기",
+  "asIs": "원본 그대로",
+  "closePreview": "공유 미리보기 닫기",
+  "preview": "공유 미리보기",
+  "shareEllipsis": "공유…",
+  "copied": "✓ 복사됨",
+  "copy": "복사",
+  "close": "닫기",
+  "loadLanguagesFailed": "언어를 불러올 수 없습니다",
+  "failed": "공유하지 못했습니다",
+  "clipboardUnavailable": "이 브라우저에서는 클립보드를 사용할 수 없습니다",
+  "copyFailed": "복사하지 못했습니다"
+}

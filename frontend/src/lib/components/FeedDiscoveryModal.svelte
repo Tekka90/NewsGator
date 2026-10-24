@@ -1,6 +1,7 @@
 <script lang="ts">
   import { api, faviconUrl, type DiscoveryEvent } from '$lib/api';
   import type { DiscoveredFeed } from '$lib/types';
+  import { t, fmt, tNow } from '$lib/i18n';
 
   let {
     open = $bindable(false),
@@ -12,19 +13,19 @@
 
   // Category ids are the names the server maps to curated feed topics.
   const THEMES = [
-    { id: 'General News', icon: '📰', label: 'General News' },
-    { id: 'World', icon: '🌐', label: 'World' },
-    { id: 'Politics', icon: '🏛️', label: 'Politics' },
-    { id: 'Finance', icon: '📈', label: 'Finance' },
-    { id: 'Technology', icon: '💻', label: 'Technology' },
-    { id: 'Science', icon: '🔬', label: 'Science' },
-    { id: 'Health', icon: '🩺', label: 'Health' },
-    { id: 'Environment', icon: '🌍', label: 'Environment' },
-    { id: 'Sports', icon: '⚽', label: 'Sports' },
-    { id: 'Culture', icon: '🎬', label: 'Culture' },
-    { id: 'Gaming', icon: '🎮', label: 'Gaming' },
-    { id: 'Food', icon: '🍽️', label: 'Food' },
-    { id: 'Travel', icon: '✈️', label: 'Travel' }
+    { id: 'General News', icon: '📰', label: 'discovery.category_general_news' },
+    { id: 'World', icon: '🌐', label: 'discovery.category_world' },
+    { id: 'Politics', icon: '🏛️', label: 'discovery.category_politics' },
+    { id: 'Finance', icon: '📈', label: 'discovery.category_finance' },
+    { id: 'Technology', icon: '💻', label: 'discovery.category_technology' },
+    { id: 'Science', icon: '🔬', label: 'discovery.category_science' },
+    { id: 'Health', icon: '🩺', label: 'discovery.category_health' },
+    { id: 'Environment', icon: '🌍', label: 'discovery.category_environment' },
+    { id: 'Sports', icon: '⚽', label: 'discovery.category_sports' },
+    { id: 'Culture', icon: '🎬', label: 'discovery.category_culture' },
+    { id: 'Gaming', icon: '🎮', label: 'discovery.category_gaming' },
+    { id: 'Food', icon: '🍽️', label: 'discovery.category_food' },
+    { id: 'Travel', icon: '✈️', label: 'discovery.category_travel' }
   ];
 
   // Editions: language drives the result language, country the news edition.
@@ -33,14 +34,14 @@
     'de_CH', 'es_ES', 'es_MX', 'es_AR', 'it_IT', 'pt_PT', 'pt_BR', 'nl_NL', 'nl_BE', 'sv_SE',
     'da_DK', 'fi_FI', 'pl_PL', 'ja_JP', 'ko_KR'
   ];
-  const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
-  const languageNames = new Intl.DisplayNames(['en'], { type: 'language' });
-  const LOCALE_OPTIONS = LOCALES.map((l) => {
-    const [lang, region] = l.split('_');
-    const name = regionNames.of(region) ?? region;
-    const shared = LOCALES.filter((x) => x.endsWith('_' + region)).length > 1;
-    return { id: l, label: shared ? `${name} (${languageNames.of(lang)})` : name };
-  }).sort((x, y) => x.label.localeCompare(y.label));
+  const LOCALE_OPTIONS = $derived(
+    LOCALES.map((l) => {
+      const [lang, region] = l.split('_');
+      const name = $fmt.regionName(region);
+      const shared = LOCALES.filter((x) => x.endsWith('_' + region)).length > 1;
+      return { id: l, label: shared ? `${name} (${$fmt.languageName(lang)})` : name };
+    }).sort((x, y) => x.label.localeCompare(y.label))
+  );
   const browserRegion = (navigator.language.split('-')[1] ?? '').toUpperCase();
   const browserLang = navigator.language.split('-')[0].toLowerCase();
 
@@ -54,7 +55,7 @@
   let useAi = $state(false);
 
   let researching = $state(false);
-  let researchStage = $state('Formulating search queries…');
+  let researchStage = $state(tNow('discovery.stage_formulating'));
   let progressCurrent = $state(0);
   let progressTotal = $state(0);
   let error = $state('');
@@ -84,7 +85,7 @@
     error = '';
     subscribeStatus = '';
     researching = true;
-    researchStage = 'Formulating search queries…';
+    researchStage = tNow('discovery.stage_formulating');
 
     const excluded = proposeMore && results ? results.map((f) => f.url) : [];
     if (!proposeMore) {
@@ -100,7 +101,11 @@
       else if (event.type === 'progress') {
         progressCurrent = event.current;
         progressTotal = event.total;
-        researchStage = `Verifying ${event.current} of ${event.total}: ${event.target}…`;
+        researchStage = tNow('discovery.stage_verifying', {
+          current: event.current,
+          total: event.total,
+          target: event.target
+        });
       } else if (event.type === 'feed' && !known.has(event.feed.url)) {
         known.add(event.feed.url);
         results = [...(results ?? []), event.feed];
@@ -119,7 +124,7 @@
         onEvent
       );
       const resp = { feeds };
-      researchStage = 'Complete!';
+      researchStage = tNow('discovery.stage_complete');
       progressCurrent = progressTotal;
 
       if (proposeMore) {
@@ -130,19 +135,19 @@
         const newFeeds = resp.feeds.filter((f) => !shown.has(f.url));
         results = [...kept, ...newFeeds];
         if (newFeeds.length === 0) {
-          error = 'No additional feeds found for these criteria.';
+          error = tNow('discovery.no_additional');
         } else {
-          subscribeStatus = `Found ${newFeeds.length} additional feed${newFeeds.length === 1 ? '' : 's'}.`;
+          subscribeStatus = tNow('discovery.found_additional', { count: newFeeds.length });
         }
       } else {
         results = resp.feeds;
         selectedUrls = new Set();
         if (resp.feeds.length === 0) {
-          error = 'No active feeds discovered for these criteria. Try another category, text or country.';
+          error = tNow('discovery.no_feeds');
         }
       }
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Discovery research failed';
+      error = err instanceof Error ? err.message : tNow('discovery.research_failed');
     } finally {
       researching = false;
     }
@@ -194,8 +199,10 @@
     }
 
     subscribing = false;
-    subscribeStatus = `Added ${addedCount} feed${addedCount === 1 ? '' : 's'}` +
-      (failedCount > 0 ? ` (${failedCount} failed)` : '');
+    subscribeStatus =
+      failedCount > 0
+        ? tNow('discovery.added_with_failed', { count: addedCount, failed: failedCount })
+        : tNow('discovery.added', { count: addedCount });
 
     if (onAdded) {
       await onAdded();
@@ -243,26 +250,26 @@
 <svelte:window onkeydown={onKeydown} />
 
 {#if open}
-  <button class="backdrop" onclick={close} aria-label="Close dialog" tabindex="-1"></button>
+  <button class="backdrop" onclick={close} aria-label={$t('discovery.close_dialog')} tabindex="-1"></button>
 
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="header">
       <h2 id="modal-title">
-        <span class="sparkle">✨</span> Discover Feeds
+        <span class="sparkle">✨</span> {$t('discovery.title')}
       </h2>
-      <button class="closebtn" onclick={close} aria-label="Close">✕</button>
+      <button class="closebtn" onclick={close} aria-label={$t('discovery.close')}>✕</button>
     </div>
 
     {#if !results}
       <!-- Input Formulation Step -->
       <form class="body" onsubmit={(e) => { e.preventDefault(); handleResearch(); }}>
         <p class="subtitle">
-          Find high-quality RSS and Atom feeds for a category or topic, for your country.
+          {$t('discovery.subtitle')}
         </p>
 
         <div class="field">
           <label for="discovery-locale">
-            <strong>Country</strong>
+            <strong>{$t('discovery.country')}</strong>
           </label>
           <div class="input-wrap">
             <span class="prefix">📍</span>
@@ -276,8 +283,8 @@
 
         <div class="field">
           <span class="label">
-            <strong>Themes & Categories</strong>
-            <span class="hint">(pick one, or use Other below)</span>
+            <strong>{$t('discovery.themes')}</strong>
+            <span class="hint">{$t('discovery.themes_hint')}</span>
           </span>
           <div class="theme-grid">
             {#each THEMES as theme (theme.id)}
@@ -290,7 +297,7 @@
                 disabled={researching}
               >
                 <span class="chip-icon">{theme.icon}</span>
-                <span class="chip-text">{theme.label}</span>
+                <span class="chip-text">{$t(theme.label)}</span>
               </button>
             {/each}
           </div>
@@ -298,13 +305,13 @@
 
         <div class="field">
           <label for="discovery-custom">
-            <strong>Other</strong>
-            <span class="hint">(free text — replaces the categories)</span>
+            <strong>{$t('discovery.other')}</strong>
+            <span class="hint">{$t('discovery.other_hint')}</span>
           </label>
           <input
             id="discovery-custom"
             type="text"
-            placeholder="e.g. 'cycling news in France', 'AI research blogs', 'indie game dev'..."
+            placeholder={$t('discovery.other_placeholder')}
             bind:value={customQuery}
             oninput={() => { if (customQuery.trim()) selectedThemes = []; }}
             disabled={researching}
@@ -313,7 +320,7 @@
 
         <label class="ai-toggle">
           <input type="checkbox" bind:checked={useAi} disabled={researching} />
-          <span>Ask the AI for suggestions (needs an LLM configured on the server)</span>
+          <span>{$t('discovery.ai_toggle')}</span>
         </label>
 
         {#if error}
@@ -336,13 +343,13 @@
 
         <div class="actions">
           <button type="button" class="btn-secondary" onclick={close} disabled={researching}>
-            Cancel
+            {$t('discovery.cancel')}
           </button>
           <button type="submit" class="btn-primary" disabled={researching}>
             {#if researching}
-              <span class="spinner"></span> Researching feeds…
+              <span class="spinner"></span> {$t('discovery.researching')}
             {:else}
-              ✨ Research Feeds
+              ✨ {$t('discovery.research')}
             {/if}
           </button>
         </div>
@@ -366,13 +373,13 @@
 
         <div class="results-header">
           <div>
-            <strong>Found {results.length} Candidate Feed{results.length === 1 ? '' : 's'}</strong>
-            <span class="results-sub">Selected {selectedUrls.size} of {results.length}</span>
+            <strong>{$t('discovery.found_candidates', { count: results.length })}</strong>
+            <span class="results-sub">{$t('discovery.selected_of', { selected: selectedUrls.size, total: results.length })}</span>
           </div>
           <div class="quick-select">
-            <button type="button" class="link-btn" onclick={selectAll}>Select all</button>
+            <button type="button" class="link-btn" onclick={selectAll}>{$t('discovery.select_all')}</button>
             <span class="sep">·</span>
-            <button type="button" class="link-btn" onclick={deselectAll}>Deselect all</button>
+            <button type="button" class="link-btn" onclick={deselectAll}>{$t('discovery.deselect_all')}</button>
           </div>
         </div>
 
@@ -413,19 +420,19 @@
 
                 <div class="card-meta-row">
                   {#if feed.access_level === 'paywalled'}
-                    <span class="badge badge-paywall" title="Subscription or paid paywall detected">🔒 Paywall</span>
+                    <span class="badge badge-paywall" title={$t('discovery.paywall_title')}>🔒 {$t('discovery.paywall')}</span>
                   {:else if feed.access_level === 'free_full'}
-                    <span class="badge badge-free" title="100% Free with full-text articles">🟢 Free (Full)</span>
+                    <span class="badge badge-free" title={$t('discovery.free_full_title')}>🟢 {$t('discovery.free_full')}</span>
                   {:else}
-                    <span class="badge badge-excerpt" title="Free to access, RSS delivers summary excerpts">🟡 Free (Excerpts)</span>
+                    <span class="badge badge-excerpt" title={$t('discovery.free_excerpt_title')}>🟡 {$t('discovery.free_excerpt')}</span>
                   {/if}
 
                   {#if feed.geographic_scope === 'local'}
-                    <span class="badge badge-scope">📍 Local</span>
+                    <span class="badge badge-scope">📍 {$t('discovery.scope_local')}</span>
                   {:else if feed.geographic_scope === 'regional'}
-                    <span class="badge badge-scope">🗺️ Regional</span>
+                    <span class="badge badge-scope">🗺️ {$t('discovery.scope_regional')}</span>
                   {:else if feed.geographic_scope === 'national'}
-                    <span class="badge badge-scope">🏛️ National</span>
+                    <span class="badge badge-scope">🏛️ {$t('discovery.scope_national')}</span>
                   {/if}
                 </div>
 
@@ -452,7 +459,7 @@
                       onclick={(e) => { e.stopPropagation(); toggleExpand(feed.url); }}
                     >
                       <span class="chevron">{isExpanded ? '▼' : '▶'}</span>
-                      {isExpanded ? 'Hide latest articles' : `Preview latest articles (${feed.sample_articles.length})`}
+                      {isExpanded ? $t('discovery.hide_articles') : $t('discovery.preview_articles', { count: feed.sample_articles.length })}
                     </button>
                   </div>
 
@@ -491,7 +498,7 @@
             onclick={() => { results = null; error = ''; subscribeStatus = ''; }}
             disabled={subscribing || researching}
           >
-            ← Search Again
+            ← {$t('discovery.search_again')}
           </button>
           <button
             type="button"
@@ -500,9 +507,9 @@
             disabled={subscribing || researching}
           >
             {#if researching}
-              <span class="spinner"></span> Searching…
+              <span class="spinner"></span> {$t('discovery.searching')}
             {:else}
-              ✨ Propose More
+              ✨ {$t('discovery.propose_more')}
             {/if}
           </button>
           <button
@@ -512,9 +519,9 @@
             disabled={subscribing || researching || selectedUrls.size === 0}
           >
             {#if subscribing}
-              Subscribing…
+              {$t('discovery.subscribing')}
             {:else}
-              Subscribe to {selectedUrls.size} Feed{selectedUrls.size === 1 ? '' : 's'}
+              {$t('discovery.subscribe', { count: selectedUrls.size })}
             {/if}
           </button>
         </div>

@@ -1,0 +1,12 @@
+{
+  "pageTitle": "聊天 · NewsGator",
+  "heading": "詢問您的檔案庫",
+  "clear": "清除",
+  "emptyPrompt": "可針對已載入的報導提出任何問題。",
+  "emptyHint": "例如：「歐盟 AI 法案有什麼最新進展？」·「本週有關於 SpaceX 的新聞嗎？」",
+  "cited": "已引用",
+  "thinking": "思考中…",
+  "placeholder": "提出問題…",
+  "send": "傳送",
+  "failed": "聊天失敗"
+}

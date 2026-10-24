@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { api, authHeaders, getToken } from '$lib/api';
   import { currentUser } from '$lib/stores';
+  import { t, tNow, setLocale } from '$lib/i18n';
 
   let username = $state('');
   let password = $state('');
@@ -46,24 +47,26 @@
     e.preventDefault();
     error = '';
     try {
-      $currentUser = await api.login(username, password);
+      const user = await api.login(username, password);
+      $currentUser = user;
+      await setLocale(user.ui_language);
       await goto('/');
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Login failed';
+      error = err instanceof Error ? err.message : tNow('auth.loginFailed');
     }
   }
 </script>
 
 <main class="center">
   <form class="card auth" onsubmit={submit}>
-    <h1>NewsGator — Sign in</h1>
+    <h1>{$t('auth.signInTitle')}</h1>
     {#if error}<p class="error">{error}</p>{/if}
-    <label>Username <input bind:value={username} required autocomplete="username" /></label>
+    <label>{$t('auth.username')} <input bind:value={username} required autocomplete="username" /></label>
     <label>
-      Password
+      {$t('auth.password')}
       <input type="password" bind:value={password} required autocomplete="current-password" />
     </label>
-    <button type="submit">Sign in</button>
+    <button type="submit">{$t('auth.signIn')}</button>
     {#if debug}<p class="debug">{debug}</p>{/if}
   </form>
 </main>

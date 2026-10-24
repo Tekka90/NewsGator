@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import PresetIcon from './PresetIcon.svelte';
+  import { t } from '$lib/i18n';
   import { effectiveDisplay, enabledPresets, presetLabel } from '$lib/presets';
   import type { StoryPreset } from '$lib/types';
 
@@ -10,7 +11,7 @@
     counts = {},
     compact = false,
     onselect,
-    label = 'Story views'
+    label
   }: {
     presets: StoryPreset[];
     activeId: string | null;
@@ -50,7 +51,7 @@
   }
 </script>
 
-<div class="presetbar" role="group" aria-label={label} bind:this={bar}>
+<div class="presetbar" role="group" aria-label={label ?? $t('presetbar.label')} bind:this={bar}>
   {#each shown as p (p.id)}
     {@const display = effectiveDisplay(p, compact)}
     {@const name = presetLabel(p)}
@@ -60,7 +61,7 @@
       class:active={p.id === activeId}
       class:icononly={display === 'icon'}
       aria-pressed={p.id === activeId}
-      aria-label={count !== undefined ? `${name}, ${count}` : name}
+      aria-label={count !== undefined ? $t('presetbar.itemCount', { name, count }) : name}
       title={name}
       onclick={() => onselect?.(p)}
       {onkeydown}

@@ -253,6 +253,12 @@ async def test_manual_merge_deletes_source_positions(
     await setup_admin(client)
     story_id, _, _, owner, *_ = await _setup(db_session)
     async with db_session() as s:
+        feed_id = await s.scalar(select(Feed.id))
+        for uid in (await s.scalars(select(User.id).where(~User.id.in_(
+                select(UserFeed.user_id))))).all():
+            s.add(UserFeed(user_id=uid, feed_id=feed_id))  # the logged-in admin sees both stories
+        await s.commit()
+    async with db_session() as s:
         other = await s.scalar(select(Story).where(Story.title == "O"))
         assert other is not None
         s.add_all([ListenPosition(user_id=owner, story_id=other.id, step="summary",

@@ -12,16 +12,19 @@
    *  `selected`; the parent executes with its own Move/Merge button. Typing
    *  after a pick clears the selection so the button can't act on a stale id. */
   import type { SimilarStory } from '$lib/types';
+  import { t, tNow } from '$lib/i18n';
 
   let {
     load,
-    placeholder = 'Select story…',
+    placeholder: placeholderProp,
     selected = $bindable()
   }: {
     load: () => Promise<SimilarStory[]>;
     placeholder?: string;
     selected?: SimilarStory | null;
   } = $props();
+
+  const placeholder = $derived(placeholderProp ?? $t('picker.selectStory'));
 
   // Own the value locally and mirror it through the binding — this also makes
   // the component safe when the bound expression is initially `undefined`
@@ -63,7 +66,7 @@
     try {
       candidates = await load();
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Load failed';
+      error = e instanceof Error ? e.message : tNow('picker.loadFailed');
     } finally {
       loading = false;
     }
@@ -136,11 +139,11 @@
   {#if open}
     <div class="menu" role="listbox" id={menuId}>
       {#if loading}
-        <div class="item muted">Loading…</div>
+        <div class="item muted">{$t('picker.loading')}</div>
       {:else if error}
         <div class="item warn">{error}</div>
       {:else if filtered.length === 0}
-        <div class="item muted">No matching story</div>
+        <div class="item muted">{$t('picker.noMatch')}</div>
       {:else}
         {#each filtered as c, i (c.id)}
           <button

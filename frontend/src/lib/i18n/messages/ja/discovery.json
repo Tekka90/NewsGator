@@ -1,0 +1,68 @@
+{
+  "title": "フィードを探す",
+  "close_dialog": "ダイアログを閉じる",
+  "close": "閉じる",
+  "subtitle": "お住まいの国のカテゴリやトピックに合った、高品質なRSSおよびAtomフィードを見つけます。",
+  "country": "国",
+  "themes": "テーマとカテゴリ",
+  "themes_hint": "（1つ選ぶか、下の「その他」を使用）",
+  "other": "その他",
+  "other_hint": "（自由入力 — カテゴリの代わりになります）",
+  "other_placeholder": "例：「フランスの自転車ニュース」「AI研究ブログ」「インディーゲーム開発」…",
+  "ai_toggle": "AIにおすすめを尋ねる（サーバーにLLMの設定が必要）",
+  "cancel": "キャンセル",
+  "researching": "フィードを調査中…",
+  "research": "フィードを調査",
+  "stage_formulating": "検索クエリを作成中…",
+  "stage_verifying": "{total}件中{current}件を確認中：{target}…",
+  "stage_complete": "完了！",
+  "no_additional": "この条件では追加のフィードは見つかりませんでした。",
+  "found_additional": {
+    "other": "追加のフィードが{count}件見つかりました。"
+  },
+  "no_feeds": "この条件に合う有効なフィードは見つかりませんでした。別のカテゴリ、テキスト、または国をお試しください。",
+  "research_failed": "フィードの調査に失敗しました",
+  "added": {
+    "other": "{count}件のフィードを追加しました"
+  },
+  "added_with_failed": {
+    "other": "{count}件のフィードを追加しました（{failed}件失敗）"
+  },
+  "found_candidates": {
+    "other": "候補フィードが{count}件見つかりました"
+  },
+  "selected_of": "{total}件中{selected}件を選択",
+  "select_all": "すべて選択",
+  "deselect_all": "すべて選択解除",
+  "paywall": "有料",
+  "paywall_title": "購読または有料のペイウォールを検出",
+  "free_full": "無料（全文）",
+  "free_full_title": "全文記事を含め完全無料",
+  "free_excerpt": "無料（抜粋）",
+  "free_excerpt_title": "無料で閲覧可能。RSSは要約の抜粋を配信",
+  "scope_local": "ローカル",
+  "scope_regional": "地域",
+  "scope_national": "全国",
+  "hide_articles": "最新記事を隠す",
+  "preview_articles": "最新記事をプレビュー（{count}）",
+  "search_again": "もう一度検索",
+  "searching": "検索中…",
+  "propose_more": "さらに提案",
+  "subscribing": "購読中…",
+  "subscribe": {
+    "other": "{count}件のフィードを購読"
+  },
+  "category_general_news": "一般ニュース",
+  "category_world": "国際",
+  "category_politics": "政治",
+  "category_finance": "金融",
+  "category_technology": "テクノロジー",
+  "category_science": "科学",
+  "category_health": "ヘルス",
+  "category_environment": "環境",
+  "category_sports": "スポーツ",
+  "category_culture": "カルチャー",
+  "category_gaming": "ゲーム",
+  "category_food": "グルメ",
+  "category_travel": "旅行"
+}

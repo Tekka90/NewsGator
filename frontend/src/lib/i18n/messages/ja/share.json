@@ -1,0 +1,16 @@
+{
+  "shareStory": "ストーリーを共有",
+  "share": "共有",
+  "closeMenu": "共有メニューを閉じる",
+  "asIs": "そのまま",
+  "closePreview": "共有プレビューを閉じる",
+  "preview": "共有プレビュー",
+  "shareEllipsis": "共有…",
+  "copied": "✓ コピーしました",
+  "copy": "コピー",
+  "close": "閉じる",
+  "loadLanguagesFailed": "言語を読み込めませんでした",
+  "failed": "共有に失敗しました",
+  "clipboardUnavailable": "このブラウザではクリップボードを利用できません",
+  "copyFailed": "コピーに失敗しました"
+}

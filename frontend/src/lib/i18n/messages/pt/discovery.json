@@ -1,0 +1,73 @@
+{
+  "title": "Descobrir feeds",
+  "close_dialog": "Fechar diálogo",
+  "close": "Fechar",
+  "subtitle": "Encontre feeds RSS e Atom de qualidade para uma categoria ou tema, no seu país.",
+  "country": "País",
+  "themes": "Temas e categorias",
+  "themes_hint": "(escolha um ou use Outro abaixo)",
+  "other": "Outro",
+  "other_hint": "(texto livre — substitui as categorias)",
+  "other_placeholder": "ex.: «notícias de ciclismo em França», «blogues de investigação em IA», «desenvolvimento de jogos indie»…",
+  "ai_toggle": "Pedir sugestões à IA (requer um LLM configurado no servidor)",
+  "cancel": "Cancelar",
+  "researching": "A pesquisar feeds…",
+  "research": "Pesquisar feeds",
+  "stage_formulating": "A formular consultas de pesquisa…",
+  "stage_verifying": "A verificar {current} de {total}: {target}…",
+  "stage_complete": "Concluído!",
+  "no_additional": "Não foram encontrados feeds adicionais para estes critérios.",
+  "found_additional": {
+    "one": "Encontrado {count} feed adicional.",
+    "other": "Encontrados {count} feeds adicionais."
+  },
+  "no_feeds": "Não foram encontrados feeds ativos para estes critérios. Experimente outra categoria, texto ou país.",
+  "research_failed": "A pesquisa de feeds falhou",
+  "added": {
+    "one": "{count} feed adicionado",
+    "other": "{count} feeds adicionados"
+  },
+  "added_with_failed": {
+    "one": "{count} feed adicionado ({failed} com falha)",
+    "other": "{count} feeds adicionados ({failed} com falha)"
+  },
+  "found_candidates": {
+    "one": "Encontrado {count} feed candidato",
+    "other": "Encontrados {count} feeds candidatos"
+  },
+  "selected_of": "{selected} de {total} selecionados",
+  "select_all": "Selecionar tudo",
+  "deselect_all": "Desselecionar tudo",
+  "paywall": "Paywall",
+  "paywall_title": "Subscrição ou paywall pago detetado",
+  "free_full": "Grátis (completo)",
+  "free_full_title": "100% grátis com artigos em texto integral",
+  "free_excerpt": "Grátis (excertos)",
+  "free_excerpt_title": "Acesso gratuito; o RSS fornece excertos resumidos",
+  "scope_local": "Local",
+  "scope_regional": "Regional",
+  "scope_national": "Nacional",
+  "hide_articles": "Ocultar últimos artigos",
+  "preview_articles": "Pré-visualizar últimos artigos ({count})",
+  "search_again": "Pesquisar novamente",
+  "searching": "A pesquisar…",
+  "propose_more": "Propor mais",
+  "subscribing": "A subscrever…",
+  "subscribe": {
+    "one": "Subscrever {count} feed",
+    "other": "Subscrever {count} feeds"
+  },
+  "category_general_news": "Notícias gerais",
+  "category_world": "Mundo",
+  "category_politics": "Política",
+  "category_finance": "Finanças",
+  "category_technology": "Tecnologia",
+  "category_science": "Ciência",
+  "category_health": "Saúde",
+  "category_environment": "Ambiente",
+  "category_sports": "Desporto",
+  "category_culture": "Cultura",
+  "category_gaming": "Videojogos",
+  "category_food": "Gastronomia",
+  "category_travel": "Viagens"
+}

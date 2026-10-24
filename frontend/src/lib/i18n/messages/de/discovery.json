@@ -1,0 +1,73 @@
+{
+  "title": "Feeds entdecken",
+  "close_dialog": "Dialog schließen",
+  "close": "Schließen",
+  "subtitle": "Finde hochwertige RSS- und Atom-Feeds zu einer Kategorie oder einem Thema für dein Land.",
+  "country": "Land",
+  "themes": "Themen & Kategorien",
+  "themes_hint": "(eines auswählen oder unten „Sonstiges“ verwenden)",
+  "other": "Sonstiges",
+  "other_hint": "(Freitext — ersetzt die Kategorien)",
+  "other_placeholder": "z. B. „Radsport-News aus Frankreich“, „KI-Forschungsblogs“, „Indie-Spieleentwicklung“…",
+  "ai_toggle": "KI um Vorschläge bitten (erfordert ein auf dem Server konfiguriertes LLM)",
+  "cancel": "Abbrechen",
+  "researching": "Feeds werden gesucht…",
+  "research": "Feeds suchen",
+  "stage_formulating": "Suchanfragen werden formuliert…",
+  "stage_verifying": "Prüfe {current} von {total}: {target}…",
+  "stage_complete": "Fertig!",
+  "no_additional": "Keine weiteren Feeds für diese Kriterien gefunden.",
+  "found_additional": {
+    "one": "{count} weiterer Feed gefunden.",
+    "other": "{count} weitere Feeds gefunden."
+  },
+  "no_feeds": "Keine aktiven Feeds für diese Kriterien gefunden. Probiere eine andere Kategorie, einen anderen Text oder ein anderes Land.",
+  "research_failed": "Feed-Suche fehlgeschlagen",
+  "added": {
+    "one": "{count} Feed hinzugefügt",
+    "other": "{count} Feeds hinzugefügt"
+  },
+  "added_with_failed": {
+    "one": "{count} Feed hinzugefügt ({failed} fehlgeschlagen)",
+    "other": "{count} Feeds hinzugefügt ({failed} fehlgeschlagen)"
+  },
+  "found_candidates": {
+    "one": "{count} Kandidaten-Feed gefunden",
+    "other": "{count} Kandidaten-Feeds gefunden"
+  },
+  "selected_of": "{selected} von {total} ausgewählt",
+  "select_all": "Alle auswählen",
+  "deselect_all": "Auswahl aufheben",
+  "paywall": "Paywall",
+  "paywall_title": "Abo oder kostenpflichtige Paywall erkannt",
+  "free_full": "Kostenlos (komplett)",
+  "free_full_title": "100 % kostenlos mit Volltextartikeln",
+  "free_excerpt": "Kostenlos (Auszüge)",
+  "free_excerpt_title": "Kostenloser Zugang, RSS liefert Kurzauszüge",
+  "scope_local": "Lokal",
+  "scope_regional": "Regional",
+  "scope_national": "National",
+  "hide_articles": "Neueste Artikel ausblenden",
+  "preview_articles": "Neueste Artikel ansehen ({count})",
+  "search_again": "Erneut suchen",
+  "searching": "Suche läuft…",
+  "propose_more": "Mehr vorschlagen",
+  "subscribing": "Wird abonniert…",
+  "subscribe": {
+    "one": "{count} Feed abonnieren",
+    "other": "{count} Feeds abonnieren"
+  },
+  "category_general_news": "Allgemeine Nachrichten",
+  "category_world": "Welt",
+  "category_politics": "Politik",
+  "category_finance": "Finanzen",
+  "category_technology": "Technologie",
+  "category_science": "Wissenschaft",
+  "category_health": "Gesundheit",
+  "category_environment": "Umwelt",
+  "category_sports": "Sport",
+  "category_culture": "Kultur",
+  "category_gaming": "Gaming",
+  "category_food": "Essen",
+  "category_travel": "Reisen"
+}

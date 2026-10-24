@@ -26,6 +26,8 @@ class UserOut(BaseModel):
     username: str
     is_admin: bool
     summary_language: str
+    # web UI language; "" = follow the browser
+    ui_language: str = ""
     # "" = follow the server default (published, oldest first)
     story_sort: str = ""
     story_order: str = ""
@@ -50,6 +52,9 @@ class AuthOut(UserOut):
 
 class MePatch(BaseModel):
     summary_language: str | None = None
+    ui_language: str | None = Field(
+        default=None, pattern="^(|en|fr|de|es|it|pt|ja|ko|zh-Hans|zh-Hant)$"
+    )
     password: str | None = Field(default=None, min_length=8)
     story_sort: str | None = Field(default=None, pattern="^(updated|published|sources)$")
     story_order: str | None = Field(default=None, pattern="^(asc|desc)$")

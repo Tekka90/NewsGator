@@ -1,0 +1,12 @@
+{
+  "pageTitle": "Chat · NewsGator",
+  "heading": "Interrogez vos archives",
+  "clear": "Effacer",
+  "emptyPrompt": "Posez n’importe quelle question sur les sujets que vous avez chargés.",
+  "emptyHint": "p. ex. « Où en est la loi européenne sur l’IA ? » · « Des nouvelles de SpaceX cette semaine ? »",
+  "cited": "cité",
+  "thinking": "Réflexion…",
+  "placeholder": "Posez une question…",
+  "send": "Envoyer",
+  "failed": "Échec du chat"
+}

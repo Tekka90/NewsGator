@@ -142,6 +142,7 @@ export const api = {
   me: () => req<User>('/auth/me'),
   patchMe: (patch: {
     summary_language?: string;
+    ui_language?: string;
     story_sort?: 'updated' | 'published' | 'sources';
     story_order?: 'asc' | 'desc';
     story_filter?: 'all' | 'unread' | 'updated' | 'saved';

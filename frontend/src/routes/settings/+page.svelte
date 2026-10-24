@@ -3,10 +3,12 @@
   import { goto } from '$app/navigation';
   import { api, getToken } from '$lib/api';
   import { currentUser } from '$lib/stores';
+  import { t, tNow, fmt, LOCALES, setLocale } from '$lib/i18n';
   import StoryViewsSettings from '$lib/components/StoryViewsSettings.svelte';
   import type { Category, CategorySuggestion, MailAccount, ManagedUser, ReaderAccount } from '$lib/types';
 
   let language = $state('');
+  let uiLanguage = $state('');
   let saved = $state(false);
   let categories = $state<Category[]>([]);
   let newCategory = $state('');
@@ -129,7 +131,7 @@
       mailEditingId = null;
       mailAccounts = await api.mailAccounts.list();
     } catch (err) {
-      mailError = err instanceof Error ? err.message : 'Failed to save account';
+      mailError = err instanceof Error ? err.message : tNow('settings.saveAccountFailed');
     } finally {
       mailSaving = false;
     }
@@ -154,7 +156,7 @@
       mailFolder = '';
       mailAccounts = await api.mailAccounts.list();
     } catch (err) {
-      mailError = err instanceof Error ? err.message : 'Failed to add account';
+      mailError = err instanceof Error ? err.message : tNow('settings.addAccountFailed');
     } finally {
       mailAdding = false;
     }
@@ -172,11 +174,11 @@
         ...mailPollInfo,
         [a.id]:
           r.found === 0
-            ? 'No new messages.'
-            : `${r.found} message${r.found === 1 ? '' : 's'} found — processing now, watch the Activity page.`
+            ? tNow('settings.mailNoNew')
+            : tNow('settings.mailFound', { count: r.found })
       };
     } catch (err) {
-      mailError = err instanceof Error ? err.message : 'Poll failed';
+      mailError = err instanceof Error ? err.message : tNow('settings.pollFailed');
     } finally {
       mailPolling = null;
       mailAccounts = await api.mailAccounts.list();
@@ -189,19 +191,19 @@
   }
 
   async function removeMailAccount(a: MailAccount) {
-    if (!confirm(`Remove ${a.username}@${a.host}? Newsletter feeds already created are kept.`))
+    if (!confirm(tNow('settings.confirmRemoveInbox', { account: `${a.username}@${a.host}` })))
       return;
     mailError = '';
     try {
       await api.mailAccounts.remove(a.id);
       mailAccounts = await api.mailAccounts.list();
     } catch (err) {
-      mailError = err instanceof Error ? err.message : 'Failed to remove account';
+      mailError = err instanceof Error ? err.message : tNow('settings.removeAccountFailed');
     }
   }
 
   function fmtMailChecked(d: string | null) {
-    return d ? new Date(d).toLocaleString() : 'never';
+    return d ? $fmt.dateTime(d) : $t('settings.never');
   }
 
   async function addReaderAccount(e: SubmitEvent) {
@@ -223,7 +225,7 @@
       readerPassword = '';
       await loadReaderAccounts();
     } catch (err) {
-      readerError = err instanceof Error ? err.message : 'Failed to add reader account';
+      readerError = err instanceof Error ? err.message : tNow('settings.addReaderFailed');
     } finally {
       readerAdding = false;
     }
@@ -254,7 +256,7 @@
       readerEditingId = null;
       await loadReaderAccounts();
     } catch (err) {
-      readerError = err instanceof Error ? err.message : 'Failed to update reader account';
+      readerError = err instanceof Error ? err.message : tNow('settings.updateReaderFailed');
     } finally {
       readerSaving = false;
     }
@@ -266,13 +268,13 @@
   }
 
   async function removeReaderAccount(a: ReaderAccount) {
-    if (!confirm(`Delete ${a.title || a.username}? Member articles will stay in the archive.`)) return;
+    if (!confirm(tNow('settings.confirmDeleteReader', { name: a.title || a.username }))) return;
     readerError = '';
     try {
       await api.readerAccounts.remove(a.id);
       await loadReaderAccounts();
     } catch (err) {
-      readerError = err instanceof Error ? err.message : 'Failed to remove account';
+      readerError = err instanceof Error ? err.message : tNow('settings.removeAccountFailed');
     }
   }
 
@@ -283,7 +285,7 @@
     } catch (err) {
       readerTest = {
         ...readerTest,
-        [a.id]: { ok: false, items_accessible: 0, error: err instanceof Error ? err.message : 'Test failed' }
+        [a.id]: { ok: false, items_accessible: 0, error: err instanceof Error ? err.message : tNow('settings.testFailedShort') }
       };
     }
   }
@@ -295,13 +297,13 @@
       const res = await api.readerAccounts.poll(a.id);
       readerPollInfo = {
         ...readerPollInfo,
-        [a.id]: `Poll completed: ${res.new_articles} new articles, ${res.read_synced} read states synced.`
+        [a.id]: tNow('settings.readerPollDone', { articles: res.new_articles, synced: res.read_synced })
       };
       await loadReaderAccounts();
     } catch (err) {
       readerPollInfo = {
         ...readerPollInfo,
-        [a.id]: `Poll failed: ${err instanceof Error ? err.message : String(err)}`
+        [a.id]: tNow('settings.readerPollFailed', { error: err instanceof Error ? err.message : String(err) })
       };
     } finally {
       readerPolling = null;
@@ -332,90 +334,81 @@
     setTimeout(() => (feedCopied = false), 2000);
   }
 
-  type Field = { key: string; label: string; secret?: boolean };
+  // Message keys: group title/hint = settings.g.<id>.title|hint, field label = settings.f.<key>.
+  type Field = { key: string; secret?: boolean };
   // Grouped so each external service stays together with its test button.
-  const sysGroups: { title: string; hint?: string; fields: Field[] }[] = [
+  const sysGroups: { id: string; hint?: boolean; fields: Field[] }[] = [
     {
-      title: 'LLM server',
-      hint: 'External OpenAI-compatible server for summarization + embeddings.',
+      id: 'llm',
+      hint: true,
       fields: [
-        { key: 'llm_base_url', label: 'LLM base URL' },
-        { key: 'llm_model', label: 'LLM model' },
-        { key: 'llm_api_key', label: 'LLM API key', secret: true },
-        { key: 'embed_base_url', label: 'Embeddings base URL (empty = same as LLM)' },
-        { key: 'embed_model', label: 'Embedding model' },
-        { key: 'llm_context_tokens', label: 'Model context window (tokens, min 2048 — default 32768; match your LLM model)' },
-        { key: 'llm_trace_enabled', label: 'Live LLM trace on Activity page (1 = on, 0 = off)' },
-        { key: 'llm_trace_max_chars', label: 'Trace max chars per message' }
+        { key: 'llm_base_url' },
+        { key: 'llm_model' },
+        { key: 'llm_api_key', secret: true },
+        { key: 'embed_base_url' },
+        { key: 'embed_model' },
+        { key: 'llm_context_tokens' },
+        { key: 'llm_trace_enabled' },
+        { key: 'llm_trace_max_chars' }
       ]
     },
     {
-      title: 'Vector store',
-      hint: 'Where article/story embeddings live. sqlite_vec needs nothing; qdrant is an external server.',
+      id: 'vector',
+      hint: true,
       fields: [
-        { key: 'vector_backend', label: 'Vector backend (sqlite_vec | qdrant)' },
-        { key: 'qdrant_url', label: 'Qdrant URL (external)' },
-        { key: 'qdrant_api_key', label: 'Qdrant API key', secret: true }
+        { key: 'vector_backend' },
+        { key: 'qdrant_url' },
+        { key: 'qdrant_api_key', secret: true }
       ]
     },
     {
-      title: 'Readeck (optional)',
-      hint: 'Self-hosted read-later archive. Set both to enable "Save to Readeck" on stories.',
+      id: 'readeck',
+      hint: true,
+      fields: [{ key: 'readeck_base_url' }, { key: 'readeck_token', secret: true }]
+    },
+    {
+      id: 'sharing',
+      hint: true,
+      fields: [{ key: 'share_languages' }]
+    },
+    {
+      id: 'chatbot',
+      hint: true,
+      fields: [{ key: 'chat_enabled' }, { key: 'chat_top_k' }, { key: 'chat_candidates' }]
+    },
+    {
+      id: 'catsug',
+      hint: true,
       fields: [
-        { key: 'readeck_base_url', label: 'Readeck base URL' },
-        { key: 'readeck_token', label: 'Readeck API token', secret: true }
+        { key: 'category_suggestions_enabled' },
+        { key: 'category_suggestion_min_articles' },
+        { key: 'category_suggestion_window_days' }
       ]
     },
     {
-      title: 'Sharing',
-      hint: 'Languages offered when sharing a story (comma-separated ISO codes, e.g. en,fr,de). Translation happens on demand via the LLM.',
-      fields: [{ key: 'share_languages', label: 'Share languages' }]
+      id: 'clustering',
+      hint: true,
+      fields: [{ key: 'tau_attach' }, { key: 'tau_gray' }, { key: 'freeze_after_hours' }]
     },
     {
-      title: 'Chatbot',
-      hint: 'RAG question-answering over the story archive. Answers are grounded on retrieved story summaries.',
+      id: 'ingestion',
       fields: [
-        { key: 'chat_enabled', label: 'Chat enabled (1 = on, 0 = off)' },
-        { key: 'chat_top_k', label: 'Stories handed to the LLM (top-K)' },
-        { key: 'chat_candidates', label: 'ANN candidates re-ranked (per question)' }
-      ]
-    },
-    {
-      title: 'Category suggestions',
-      hint: 'When the summarizer feels no taxonomy category fits, it may propose a new one — recurring proposals show up below the Categories card.',
-      fields: [
-        { key: 'category_suggestions_enabled', label: 'Suggestions enabled (1 = on, 0 = off)' },
-        { key: 'category_suggestion_min_articles', label: 'Distinct articles before proposing' },
-        { key: 'category_suggestion_window_days', label: 'Rolling window (days)' }
-      ]
-    },
-    {
-      title: 'Clustering',
-      hint: 'Tune via the feedback report below before changing thresholds.',
-      fields: [
-        { key: 'tau_attach', label: 'Clustering threshold τ_attach' },
-        { key: 'tau_gray', label: 'Gray-zone threshold τ_gray' },
-        { key: 'freeze_after_hours', label: 'Story freeze window (hours)' }
-      ]
-    },
-    {
-      title: 'Ingestion & retention',
-      fields: [
-        { key: 'retention_days', label: 'Retention (days)' },
-        { key: 'feed_disable_after_days', label: 'Disable feed after N days of failures' },
-        { key: 'feed_backfill_days', label: 'First-poll backfill window (days, 0 = all)' },
-        { key: 'reader_poll_minutes', label: 'Reader accounts poll interval (minutes)' },
-        { key: 'summary_language', label: 'Summary language (global default)' },
-        { key: 'summary_min_sentences', label: 'Story summary min sentences (1-12)' },
-        { key: 'summary_max_sentences', label: 'Story summary max sentences (1-12)' },
-        { key: 'headline_min_words', label: 'Headline min words (0 = no minimum, max 40)' },
-        { key: 'headline_max_words', label: 'Headline max words (1-40)' }
+        { key: 'retention_days' },
+        { key: 'feed_disable_after_days' },
+        { key: 'feed_backfill_days' },
+        { key: 'reader_poll_minutes' },
+        { key: 'summary_language' },
+        { key: 'summary_min_sentences' },
+        { key: 'summary_max_sentences' },
+        { key: 'headline_min_words' },
+        { key: 'headline_max_words' }
       ]
     }
   ];
 
   onMount(async () => {
     language = $currentUser?.summary_language ?? '';
+    uiLanguage = $currentUser?.ui_language ?? '';
     mailAccounts = await api.mailAccounts.list();
     await loadReaderAccounts();
     // Token for the RSS URL: prefer a fresh one from the backend (works when
@@ -485,6 +478,11 @@
     setTimeout(() => (saved = false), 2000);
   }
 
+  async function saveUiLanguage() {
+    $currentUser = await api.patchMe({ ui_language: uiLanguage });
+    await setLocale(uiLanguage);
+  }
+
   async function logout() {
     await api.logout();
     $currentUser = null;
@@ -499,7 +497,7 @@
   }
 
   async function removeCategory(c: Category) {
-    if (!confirm(`Delete category "${c.name}"?`)) return;
+    if (!confirm(tNow('settings.confirmDeleteCategory', { name: c.name }))) return;
     await api.categories.remove(c.id);
     categories = await api.categories.list();
   }
@@ -535,7 +533,7 @@
   }
 
   async function resetPassword(u: ManagedUser) {
-    const password = prompt(`New password for ${u.username} (min 8 chars):`);
+    const password = prompt(tNow('settings.promptNewPassword', { username: u.username }));
     if (!password) return;
     userError = '';
     try {
@@ -557,7 +555,7 @@
   }
 
   async function removeUser(u: ManagedUser) {
-    if (!confirm(`Delete user "${u.username}"? Their read state is lost.`)) return;
+    if (!confirm(tNow('settings.confirmDeleteUser', { username: u.username }))) return;
     userError = '';
     try {
       await api.users.remove(u.id);
@@ -569,272 +567,276 @@
   }
 </script>
 
-<h1>Settings</h1>
+<svelte:head><title>{$t('settings.title')}</title></svelte:head>
+
+<h1>{$t('settings.title')}</h1>
 
 <div class="card">
-  <h2>Your preferences</h2>
+  <h2>{$t('settings.preferences')}</h2>
   <label>
-    Summary language (ISO code, e.g. <code>en</code>, <code>fr</code>, <code>de</code>;
-    empty = global default)
+    {$t('settings.summaryLanguage')}
     <input bind:value={language} maxlength="8" placeholder="en" />
   </label>
-  <button onclick={saveLanguage}>Save</button>
-  {#if saved}<span class="ok">Saved ✓</span>{/if}
+  <button onclick={saveLanguage}>{$t('settings.save')}</button>
+  {#if saved}<span class="ok">{$t('settings.saved')}</span>{/if}
+  <label>
+    {$t('settings.interfaceLanguage')}
+    <select bind:value={uiLanguage} onchange={saveUiLanguage}>
+      <option value="">{$t('settings.interfaceLanguageAuto')}</option>
+      {#each LOCALES as l (l.code)}
+        <option value={l.code}>{l.name}</option>
+      {/each}
+    </select>
+  </label>
+  <p class="hint">{$t('settings.interfaceLanguageHelp')}</p>
 </div>
 
 <StoryViewsSettings />
 
 <div class="card">
-  <h2>Session</h2>
-  <p class="hint">Signed in as <strong>{$currentUser?.username}</strong>.</p>
-  <button onclick={logout}>Log out</button>
+  <h2>{$t('settings.session')}</h2>
+  <p class="hint">{$t('settings.signedInAs')} <strong>{$currentUser?.username}</strong>.</p>
+  <button onclick={logout}>{$t('settings.logout')}</button>
 </div>
 
 <div class="card">
-  <h2>Story RSS feed</h2>
+  <h2>{$t('settings.rssTitle')}</h2>
   <p class="hint">
-    Subscribe to your clustered stories from any RSS reader. The URL carries your
-    session token — treat it like a password.
+    {$t('settings.rssHint')}
   </p>
   <div class="feedopts">
     <label>
-      Category
+      {$t('settings.category')}
       <select bind:value={feedCategory}>
-        <option value="">All categories</option>
+        <option value="">{$t('settings.allCategories')}</option>
         {#each feedCategories as c (c)}
           <option value={c}>{c}</option>
         {/each}
       </select>
     </label>
     <label class="check">
-      <input type="checkbox" bind:checked={feedUnread} /> Unread only
+      <input type="checkbox" bind:checked={feedUnread} /> {$t('settings.unreadOnly')}
     </label>
   </div>
   <div class="feedurl">
     <input readonly value={feedUrl} onfocus={(e) => e.currentTarget.select()} />
-    <button onclick={copyFeedUrl}>{feedCopied ? 'Copied ✓' : 'Copy'}</button>
+    <button onclick={copyFeedUrl}>{feedCopied ? $t('settings.copied') : $t('settings.copy')}</button>
   </div>
 </div>
 
 <div class="card">
-  <h2>Newsletter inboxes (IMAP)</h2>
+  <h2>{$t('settings.mailTitle')}</h2>
   <p class="hint">
-    Point at an IMAP folder that receives newsletters. The folder is polled
-    regularly; every sender becomes a feed (visible on the Feeds page) and every
-    article link found in a message is processed like an RSS entry. Messages are
-    never marked as read. The password is stored on the server and never shown again.
+    {$t('settings.mailHint')}
   </p>
   {#if mailError}<p class="bad">{mailError}</p>{/if}
   <form class="add" onsubmit={addMailAccount}>
-    <input bind:value={mailHost} placeholder="imap.example.com" required />
+    <input bind:value={mailHost} placeholder={$t('settings.imapHostPh')} required />
     <input
       bind:value={mailPort}
       type="number"
       min="1"
       max="65535"
       style="max-width: 6rem"
-      title="Port"
+      title={$t('settings.port')}
     />
-    <input bind:value={mailUsername} placeholder="you@example.com" required />
+    <input bind:value={mailUsername} placeholder={$t('settings.mailUserPh')} required />
     <input
       bind:value={mailPassword}
       type="password"
-      placeholder="password / app password"
+      placeholder={$t('settings.mailPasswordPh')}
       required
     />
-    <input bind:value={mailFolder} placeholder="Folder (e.g. Newsletters)" required />
+    <input bind:value={mailFolder} placeholder={$t('settings.folderPh')} required />
     <label class="inline">
       <input type="checkbox" bind:checked={mailSsl} /> SSL
     </label>
-    <button type="submit" disabled={mailAdding}>{mailAdding ? 'Adding…' : 'Add inbox'}</button>
+    <button type="submit" disabled={mailAdding}>{mailAdding ? $t('settings.adding') : $t('settings.addInbox')}</button>
   </form>
   {#each mailAccounts as a (a.id)}
     <div class="mailacct">
       {#if mailEditingId === a.id}
         <form class="add" onsubmit={saveMailAccount}>
-          <input bind:value={editHost} placeholder="imap.example.com" required />
+          <input bind:value={editHost} placeholder={$t('settings.imapHostPh')} required />
           <input
             bind:value={editPort}
             type="number"
             min="1"
             max="65535"
             style="max-width: 6rem"
-            title="Port"
+            title={$t('settings.port')}
           />
-          <input bind:value={editUsername} placeholder="you@example.com" required />
+          <input bind:value={editUsername} placeholder={$t('settings.mailUserPh')} required />
           <input
             bind:value={editPassword}
             type="password"
-            placeholder="new password (blank = keep current)"
+            placeholder={$t('settings.newPasswordKeepPh')}
           />
-          <input bind:value={editFolder} placeholder="Folder (e.g. Newsletters)" required />
+          <input bind:value={editFolder} placeholder={$t('settings.folderPh')} required />
           <label class="inline">
             <input type="checkbox" bind:checked={editSsl} /> SSL
           </label>
-          <button type="submit" disabled={mailSaving}>{mailSaving ? 'Saving…' : 'Save'}</button>
-          <button type="button" onclick={() => (mailEditingId = null)}>Cancel</button>
+          <button type="submit" disabled={mailSaving}>{mailSaving ? $t('settings.saving') : $t('settings.save')}</button>
+          <button type="button" onclick={() => (mailEditingId = null)}>{$t('settings.cancel')}</button>
         </form>
       {:else}
         <div class="row">
           <strong>{a.username}@{a.host}:{a.port}</strong>
           <span class="ovr">{a.folder}</span>
-          <span class="ovr" class:env={a.is_enabled}>{a.is_enabled ? 'enabled' : 'disabled'}</span>
+          <span class="ovr" class:env={a.is_enabled}>{a.is_enabled ? $t('settings.enabled') : $t('settings.disabled')}</span>
           <span class="actions">
-            <button class="linkbtn" onclick={() => startEditMail(a)}>Edit</button>
-            <button class="linkbtn" onclick={() => testMailAccount(a)}>Test</button>
+            <button class="linkbtn" onclick={() => startEditMail(a)}>{$t('settings.edit')}</button>
+            <button class="linkbtn" onclick={() => testMailAccount(a)}>{$t('settings.test')}</button>
             <button
               class="linkbtn"
               onclick={() => pollMailAccount(a)}
               disabled={!a.is_enabled || mailPolling === a.id}
             >
-              {mailPolling === a.id ? 'Polling…' : 'Poll now'}
+              {mailPolling === a.id ? $t('settings.polling') : $t('settings.pollNow')}
             </button>
             <button class="linkbtn" onclick={() => toggleMailAccount(a)}>
-              {a.is_enabled ? 'Disable' : 'Enable'}
+              {a.is_enabled ? $t('settings.disable') : $t('settings.enable')}
             </button>
-            <button class="linkbtn" onclick={() => removeMailAccount(a)}>Delete</button>
+            <button class="linkbtn" onclick={() => removeMailAccount(a)}>{$t('settings.delete')}</button>
           </span>
         </div>
       {/if}
       <p class="hint">
-        last checked: {fmtMailChecked(a.last_checked_at)} · watermark UID {a.last_uid}
-        {#if !a.use_ssl}· no SSL{/if}
+        {$t('settings.mailLastChecked', { date: fmtMailChecked(a.last_checked_at), uid: a.last_uid })}
+        {#if !a.use_ssl}· {$t('settings.noSsl')}{/if}
       </p>
-      {#if a.last_error}<p class="bad">Last error: {a.last_error}</p>{/if}
+      {#if a.last_error}<p class="bad">{$t('settings.lastError', { error: a.last_error })}</p>{/if}
       {#if mailPollInfo[a.id]}<p class="ok">{mailPollInfo[a.id]}</p>{/if}
       {#if mailTest[a.id]}
         <p class={mailTest[a.id].ok ? 'ok' : 'bad'}>
           {mailTest[a.id].ok
-            ? `Connection OK — folder "${mailTest[a.id].folder}" reachable`
+            ? $t('settings.mailConnOk', { folder: mailTest[a.id].folder ?? '' })
             : mailTest[a.id].errors.join(', ')}
         </p>
       {/if}
     </div>
   {:else}
-    <p class="hint">No inbox configured yet.</p>
+    <p class="hint">{$t('settings.noInbox')}</p>
   {/each}
 </div>
 
 <div class="card">
-  <h2>RSS Reader Accounts</h2>
+  <h2>{$t('settings.readerTitle')}</h2>
   <p class="hint">
-    Connect an external RSS reader service (Google Reader API standard: Inoreader, FreshRSS, Miniflux, The Old Reader, BazQux).
-    Articles are ingested into a single virtual feed with original publisher URLs, favicons, and origin titles, and read state syncs bidirectionally. Each sync fetches the newest articles first, up to the chosen number, and stops at articles already imported. The login is tested when you add the account; if it fails, the server probes common endpoints (for example one ending in /api/greader.php) and suggests the right address.
+    {$t('settings.readerHint')}
   </p>
   {#if readerError}<p class="bad">{readerError}</p>{/if}
   <form class="add" onsubmit={addReaderAccount}>
-    <input bind:value={readerTitle} placeholder="Account title (optional, e.g. Inoreader)" />
-    <input bind:value={readerBaseUrl} placeholder="API URL (e.g. https://www.inoreader.com)" required />
-    <input bind:value={readerUsername} placeholder="Username / Email" required />
+    <input bind:value={readerTitle} placeholder={$t('settings.readerTitlePh')} />
+    <input bind:value={readerBaseUrl} placeholder={$t('settings.readerUrlPh')} required />
+    <input bind:value={readerUsername} placeholder={$t('settings.readerUserPh')} required />
     <input
       bind:value={readerPassword}
       type="password"
-      placeholder="Password / API token"
+      placeholder={$t('settings.readerPasswordPh')}
       required
     />
     <label class="hint">
-      Articles to retrieve on first sync (1–5000, default 200). Only unread articles are
-      retrieved: anything already read in the source app is ignored. Later syncs fetch all new
-      unread articles.
+      {$t('settings.readerArticles')}
       <input bind:value={readerArticles} type="number" min="1" max="5000" />
     </label>
     <label class="hint">
-      Import window in days (blank = server default, 0 = everything)
-      <input bind:value={readerBackfill} type="number" min="0" max="3650" placeholder="server default" />
+      {$t('settings.importWindow')}
+      <input bind:value={readerBackfill} type="number" min="0" max="3650" placeholder={$t('settings.serverDefault')} />
     </label>
-    <button type="submit" disabled={readerAdding}>{readerAdding ? 'Adding…' : 'Add account'}</button>
+    <button type="submit" disabled={readerAdding}>{readerAdding ? $t('settings.adding') : $t('settings.addAccount')}</button>
   </form>
   {#each readerAccounts as a (a.id)}
     <div class="mailacct">
       {#if readerEditingId === a.id}
         <form class="add" onsubmit={saveReaderAccount}>
-          <input bind:value={editReaderTitle} placeholder="Account title" />
-          <input bind:value={editReaderBaseUrl} placeholder="API URL" required />
-          <input bind:value={editReaderUsername} placeholder="Username / Email" required />
+          <input bind:value={editReaderTitle} placeholder={$t('settings.accountTitlePh')} />
+          <input bind:value={editReaderBaseUrl} placeholder={$t('settings.apiUrlPh')} required />
+          <input bind:value={editReaderUsername} placeholder={$t('settings.readerUserPh')} required />
           <input
             bind:value={editReaderPassword}
             type="password"
-            placeholder="new password / token (blank = keep current)"
+            placeholder={$t('settings.newTokenKeepPh')}
           />
           <label class="hint">
-            Import window in days (blank = server default, 0 = everything)
-            <input bind:value={editReaderBackfill} type="number" min="0" max="3650" placeholder="server default" />
+            {$t('settings.importWindow')}
+            <input bind:value={editReaderBackfill} type="number" min="0" max="3650" placeholder={$t('settings.serverDefault')} />
           </label>
-          <button type="submit" disabled={readerSaving}>{readerSaving ? 'Saving…' : 'Save'}</button>
-          <button type="button" onclick={() => (readerEditingId = null)}>Cancel</button>
+          <button type="submit" disabled={readerSaving}>{readerSaving ? $t('settings.saving') : $t('settings.save')}</button>
+          <button type="button" onclick={() => (readerEditingId = null)}>{$t('settings.cancel')}</button>
         </form>
       {:else}
         <div class="row">
           <strong>{a.title || a.username}</strong>
           <span class="ovr">{a.api_base_url}</span>
-          <span class="ovr" class:env={a.is_enabled}>{a.is_enabled ? 'enabled' : 'disabled'}</span>
+          <span class="ovr" class:env={a.is_enabled}>{a.is_enabled ? $t('settings.enabled') : $t('settings.disabled')}</span>
           <span class="actions">
-            <button class="linkbtn" onclick={() => startEditReader(a)}>Edit</button>
-            <button class="linkbtn" onclick={() => testReaderAccount(a)}>Test</button>
+            <button class="linkbtn" onclick={() => startEditReader(a)}>{$t('settings.edit')}</button>
+            <button class="linkbtn" onclick={() => testReaderAccount(a)}>{$t('settings.test')}</button>
             <button
               class="linkbtn"
               onclick={() => pollReaderAccount(a)}
               disabled={!a.is_enabled || readerPolling === a.id}
             >
-              {readerPolling === a.id ? 'Polling…' : 'Poll now'}
+              {readerPolling === a.id ? $t('settings.polling') : $t('settings.pollNow')}
             </button>
             <button class="linkbtn" onclick={() => toggleReaderAccount(a)}>
-              {a.is_enabled ? 'Disable' : 'Enable'}
+              {a.is_enabled ? $t('settings.disable') : $t('settings.enable')}
             </button>
-            <button class="linkbtn" onclick={() => removeReaderAccount(a)}>Delete</button>
+            <button class="linkbtn" onclick={() => removeReaderAccount(a)}>{$t('settings.delete')}</button>
           </span>
         </div>
       {/if}
       <p class="hint">
-        last checked: {fmtMailChecked(a.last_checked_at)} · user {a.username}
+        {$t('settings.readerLastChecked', { date: fmtMailChecked(a.last_checked_at), username: a.username })}
       </p>
-      {#if a.last_error}<p class="bad">Last error: {a.last_error}</p>{/if}
+      {#if a.last_error}<p class="bad">{$t('settings.lastError', { error: a.last_error })}</p>{/if}
       {#if readerPollInfo[a.id]}<p class="ok">{readerPollInfo[a.id]}</p>{/if}
       {#if readerTest[a.id]}
         <p class={readerTest[a.id].ok ? 'ok' : 'bad'}>
           {readerTest[a.id].ok
-            ? `Connection OK — ${readerTest[a.id].items_accessible} item(s) accessible`
-            : `Test failed: ${readerTest[a.id].error || 'Unknown error'}`}
+            ? $t('settings.readerConnOk', { count: readerTest[a.id].items_accessible })
+            : $t('settings.readerTestFailed', { error: readerTest[a.id].error || $t('settings.unknownError') })}
         </p>
       {/if}
     </div>
   {:else}
-    <p class="hint">No reader account connected yet.</p>
+    <p class="hint">{$t('settings.noReader')}</p>
   {/each}
 </div>
 
 {#if $currentUser?.is_admin}
   <div class="card">
-    <h2>Categories (admin)</h2>
+    <h2>{$t('settings.categoriesAdmin')}</h2>
     <form class="add" onsubmit={addCategory}>
-      <input bind:value={newCategory} placeholder="New category" required />
-      <button type="submit">Add</button>
+      <input bind:value={newCategory} placeholder={$t('settings.newCategory')} required />
+      <button type="submit">{$t('settings.add')}</button>
     </form>
     <ul>
       {#each categories as c (c.id)}
         <li>
           {c.name}
           {#if c.name !== 'Uncategorized'}
-            <button class="link" onclick={() => removeCategory(c)}>delete</button>
+            <button class="link" onclick={() => removeCategory(c)}>{$t('settings.deleteLower')}</button>
           {/if}
         </li>
       {/each}
     </ul>
     {#if suggestions.length}
-      <h3>Proposed categories</h3>
+      <h3>{$t('settings.proposedCategories')}</h3>
       <p class="hint">
-        The summarizer felt these recurring topics didn't fit any existing category.
+        {$t('settings.proposedHint')}
       </p>
       <ul class="suggestions">
         {#each suggestions as s (s.normalized_text)}
           <li>
-            <strong>{s.label}</strong> — {s.article_count} articles
+            <strong>{s.label}</strong> — {$t('settings.articlesCount', { count: s.article_count })}
             {#if s.example_titles.length}
-              <span class="hint">e.g. {s.example_titles.join('; ')}</span>
+              <span class="hint">{$t('settings.exampleTitles', { titles: s.example_titles.join('; ') })}</span>
             {/if}
             <div class="actions">
-              <button onclick={() => acceptSuggestion(s)}>Add as category</button>
-              <button class="link" onclick={() => dismissSuggestion(s)}>Dismiss</button>
+              <button onclick={() => acceptSuggestion(s)}>{$t('settings.addAsCategory')}</button>
+              <button class="link" onclick={() => dismissSuggestion(s)}>{$t('settings.dismiss')}</button>
             </div>
           </li>
         {/each}
@@ -843,36 +845,36 @@
   </div>
 
   <div class="card">
-    <h2>Users (admin)</h2>
+    <h2>{$t('settings.usersAdmin')}</h2>
     <form class="add" onsubmit={addUser}>
-      <input bind:value={newUsername} placeholder="Username" minlength="3" required />
+      <input bind:value={newUsername} placeholder={$t('settings.username')} minlength="3" required />
       <input
         type="password"
         bind:value={newUserPassword}
-        placeholder="Password"
+        placeholder={$t('settings.password')}
         minlength="8"
         autocomplete="new-password"
         required
       />
       <label class="inline">
-        <input type="checkbox" bind:checked={newUserAdmin} /> admin
+        <input type="checkbox" bind:checked={newUserAdmin} /> {$t('settings.admin')}
       </label>
-      <button type="submit">Add user</button>
+      <button type="submit">{$t('settings.addUser')}</button>
     </form>
     {#if userError}<p class="bad">{userError}</p>{/if}
     <ul>
       {#each users as u (u.id)}
         <li>
           {u.username}
-          {#if u.is_admin}<span class="ovr">admin</span>{/if}
-          {#if u.id === $currentUser?.id}<span class="hint">(you)</span>{/if}
+          {#if u.is_admin}<span class="ovr">{$t('settings.admin')}</span>{/if}
+          {#if u.id === $currentUser?.id}<span class="hint">{$t('settings.you')}</span>{/if}
           <span class="actions">
-            <button class="linkbtn" onclick={() => resetPassword(u)}>reset password</button>
+            <button class="linkbtn" onclick={() => resetPassword(u)}>{$t('settings.resetPassword')}</button>
             <button class="linkbtn" onclick={() => toggleAdmin(u)}>
-              {u.is_admin ? 'revoke admin' : 'make admin'}
+              {u.is_admin ? $t('settings.revokeAdmin') : $t('settings.makeAdmin')}
             </button>
             {#if u.id !== $currentUser?.id}
-              <button class="link" onclick={() => removeUser(u)}>delete</button>
+              <button class="link" onclick={() => removeUser(u)}>{$t('settings.deleteLower')}</button>
             {/if}
           </span>
         </li>
@@ -881,20 +883,20 @@
   </div>
 
   <div class="card">
-    <h2>System (admin)</h2>
-    {#each sysGroups as group (group.title)}
+    <h2>{$t('settings.systemAdmin')}</h2>
+    {#each sysGroups as group (group.id)}
       <section class="group">
-        <h3>{group.title}</h3>
-        {#if group.hint}<p class="hint">{group.hint}</p>{/if}
+        <h3>{$t(`settings.g.${group.id}.title`)}</h3>
+        {#if group.hint}<p class="hint">{$t(`settings.g.${group.id}.hint`)}</p>{/if}
         <div class="grid">
           {#each group.fields as f (f.key)}
             {@const locked = envLocked.includes(f.key)}
-            <label title={locked ? `Set via environment variable ${f.key.toUpperCase()} — change it in your container/launch environment and restart` : undefined}>
-              {f.label}
+            <label title={locked ? $t('settings.envLockedTitle', { name: f.key.toUpperCase() }) : undefined}>
+              {$t(`settings.f.${f.key}`)}
               {#if locked}
                 <span class="ovr env">env</span>
               {:else if overridden.includes(f.key)}
-                <span class="ovr">overridden</span>
+                <span class="ovr">{$t('settings.overridden')}</span>
               {/if}
               <input
                 type={f.secret ? 'password' : 'text'}
@@ -906,37 +908,41 @@
           {/each}
         </div>
 
-        {#if group.title === 'LLM server'}
+        {#if group.id === 'llm'}
           <div class="row">
-            <button class="linkbtn" onclick={testLlm}>Test connection</button>
+            <button class="linkbtn" onclick={testLlm}>{$t('settings.testConnection')}</button>
             {#if llmTest}
               <span class:ok={llmTest.chat && llmTest.embeddings} class:bad={!llmTest.chat || !llmTest.embeddings}>
-                chat: {llmTest.chat ? '✓' : '✗'} · embeddings: {llmTest.embeddings ? '✓' : '✗'}
-                {#if llmTest.api_key_hint}· key in use: {llmTest.api_key_hint}{/if}
+                {$t('settings.llmChat')}: {llmTest.chat ? '✓' : '✗'} · {$t('settings.llmEmbeddings')}: {llmTest.embeddings ? '✓' : '✗'}
+                {#if llmTest.api_key_hint}· {$t('settings.keyInUse', { hint: llmTest.api_key_hint })}{/if}
                 {#each llmTest.errors as err}<br /><small>{err}</small>{/each}
               </span>
             {/if}
           </div>
-        {:else if group.title === 'Vector store'}
+        {:else if group.id === 'vector'}
           <div class="row">
             <button class="linkbtn" onclick={testQdrant} disabled={sys.vector_backend !== 'qdrant'}>
-              Test Qdrant connection
+              {$t('settings.testQdrant')}
             </button>
             {#if qdrantTest}
               <span class:ok={qdrantTest.ok} class:bad={!qdrantTest.ok}>
-                {qdrantTest.ok ? `✓ reachable${qdrantTest.version?.version ? ' · v' + qdrantTest.version.version : ''}` : '✗ failed'}
+                {qdrantTest.ok
+                  ? qdrantTest.version?.version
+                    ? $t('settings.reachableVersion', { version: qdrantTest.version.version })
+                    : $t('settings.reachable')
+                  : $t('settings.failed')}
                 {#each qdrantTest.errors as err}<br /><small>{err}</small>{/each}
               </span>
             {/if}
           </div>
-        {:else if group.title === 'Readeck (optional)'}
+        {:else if group.id === 'readeck'}
           <div class="row">
             <button class="linkbtn" onclick={testReadeck} disabled={!sys.readeck_base_url || !sys.readeck_token}>
-              Test Readeck connection
+              {$t('settings.testReadeck')}
             </button>
             {#if readeckTest}
               <span class:ok={readeckTest.ok} class:bad={!readeckTest.ok}>
-                {readeckTest.ok ? `✓ connected as ${readeckTest.user}` : '✗ failed'}
+                {readeckTest.ok ? $t('settings.connectedAs', { user: readeckTest.user ?? '' }) : $t('settings.failed')}
                 {#each readeckTest.errors as err}<br /><small>{err}</small>{/each}
               </span>
             {/if}
@@ -946,32 +952,30 @@
     {/each}
 
     <div class="row">
-      <button onclick={saveSystem}>Save system settings</button>
-      {#if sysSaved}<span class="ok">Saved ✓</span>{/if}
+      <button onclick={saveSystem}>{$t('settings.saveSystem')}</button>
+      {#if sysSaved}<span class="ok">{$t('settings.saved')}</span>{/if}
     </div>
   </div>
 
   <div class="card">
-    <h2>Clustering feedback (admin)</h2>
+    <h2>{$t('settings.feedbackAdmin')}</h2>
     <p class="hint">
-      Replays logged clustering decisions + your merge/split corrections against
-      candidate thresholds. Suggestions are applied only if you confirm them above.
+      {$t('settings.feedbackHint')}
     </p>
-    <button onclick={loadReport}>Generate report</button>
+    <button onclick={loadReport}>{$t('settings.generateReport')}</button>
     {#if report}
       <p>
-        {report.decisions_logged} decisions logged · {report.labeled_pairs} labeled corrections
-        · current τ_attach = {report.current.tau_attach}
+        {$t('settings.reportSummary', { decisions: report.decisions_logged, labeled: report.labeled_pairs, tau: report.current.tau_attach })}
         {#if report.suggested_tau_attach}
-          · <strong>suggested τ_attach = {report.suggested_tau_attach}</strong>
+          · <strong>{$t('settings.suggestedTau', { tau: report.suggested_tau_attach })}</strong>
         {:else}
-          · not enough labeled data for a suggestion
+          · {$t('settings.notEnoughData')}
         {/if}
       </p>
       {#if report.candidates.length}
         <div class="tablewrap">
           <table>
-            <thead><tr><th>τ</th><th>precision</th><th>recall</th><th>F1</th></tr></thead>
+            <thead><tr><th>τ</th><th>{$t('settings.precision')}</th><th>{$t('settings.recall')}</th><th>F1</th></tr></thead>
             <tbody>
               {#each report.candidates as c (c.tau)}
                 <tr class:best={c.tau === report.suggested_tau_attach}>
@@ -1011,7 +1015,6 @@
     text-decoration: underline;
     padding: 0;
   }
-  code { background: var(--code-bg); padding: 0 0.25rem; border-radius: 4px; }
   .grid {
     display: grid;
     grid-template-columns: 1fr 1fr;

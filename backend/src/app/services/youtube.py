@@ -304,6 +304,8 @@ def _original_language(renderer: dict[str, Any], tracks: list[CaptionTrack]) -> 
     if not 0 <= index < len(audio_tracks) or not isinstance(audio_tracks[index], dict):
         index = 0
     audio = audio_tracks[index]
+    if not isinstance(audio, dict):
+        return None
     indices = audio.get("captionTrackIndices")
     if isinstance(indices, list) and indices:
         position = _as_int(indices[0])

@@ -1,0 +1,16 @@
+{
+  "shareStory": "Partager l’article",
+  "share": "Partager",
+  "closeMenu": "Fermer le menu de partage",
+  "asIs": "Tel quel",
+  "closePreview": "Fermer l’aperçu du partage",
+  "preview": "Aperçu du partage",
+  "shareEllipsis": "Partager…",
+  "copied": "✓ Copié",
+  "copy": "Copier",
+  "close": "Fermer",
+  "loadLanguagesFailed": "Impossible de charger les langues",
+  "failed": "Échec du partage",
+  "clipboardUnavailable": "Le presse-papiers n’est pas disponible sur ce navigateur",
+  "copyFailed": "Échec de la copie"
+}

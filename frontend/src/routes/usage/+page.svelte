@@ -3,6 +3,7 @@
   import { api } from '$lib/api';
   import { currentUser } from '$lib/stores';
   import type { UsageByFeed, UsageDailyRow, UsageSummary } from '$lib/types';
+  import { t, fmt, tNow } from '$lib/i18n';
 
   let summaries = $state<Partial<Record<'day' | 'month' | 'all', UsageSummary>>>({});
   let dailyRows = $state<UsageDailyRow[]>([]);
@@ -37,7 +38,7 @@
       dailyRows = daily.rows;
       byFeed = feeds.feeds;
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Failed to load usage';
+      error = e instanceof Error ? e.message : tNow('usage.loadFailed');
     }
   });
 
@@ -69,30 +70,26 @@
     );
   }
 
-  function fmt(n: number | null | undefined): string {
-    if (n === null || n === undefined) return '—';
-    if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M';
-    if (n >= 10_000) return (n / 1_000).toFixed(1) + 'k';
-    return n.toLocaleString();
-  }
+  let short = $derived.by(() => {
+    const f = $fmt;
+    return (n: number | null | undefined): string => {
+      if (n === null || n === undefined) return '—';
+      if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M';
+      if (n >= 10_000) return (n / 1_000).toFixed(1) + 'k';
+      return f.number(n);
+    };
+  });
 
   function fmtCost(c: number | null): string {
     if (c === null) return '—';
     return c < 0.01 && c > 0 ? '<$0.01' : '$' + c.toFixed(2);
   }
 
-  const KIND_LABELS: Record<string, string> = {
-    summarize: 'Summaries',
-    embed: 'Embeddings',
-    cluster_embed: 'Cluster embeddings',
-    pairwise: 'Pairwise checks',
-    novelty: 'Novelty checks',
-    headline: 'Headlines',
-    merge: 'Story merges',
-    share_translate: 'Share translations',
-    backfill_embed: 'Backfill embeddings'
-  };
-  const kindLabel = (k: string) => KIND_LABELS[k] ?? k;
+  const KIND_KEYS = new Set([
+    'summarize', 'embed', 'cluster_embed', 'pairwise', 'novelty',
+    'headline', 'merge', 'share_translate', 'backfill_embed'
+  ]);
+  const kindLabel = (k: string) => (KIND_KEYS.has(k) ? $t(`usage.kind_${k}`) : k);
 
   // Daily chart: total tokens per UTC day (all kinds summed), CSS bars.
   let chart = $derived.by(() => {
@@ -113,33 +110,32 @@
   });
 </script>
 
-<svelte:head><title>Usage — NewsGator</title></svelte:head>
+<svelte:head><title>{$t('usage.pageTitle')}</title></svelte:head>
 
 {#if !$currentUser?.is_admin}
-  <p class="muted">Admin only.</p>
+  <p class="muted">{$t('usage.adminOnly')}</p>
 {:else}
-  <h1>LLM usage</h1>
+  <h1>{$t('usage.heading')}</h1>
 
   {#if error}<p class="error">{error}</p>{/if}
 
   {#if estimatedShare > 0}
     <p class="warn">
-      ⚠ {(estimatedShare * 100).toFixed(0)}% of calls have <strong>estimated</strong> token
-      counts — the LLM server did not return a <code>usage</code> object, so a
-      chars-per-token heuristic was used. Treat those numbers as rough.
+      {$t('usage.warnPre', { pct: (estimatedShare * 100).toFixed(0) })} <strong>{$t('usage.warnEstimated')}</strong>
+      {$t('usage.warnMid')} <code>usage</code>
+      {$t('usage.warnPost')}
     </p>
   {/if}
 
   <section class="prices">
-    <h2>Cost playground</h2>
+    <h2>{$t('usage.playground')}</h2>
     <p class="hint">
-      Prices in $ per 1M tokens — not saved on the server, tweak freely to compare
-      providers/models against your real usage.
+      {$t('usage.playgroundHint')}
     </p>
     <div class="price-inputs">
-      <label>Chat input <input bind:value={priceInput} oninput={savePrices} placeholder="0.00" inputmode="decimal" /></label>
-      <label>Chat output <input bind:value={priceOutput} oninput={savePrices} placeholder="0.00" inputmode="decimal" /></label>
-      <label>Embeddings <input bind:value={priceEmbed} oninput={savePrices} placeholder="0.00" inputmode="decimal" /></label>
+      <label>{$t('usage.chatInput')} <input bind:value={priceInput} oninput={savePrices} placeholder="0.00" inputmode="decimal" /></label>
+      <label>{$t('usage.chatOutput')} <input bind:value={priceOutput} oninput={savePrices} placeholder="0.00" inputmode="decimal" /></label>
+      <label>{$t('usage.embeddings')} <input bind:value={priceEmbed} oninput={savePrices} placeholder="0.00" inputmode="decimal" /></label>
     </div>
   </section>
 
@@ -147,11 +143,11 @@
     {#each periods as p (p)}
       {@const s = summaries[p]}
       <div class="card">
-        <h3>{p === 'day' ? 'Today' : p === 'month' ? 'This month' : 'All time'}</h3>
+        <h3>{p === 'day' ? $t('usage.today') : p === 'month' ? $t('usage.thisMonth') : $t('usage.allTime')}</h3>
         {#if s}
-          <div class="big">{fmt(s.totals.total_tokens)}</div>
-          <div class="muted">tokens · {fmt(s.totals.calls)} calls</div>
-          <div class="muted">in {fmt(s.totals.prompt_tokens)} / out {fmt(s.totals.completion_tokens)}</div>
+          <div class="big">{short(s.totals.total_tokens)}</div>
+          <div class="muted">{$t('usage.tokensCalls', { calls: short(s.totals.calls) })}</div>
+          <div class="muted">{$t('usage.inOut', { in: short(s.totals.prompt_tokens), out: short(s.totals.completion_tokens) })}</div>
           {#if num(priceInput) + num(priceOutput) + num(priceEmbed) > 0}
             <div class="cost">≈ {fmtCost(cost(s))}</div>
           {/if}
@@ -162,32 +158,32 @@
     {/each}
   </div>
 
-  <h2>Tokens per day <span class="muted">(last {Math.min(90, chart.length)} days with activity)</span></h2>
+  <h2>{$t('usage.tokensPerDay')} <span class="muted">{$t('usage.chartHint', { count: Math.min(90, chart.length) })}</span></h2>
   {#if chart.length}
     <div class="chart">
       {#each chart as c (c.day)}
-        <div class="bar" style:height="{Math.max(c.pct, 1)}%" title="{c.day}: {fmt(c.tokens)} tokens"></div>
+        <div class="bar" style:height="{Math.max(c.pct, 1)}%" title={$t('usage.barTitle', { day: c.day, tokens: short(c.tokens) })}></div>
       {/each}
     </div>
   {:else}
-    <p class="muted">No usage recorded yet.</p>
+    <p class="muted">{$t('usage.noUsage')}</p>
   {/if}
 
   <div class="tables">
     <section>
-      <h2>By stage</h2>
+      <h2>{$t('usage.byStage')}</h2>
       <table>
         <thead>
-          <tr><th>Stage</th><th>Calls</th><th>In</th><th>Out</th><th>Total</th><th>tok/s</th></tr>
+          <tr><th>{$t('usage.colStage')}</th><th>{$t('usage.colCalls')}</th><th>{$t('usage.colIn')}</th><th>{$t('usage.colOut')}</th><th>{$t('usage.colTotal')}</th><th>tok/s</th></tr>
         </thead>
         <tbody>
           {#each summaries.all?.by_kind ?? [] as k (k.kind)}
             <tr>
-              <td>{kindLabel(k.kind)}{#if k.estimated_calls > 0}<span class="est" title="{k.estimated_calls} estimated call(s)">~</span>{/if}</td>
-              <td>{fmt(k.calls)}</td>
-              <td>{fmt(k.prompt_tokens)}</td>
-              <td>{k.endpoint === 'chat' ? fmt(k.completion_tokens) : '—'}</td>
-              <td>{fmt(k.total_tokens)}</td>
+              <td>{kindLabel(k.kind)}{#if k.estimated_calls > 0}<span class="est" title={$t('usage.estimatedCalls', { count: k.estimated_calls })}>~</span>{/if}</td>
+              <td>{short(k.calls)}</td>
+              <td>{short(k.prompt_tokens)}</td>
+              <td>{k.endpoint === 'chat' ? short(k.completion_tokens) : '—'}</td>
+              <td>{short(k.total_tokens)}</td>
               <td>{k.tokens_per_s ?? '—'}</td>
             </tr>
           {/each}
@@ -196,17 +192,17 @@
     </section>
 
     <section>
-      <h2>By model</h2>
+      <h2>{$t('usage.byModel')}</h2>
       <table>
         <thead>
-          <tr><th>Model</th><th>Calls</th><th>Total tokens</th><th>tok/s</th></tr>
+          <tr><th>{$t('usage.colModel')}</th><th>{$t('usage.colCalls')}</th><th>{$t('usage.colTotalTokens')}</th><th>tok/s</th></tr>
         </thead>
         <tbody>
           {#each summaries.all?.by_model ?? [] as m (m.model + m.endpoint)}
             <tr>
-              <td>{m.model || '(unknown)'} <span class="muted">{m.endpoint}</span></td>
-              <td>{fmt(m.calls)}</td>
-              <td>{fmt(m.total_tokens)}</td>
+              <td>{m.model || $t('usage.unknownModel')} <span class="muted">{m.endpoint}</span></td>
+              <td>{short(m.calls)}</td>
+              <td>{short(m.total_tokens)}</td>
               <td>{m.tokens_per_s ?? '—'}</td>
             </tr>
           {/each}
@@ -215,17 +211,17 @@
     </section>
 
     <section>
-      <h2>By source feed <span class="muted">(all time)</span></h2>
+      <h2>{$t('usage.byFeed')} <span class="muted">{$t('usage.allTimeParen')}</span></h2>
       <table>
         <thead>
-          <tr><th>Feed</th><th>Calls</th><th>Total tokens</th></tr>
+          <tr><th>{$t('usage.colFeed')}</th><th>{$t('usage.colCalls')}</th><th>{$t('usage.colTotalTokens')}</th></tr>
         </thead>
         <tbody>
           {#each byFeed as f (f.feed_id ?? 'none')}
             <tr>
-              <td>{f.title}{#if f.estimated_calls > 0}<span class="est" title="{f.estimated_calls} estimated call(s)">~</span>{/if}</td>
-              <td>{fmt(f.calls)}</td>
-              <td>{fmt(f.total_tokens)}</td>
+              <td>{f.title}{#if f.estimated_calls > 0}<span class="est" title={$t('usage.estimatedCalls', { count: f.estimated_calls })}>~</span>{/if}</td>
+              <td>{short(f.calls)}</td>
+              <td>{short(f.total_tokens)}</td>
             </tr>
           {/each}
         </tbody>
