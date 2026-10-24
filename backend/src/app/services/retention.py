@@ -13,7 +13,9 @@ from app.core.config import settings
 from app.models import (
     ActivityEvent,
     Article,
+    ArticleTranslation,
     ClusterDecision,
+    ListenPosition,
     OverridePair,
     Story,
     StoryRevision,
@@ -46,6 +48,9 @@ async def purge_old_data(session: AsyncSession) -> dict[str, int]:
     await session.execute(
         delete(OverridePair).where(OverridePair.article_id.in_(old_articles))
     )
+    await session.execute(
+        delete(ArticleTranslation).where(ArticleTranslation.article_id.in_(old_articles))
+    )
     await session.execute(delete(Article).where(Article.id.in_(old_articles)))
     report["articles"] = len(old_articles)
 
@@ -66,6 +71,9 @@ async def purge_old_data(session: AsyncSession) -> dict[str, int]:
         )
         await session.execute(
             delete(StoryState).where(StoryState.story_id.in_(story_ids))
+        )
+        await session.execute(
+            delete(ListenPosition).where(ListenPosition.story_id.in_(story_ids))
         )
         await session.execute(
             delete(StoryTranslation).where(StoryTranslation.story_id.in_(story_ids))

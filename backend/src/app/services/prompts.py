@@ -194,6 +194,20 @@ Summary:
     return system, user
 
 
+def translate_article_text(text: str, target_language: str) -> tuple[str, str]:
+    """Translate a chunk of an article's plain text for text-to-speech (Listen)."""
+    system = (
+        "You are a professional translator. Translate faithfully and completely, never "
+        "summarize, add or drop content. Output ONLY the translated plain text, keeping the "
+        "paragraph breaks, with no commentary, markdown or quotation marks around it."
+    )
+    user = f"""Translate the following text into {target_language}.
+Keep proper nouns (people, places, organizations) in their standard form.
+
+{text}"""
+    return system, user
+
+
 def pairwise_same_event(summary_a: str, summary_b: str) -> tuple[str, str]:
     """Gray-zone clustering confirmation (SPEC §4)."""
     system = (

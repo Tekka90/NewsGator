@@ -141,6 +141,25 @@ ALEMBIC_DIR = BACKEND_DIR / "alembic"
 _LEGACY_STAMPS: list[tuple[list[tuple[str, str]], str]] = [
     (
         [
+            ("listen_position", "story_version"),
+            ("listen_position", "text_length"),
+        ],
+        "0030_listen_position_validity",
+    ),
+    (
+        [
+            ("listen_position", "elapsed_seconds"),
+        ],
+        "0029_listen_position",
+    ),
+    (
+        [
+            ("article_translation", "source_hash"),
+        ],
+        "0028_article_translation",
+    ),
+    (
+        [
             ("article", "media_kind"),
             ("article", "video_embed_url"),
         ],

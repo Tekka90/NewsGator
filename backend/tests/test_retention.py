@@ -13,6 +13,7 @@ from app.models import (
     Article,
     ClusterDecision,
     Feed,
+    ListenPosition,
     OverridePair,
     Story,
     StoryRevision,
@@ -54,6 +55,7 @@ async def _seed_old_and_fresh(factory: async_sessionmaker[AsyncSession]) -> tupl
         )
         s.add(StoryRevision(story_id=old_story.id, version=1, summary="s"))
         s.add(StoryState(user_id=1, story_id=old_story.id, is_read=True, read_at_version=1))
+        s.add(ListenPosition(user_id=1, story_id=old_story.id, step="summary", chunk=1))
         await s.commit()
         return old_story.id, fresh_story.id
 
@@ -69,6 +71,7 @@ async def test_retention_purges_old_keeps_fresh(db_session, store) -> None:
         assert await s.get(Story, fresh_id) is not None
         assert await s.scalar(select(func.count(StoryRevision.id))) == 0
         assert await s.scalar(select(func.count(StoryState.story_id))) == 0
+        assert await s.scalar(select(func.count(ListenPosition.story_id))) == 0
 
 
 async def test_retention_keeps_saved_old_story(db_session, store) -> None:

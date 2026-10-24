@@ -13,7 +13,7 @@ from app.api.deps import admin_user
 from app.api.schemas import ManagedUserOut, UserCreateIn, UserPatchIn
 from app.core.db import get_session
 from app.core.security import hash_password
-from app.models import StoryState, User, UserFeed
+from app.models import ListenPosition, StoryState, User, UserFeed
 from app.services import activity
 
 router = APIRouter(prefix="/users", tags=["users"], dependencies=[Depends(admin_user)])
@@ -83,6 +83,7 @@ async def delete_user(
     # Per-user read state and subscriptions have no delete cascade — bulk-delete by hand.
     await session.execute(delete(UserFeed).where(UserFeed.user_id == user_id))
     await session.execute(delete(StoryState).where(StoryState.user_id == user_id))
+    await session.execute(delete(ListenPosition).where(ListenPosition.user_id == user_id))
     await session.execute(delete(User).where(User.id == user_id))
     await activity.emit(
         session, "users", "user_deleted",

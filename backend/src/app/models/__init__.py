@@ -258,6 +258,27 @@ class StoryState(Base):
     saved_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
 
 
+class ListenPosition(Base):
+    """Per-user Listen resume point for a story (last write wins).
+
+    `article_id` is a plain integer (no FK): it is only meaningful while `step == "article"`
+    and a stale value is harmless (clients fall back to the start of the step).
+    """
+
+    __tablename__ = "listen_position"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), primary_key=True)
+    story_id: Mapped[int] = mapped_column(ForeignKey("story.id"), primary_key=True)
+    step: Mapped[str] = mapped_column(String(16))
+    article_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    chunk: Mapped[int] = mapped_column(Integer, default=0)
+    elapsed_seconds: Mapped[int] = mapped_column(Integer, default=0)
+    # validity stamps: the row is stale once the story version or article text changes
+    story_version: Mapped[int] = mapped_column(Integer, default=0)
+    text_length: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+
 class StoryRevision(Base):
     __tablename__ = "story_revision"
 
@@ -278,6 +299,21 @@ class StoryTranslation(Base):
     version: Mapped[int] = mapped_column(Integer)
     title: Mapped[str] = mapped_column(String(512))
     summary: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+
+class ArticleTranslation(Base):
+    """Cached translation of an article's cleaned full text (Listen), per target language.
+
+    `source_hash` fingerprints the cleaned source text: a changed full_text invalidates it.
+    """
+
+    __tablename__ = "article_translation"
+
+    article_id: Mapped[int] = mapped_column(ForeignKey("article.id"), primary_key=True)
+    language: Mapped[str] = mapped_column(String(8), primary_key=True)
+    source_hash: Mapped[str] = mapped_column(String(64))
+    text: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 

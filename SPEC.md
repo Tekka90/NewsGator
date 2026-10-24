@@ -77,6 +77,7 @@ Non-goals (v1): non-RSS sources (kept pluggable), mobile app, localized GUI, not
 ```mermaid
 erDiagram
     USER ||--o{ STORY_STATE : "has per-story state"
+    USER ||--o{ LISTEN_POSITION : "resumes listening"
     USER ||--o{ USER_FEED : "subscribes"
     FEED ||--o{ USER_FEED : "has subscriber"
     FEED ||--o{ ARTICLE : produces
@@ -181,10 +182,30 @@ erDiagram
         datetime created_at
     }
 
+    LISTEN_POSITION {
+        int user_id PK,FK
+        int story_id PK,FK
+        string step           "summary | article | video"
+        int article_id        "nullable, only for step=article (no FK)"
+        int chunk
+        int elapsed_seconds
+        int story_version     "story.version at write time; mismatch = stale"
+        int text_length       "nullable; article cleaned char_count at write time (step=article)"
+        datetime updated_at   "last write wins"
+    }
+
+    ARTICLE_TRANSLATION {
+        int article_id PK,FK
+        string language PK    "target code = the user's summary language"
+        string source_hash    "sha256 of the cleaned source text; mismatch = stale"
+        text text             "translated cleaned full text (Listen)"
+        datetime created_at
+    }
+
     LLM_USAGE {
         int id PK
         datetime ts
-        string kind           "summarize|embed|cluster_embed|pairwise|novelty|headline|merge|share_translate|backfill_embed|newsletter_clean|newsletter_extract"
+        string kind           "summarize|embed|cluster_embed|pairwise|novelty|headline|merge|share_translate|article_translate|backfill_embed|newsletter_clean|newsletter_extract"
         string endpoint       "chat|embed"
         string model
         int prompt_tokens     "nullable — from the OpenAI `usage` object"
@@ -368,7 +389,7 @@ v1 is **data-first, no online learning**:
 | `POST /auth/login`, `POST /auth/logout` | session auth; login/setup also return the signed token in the body — clients that cannot persist cookies (iOS standalone PWAs) send it as `Authorization: Bearer <token>` (or `?token=` for SSE) |
 | `POST /auth/session-token` | issue a fresh portable token for the authenticated user — for flows that can't use cookies/headers (RSS readers on `/feed.xml`); works even when the client lost its localStorage token mid-session (valid cookie suffices) |
 | `GET/PATCH /me` | profile + per-user preferences: summary language, story-list filter (`story_filter`, default `unread`) and ordering (`story_sort`/`story_order`) — shared across the user's devices; the payload also carries `last_preset_id` and `PATCH` accepts it (`""` clears, unknown id → `422 invalid_last_preset_id`); `story_*` stay for older clients |
-| `GET /users`, `POST /users`, `PATCH /users/{id}`, `DELETE /users/{id}` | user management (admin): list, create (username/password/admin flag), reset password or toggle admin, delete. First-run `/auth/setup` only creates the initial admin; additional users come from here. Guards: the last admin can be neither demoted nor deleted, and a user cannot delete themselves; deleting a user bulk-removes their `STORY_STATE` rows |
+| `GET /users`, `POST /users`, `PATCH /users/{id}`, `DELETE /users/{id}` | user management (admin): list, create (username/password/admin flag), reset password or toggle admin, delete. First-run `/auth/setup` only creates the initial admin; additional users come from here. Guards: the last admin can be neither demoted nor deleted, and a user cannot delete themselves; deleting a user bulk-removes their `STORY_STATE` and `LISTEN_POSITION` rows |
 | `GET /stories?preset=<id>&feed_ids=&filter=all\|unread\|updated&category=&feed=&sort=updated\|published\|sources\|saved_at&order=asc\|desc&since=<ISO datetime>` | story list scoped to the requesting user's subscribed feeds with **per-user** flags; `feed` keeps only stories with at least one source article from that feed; sort by article publication date (default), last update, or source count, ascending (default: oldest first) or descending; undated stories sort by last update; `since` keeps only stories with source articles published (else fetched) at or after that instant, and with `sort=sources` ranks by that recent source count; optional `limit`/`offset` slice the result after filtering and sorting (omitted = full list) and per-story hosts/translations are only computed for the returned slice; `preset=<id>` applies a stored preset's criteria + sort + order (explicit `sort`/`order` replace the preset's; `feed`, repeatable `feed_ids`, `category`, `filter`, `saved`, `since` are ANDed on top; unknown or disabled preset → `404 {"detail": "Preset not found"}`); `sort=saved_at` orders by the user's save time (never-saved stories sort as the smallest value); `include_read=true` drops the read-status criterion (`unread` → `all`, other criteria still apply) so the deck can page back through already-read stories; `before=<story_id>`/`after=<story_id>` with `limit` return the stories immediately before/after that story in the final ordering (cursor paging, stable while stories get read; empty if the story is not in the list; 422 without `limit` or with both) |
 | `GET /stories/widget-snapshot?since=<ISO datetime>&limit=12` | one lightweight call for the Apple widgets: `unread_count` plus `lists` (`latest`, `latest_unread`, `oldest`, `oldest_unread`, `most_sources`, `most_sources_unread`), each up to `limit` story items; `most_sources*` rank by sources published since `since` |
 | `GET /stories/preset-counts` | `{counts: {<preset_id>: int}}` for every enabled preset with `show_count` — manual filters ignored; status-only presets share one conditional-aggregate query, each other preset costs one count query |
@@ -395,7 +416,9 @@ v1 is **data-first, no online learning**:
 | `GET/PATCH /settings` | global: retention days, freeze window, thresholds, vector backend, story summary/headline length (`summary_min_sentences`/`summary_max_sentences` 1–12, default 3/5; `headline_min_words` 0–40 where 0 = no minimum, `headline_max_words` 1–40, default 0/12; min ≤ max, else 400) (admin). Precedence: **env var > DB override > code default**; env-set keys are reported in `env_locked`, shown read-only in the GUI, and rejected by PATCH |
 | `POST /settings/test-llm`, `POST /settings/test-qdrant`, `POST /settings/test-readeck` | connection probes for the external services (admin); return `ok` + errors without leaking secrets |
 | `POST /stories/{id}/merge` / `POST /articles/{id}/move` | manual override when clustering is wrong (important for trust) |
+| `GET /stories/articles/{article_id}/listen-text?lang=original\|summary` | Listen (read the full article aloud): `{article_id, language, text, translated, content_status}`. `text` is the article's `full_text` cleaned by `services/listen_text.py` (pure, deterministic, language-agnostic structural cleaning: HTML/entity residue, URLs, e-mails, markdown/link residue, `[n]` footnote markers, emoji, link-dense/menu-like/duplicate lines; no keyword lists; `full_text` is never modified and no cleaned text is stored). `lang=original` (default) returns it as is; `lang=summary` translates it into `user.summary_language or SUMMARY_LANGUAGE` when `article.language` is set and differs (chunked by paragraphs within the LLM context budget, `article_translate` usage kind, `translation` activity events `article_translate_start`/`article_translated`/`article_translate_error`), cached in `ARTICLE_TRANSLATION` per (article, language) and invalidated when the cleaned source hash changes or the article is reprocessed; `translated` is true only when a translation was actually applied. `404` when the article is in no story visible to the user, `409` when there is no usable full text (`content_status != "full"` — partial/paywalled is never circumvented —, cleaned text shorter than `FULLTEXT_MIN_CHARS`, or cleaned/raw ratio < 0.2), `422` for an unknown `lang` or a text needing more than `MAX_CALLS_PER_ARTICLE` translation calls, `502` on LLM failure. Story-detail `articles[]` also carry `has_full_text` (same rule as the `409`) and `char_count` (cleaned length) |
 | `GET /stories/{id}/similar`, `GET /stories/articles/{id}/similar-stories` | ranked merge/move candidates for the story-detail pickers: ANN over story centroids then exact cosine re-rank, `[{id, title, similarity}]` best-first, self/current story excluded; stories/articles without vectors fall back to unscored recency order (`similarity: null`). Read-only probes — no activity events |
+| `GET /stories/{id}/listen-position`, `PUT /stories/{id}/listen-position`, `DELETE /stories/{id}/listen-position` | per-user Listen resume point, synced across devices (Alembic `0029`, table `LISTEN_POSITION`, PK `(user_id, story_id)`). `GET` → `{story_id, step: "summary"\|"article"\|"video", article_id: str\|null, chunk, elapsed_seconds, story_version, text_length: int\|null, updated_at}` or `204` when none stored **or stale** (Alembic `0030`): a stored position is self-invalidating — `GET` deletes the row and returns `204` when `story_version != story.version`, or for `step=="article"` when the article is no longer a member of the story or its current cleaned `char_count` (`listen_text.full_text_info`, same as story-detail `articles[].char_count`) differs from `text_length`; evaluated lazily, nothing is purged on reprocess/version bump. `PUT` body `{step, article_id?, chunk, elapsed_seconds, story_version, text_length?}` upserts (last write wins) and returns the same shape; `article_id` (string of the integer id) is required when `step=="article"` and must belong to the story, else `422`; `chunk`/`elapsed_seconds` are integers in `0..1_000_000` (`422` otherwise); `story_version` must equal the story's current `version` (`409` otherwise — client refetches the story); `text_length` (the article's cleaned `char_count`) is required for `step=="article"` (`422`) and stored as given, stored null for other steps; `article_id` is stored null for other steps. `DELETE` → `204`, idempotent. `404` when the story is not visible to the user. No activity event is emitted: this is a high-frequency per-user UI bookmark, not a pipeline transition (invariant 6). Rows are removed with their story (retention purge, feed-deletion orphan cleanup, manual merge of the source story) and with the user; saved stories are retention-exempt so their positions persist |
 | `PUT /stories/{id}/saved`, `DELETE /stories/{id}/saved` | set / clear the per-user **saved** flag (idempotent, returns `{saved, saved_at}`). Stored on `story_state.saved_at` (NULL = not saved; migration `0019`). Saved is orthogonal to read/updated and independent of Readeck. `GET /stories` accepts `saved=true` (only saved) and every story item/detail carries `saved: bool` + `saved_at`. Saved stories (and their member articles, revisions and vectors) are **exempt from retention purging and cluster aging deletion** for every user who saved them. Requires a story the user can see (404 otherwise) |
 | `POST /stories/{id}/readeck` | push the story to Readeck as a permanent, self-contained bookmark (headline + summary + all source links as uploaded HTML; canonical `url` = primary source article). 404 when Readeck isn't configured; 502 on upstream failure. On success the bookmark UID is stored on `story.readeck_bookmark_id` (surfaced in list + detail so the GUI can grey out the button). Optional — enabled only when both `READECK_BASE_URL` and `READECK_TOKEN` are set (env or settings override) |
 | `GET /stories/share-languages` | languages offered by the share picker (from `SHARE_LANGUAGES`, ISO codes filtered to known names) + the current summary language |

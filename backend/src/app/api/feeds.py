@@ -25,8 +25,10 @@ from app.api.schemas import (
 from app.core.db import get_session, new_session
 from app.models import (
     Article,
+    ArticleTranslation,
     ClusterDecision,
     Feed,
+    ListenPosition,
     OverridePair,
     Story,
     StoryRevision,
@@ -435,6 +437,9 @@ async def delete_feed(
             await session.execute(
                 delete(OverridePair).where(OverridePair.article_id.in_(article_ids))
             )
+            await session.execute(
+                delete(ArticleTranslation).where(ArticleTranslation.article_id.in_(article_ids))
+            )
             await session.execute(delete(Article).where(Article.id.in_(article_ids)))
         await session.execute(delete(Feed).where(Feed.id == feed_id))
         # Stories left without any article become ghosts — purge them like retention does.
@@ -453,6 +458,9 @@ async def delete_feed(
             )
             await session.execute(
                 delete(StoryState).where(StoryState.story_id.in_(empty_story_ids))
+            )
+            await session.execute(
+                delete(ListenPosition).where(ListenPosition.story_id.in_(empty_story_ids))
             )
             await session.execute(
                 delete(StoryTranslation).where(StoryTranslation.story_id.in_(empty_story_ids))

@@ -87,6 +87,10 @@ async def test_legacy_create_all_db_stamped_and_upgraded(
     sync_conn.execute("ALTER TABLE user DROP COLUMN story_filter")
     # 0024 (story presets) added later still
     # 0026 (article video flag) later again
+    # 0028 (article translation cache) later still
+    # 0029 (listen position) later again, 0030 (validity stamps) with it
+    sync_conn.execute("DROP TABLE listen_position")
+    sync_conn.execute("DROP TABLE article_translation")
     sync_conn.execute("DROP INDEX ix_article_media_kind")
     for column in (
         "media_kind", "video_url", "video_embed_url", "video_provider", "video_id",
@@ -149,6 +153,7 @@ async def test_legacy_create_all_db_stamped_and_upgraded(
     assert "origin_feed_title" in _columns(path, "article")
     assert "user_feed" in _tables(path)
     assert "story_translation" in _tables(path)
+    assert "listen_position" in _tables(path)
     assert "saved_at" in _columns(path, "story_state")
     assert {"media_kind", "video_url", "video_embed_url", "video_provider", "video_id",
             "video_duration"} <= set(_columns(path, "article"))

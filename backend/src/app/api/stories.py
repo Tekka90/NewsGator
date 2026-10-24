@@ -4,11 +4,11 @@ manual merge/move (logged as labeled pairs — invariant 9)."""
 from collections import Counter
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from pydantic import BaseModel, Field
 from sqlalchemy import ColumnElement, Select, and_, case, delete, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -18,7 +18,9 @@ from app.core.config import settings
 from app.core.db import get_session
 from app.models import (
     Article,
+    ArticleTranslation,
     Feed,
+    ListenPosition,
     OverridePair,
     Story,
     StoryRevision,
@@ -28,7 +30,7 @@ from app.models import (
     UserFeed,
     utcnow,
 )
-from app.services import activity, process, saved_links
+from app.services import activity, listen_text, llm_client, process, saved_links
 from app.services import story_presets as presets_svc
 from app.services.fulltext import fetch_full_text
 from app.services.vectorstore import cosine_similarity, get_vector_store
@@ -86,6 +88,8 @@ class ArticleOut(BaseModel):
     video_embed_url: str | None = None
     video_provider: str | None = None
     video_duration: int | None = None
+    has_full_text: bool = False  # Listen: full text available and usable once cleaned
+    char_count: int = 0  # length of the cleaned text (0 if none)
 
     model_config = {"from_attributes": True}
 
@@ -125,7 +129,10 @@ class StoryDetail(BaseModel):
 
 
 def _article_out(a: Article) -> ArticleOut:
+    has_full_text, char_count = listen_text.full_text_info(a)
     return ArticleOut(
+        has_full_text=has_full_text,
+        char_count=char_count,
         id=a.id,
         title=a.title,
         url=a.url,
@@ -1012,6 +1019,56 @@ async def share_languages(user: User = Depends(current_user)) -> ShareLanguagesO
     )
 
 
+class ListenTextOut(BaseModel):
+    article_id: int
+    language: str
+    text: str
+    translated: bool
+    content_status: str
+
+
+@router.get("/articles/{article_id}/listen-text")
+async def article_listen_text(
+    article_id: int,
+    lang: Literal["original", "summary"] = Query("original"),
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> ListenTextOut:
+    """Cleaned full text of one article for the Listen player (optionally translated)."""
+    article = await session.get(Article, article_id)
+    if article is None or article.story_id is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Article not found")
+    await _require_visible_story(session, user, article.story_id)
+    cleaned = listen_text.usable_text(article.content_status, article.full_text)
+    if not cleaned:
+        raise HTTPException(status.HTTP_409_CONFLICT, "No usable full text for this article")
+
+    language = article.language
+    translated = False
+    if lang == "summary":
+        target = user.summary_language or settings.summary_language
+        if target and article.language and target != article.language:
+            try:
+                cleaned = await listen_text.translate_article_text(
+                    session, article, cleaned, target
+                )
+            except listen_text.TranslationTooLongError as exc:
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_ENTITY, "Article too long to translate"
+                ) from exc
+            except llm_client.LLMError as exc:
+                raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Translation failed") from exc
+            translated = True
+            language = target
+    return ListenTextOut(
+        article_id=article.id,
+        language=language,
+        text=cleaned,
+        translated=translated,
+        content_status=article.content_status,
+    )
+
+
 @router.get("/{story_id}")
 async def story_detail(
     story_id: int,
@@ -1301,6 +1358,10 @@ async def reprocess_article(
     await session.commit()
 
     new_len = len(article.full_text or "")
+    await session.execute(
+        delete(ArticleTranslation).where(ArticleTranslation.article_id == article.id)
+    )
+    await session.commit()
     # Requeue through the LLM pipeline only when content actually changed much
     requeued = abs(new_len - old_len) > max(200, int(0.2 * max(old_len, 1)))
     if requeued:
@@ -1523,6 +1584,144 @@ async def similar_stories_for_article(
     return await _rank_candidates(session, vec, exclude)
 
 
+MAX_LISTEN_COUNTER = 1_000_000
+
+
+class ListenPositionIn(BaseModel):
+    step: Literal["summary", "article", "video"]
+    article_id: str | None = None
+    chunk: int = Field(ge=0, le=MAX_LISTEN_COUNTER)
+    elapsed_seconds: int = Field(ge=0, le=MAX_LISTEN_COUNTER)
+    story_version: int = Field(ge=0)
+    text_length: int | None = Field(default=None, ge=0)
+
+
+class ListenPositionOut(BaseModel):
+    story_id: int
+    step: Literal["summary", "article", "video"]
+    article_id: str | None
+    chunk: int
+    elapsed_seconds: int
+    story_version: int
+    text_length: int | None
+    updated_at: datetime
+
+
+def _listen_position_out(pos: ListenPosition) -> ListenPositionOut:
+    return ListenPositionOut(
+        story_id=pos.story_id,
+        step=pos.step,  # type: ignore[arg-type]
+        article_id=str(pos.article_id) if pos.article_id is not None else None,
+        chunk=pos.chunk,
+        elapsed_seconds=pos.elapsed_seconds,
+        story_version=pos.story_version,
+        text_length=pos.text_length,
+        updated_at=pos.updated_at,
+    )
+
+
+async def _listen_position_valid(
+    session: AsyncSession, story: Story, pos: ListenPosition
+) -> bool:
+    """A position is valid only for the story version and article text it was stored against."""
+    if pos.story_version != story.version:
+        return False
+    if pos.step != "article":
+        return True
+    article = await session.get(Article, pos.article_id) if pos.article_id is not None else None
+    if article is None or article.story_id != story.id:
+        return False
+    return listen_text.full_text_info(article)[1] == pos.text_length
+
+
+@router.get(
+    "/{story_id}/listen-position",
+    response_model=ListenPositionOut,
+    responses={204: {"description": "No position stored"}},
+)
+async def get_listen_position(
+    story_id: int,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> ListenPositionOut | Response:
+    """Where this user stopped listening to the story (204 when none)."""
+    story = await _require_visible_story(session, user, story_id)
+    pos = await session.get(ListenPosition, (user.id, story_id))
+    if pos is None:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    if not await _listen_position_valid(session, story, pos):
+        await session.delete(pos)
+        await session.commit()
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return _listen_position_out(pos)
+
+
+@router.put("/{story_id}/listen-position", response_model=ListenPositionOut)
+async def put_listen_position(
+    story_id: int,
+    body: ListenPositionIn,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> ListenPositionOut:
+    """Upsert the user's Listen resume point (last write wins).
+
+    Not a pipeline transition, so no activity event is emitted (invariant 6 covers
+    pipeline state only; this is a high-frequency per-user UI bookmark).
+    """
+    story = await _require_visible_story(session, user, story_id)
+    if body.story_version != story.version:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "Story version changed; refetch the story"
+        )
+    article_pk: int | None = None
+    text_length: int | None = None
+    if body.step == "article":
+        raw_id = body.article_id
+        if raw_id is None or not raw_id.isascii() or not raw_id.isdigit():
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY, "article_id is required for step 'article'"
+            )
+        article_pk = int(raw_id)
+        article = await session.get(Article, article_pk)
+        if article is None or article.story_id != story_id:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY, "article_id is not an article of this story"
+            )
+        if body.text_length is None:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY, "text_length is required for step 'article'"
+            )
+        text_length = body.text_length
+    pos = await session.get(ListenPosition, (user.id, story_id))
+    if pos is None:
+        pos = ListenPosition(user_id=user.id, story_id=story_id)
+        session.add(pos)
+    pos.step = body.step
+    pos.article_id = article_pk
+    pos.chunk = body.chunk
+    pos.elapsed_seconds = body.elapsed_seconds
+    pos.story_version = story.version
+    pos.text_length = text_length
+    pos.updated_at = utcnow()
+    await session.commit()
+    return _listen_position_out(pos)
+
+
+@router.delete("/{story_id}/listen-position", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_listen_position(
+    story_id: int,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    await _require_visible_story(session, user, story_id)
+    await session.execute(
+        delete(ListenPosition).where(
+            ListenPosition.user_id == user.id, ListenPosition.story_id == story_id
+        )
+    )
+    await session.commit()
+
+
 class MergeIn(BaseModel):
     source_story_id: int
 
@@ -1552,6 +1751,7 @@ async def merge_story(
         target.image_url = source.image_url
     await get_vector_store(session).delete_story(source.id)
     await session.execute(delete(StoryTranslation).where(StoryTranslation.story_id == source.id))
+    await session.execute(delete(ListenPosition).where(ListenPosition.story_id == source.id))
     await activity.emit(
         session,
         "cluster",

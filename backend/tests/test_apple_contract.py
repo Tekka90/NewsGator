@@ -158,6 +158,7 @@ def test_story_list_detail_revision_and_feed_options(live: httpx.Client) -> None
         "feed_id": 1, "feed_title": "Apple RSS", "feed_url": f"{live.base_url}fixture/rss",
         "video_id": None, "media_kind": None, "video_url": None, "video_embed_url": None,
         "video_provider": None, "video_duration": None,
+        "has_full_text": False, "char_count": 18,
     }]
     options = live.get("/api/stories/feed-options").json()
     assert options == [
