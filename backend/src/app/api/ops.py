@@ -14,6 +14,7 @@ from app.api.schemas import HealthOut
 from app.core.db import get_session
 from app.models import Article, Feed, Story, User
 from app.services.process import queue_depth
+from app.version import VERSION
 
 router = APIRouter(tags=["ops"])
 
@@ -47,7 +48,7 @@ COMMIT = _commit()
 async def health() -> HealthOut:
     return HealthOut(
         status="ok",
-        version="0.1.0",
+        version=VERSION,
         commit=COMMIT,
         started_at=STARTED_AT,
         features=FEATURES,

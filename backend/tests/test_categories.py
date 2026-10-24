@@ -1,5 +1,6 @@
 """Categories + health tests."""
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from tests.conftest import setup_admin
@@ -23,6 +24,18 @@ async def test_health(client: AsyncClient) -> None:
     assert r.json()["status"] == "ok"
     assert "story_history" in r.json()["features"]
     assert r.json()["commit"]
+    assert r.json()["version"]
+
+
+def test_version_comes_from_release_tag(monkeypatch: pytest.MonkeyPatch) -> None:
+    import importlib
+
+    from app import version
+
+    monkeypatch.setenv("APP_VERSION", "v1.6.0")
+    assert importlib.reload(version).VERSION == "1.6.0"
+    monkeypatch.delenv("APP_VERSION")
+    assert importlib.reload(version).VERSION == "dev"
 
 
 async def test_categories_crud(client: AsyncClient) -> None:
