@@ -283,6 +283,16 @@ p { margin: 0; }
   color: var(--muted);
 }
 .card p { margin-top: 12px; font-size: 15.5px; }
+.story-section { background: var(--surface); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.story-grid { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 56px; align-items: start; }
+.story-copy h2 { font-family: var(--font-display); font-size: clamp(34px, 5vw, 52px); line-height: 1.08; margin: 12px 0 22px; color: var(--forest-dark); }
+.story-copy p { margin: 0 0 16px; font-size: 18px; }
+.story-sign { color: var(--muted); font-size: 15px; }
+.story-facts { display: grid; gap: 16px; }
+.story-fact { background: var(--gold-soft); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; }
+.story-fact .big { font-family: var(--font-display); font-size: 40px; line-height: 1; color: var(--forest); }
+.story-fact p { margin: 8px 0 0; color: var(--muted); font-size: 15.5px; }
+@media (max-width: 980px) { .story-grid { grid-template-columns: 1fr; gap: 34px; } }
 .modes {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -517,6 +527,7 @@ footer {
       <span>NewsGator</span>
     </a>
     <div class="nav-links" aria-label="주요 탐색">
+      <a href="#story">만든 이유</a>
       <a href="#how">작동 방식</a>
       <a href="#modes">두 가지 엔진</a>
       <a href="#features">기능</a>
@@ -575,6 +586,51 @@ footer {
     </div>
   </section>
 
+  <section id="story" class="story-section">
+    <div class="wrap">
+      <div class="story-grid">
+        <div class="story-copy reveal">
+          <div class="eyebrow">NewsGator를 만든 이유</div>
+          <h2>같은 이야기를 다섯 번씩 읽는 데 지쳤습니다.</h2>
+          <p>저는 AI가 나에게 중요한 것만 읽게 도와주고, 다른 곳에서 이미 읽은 기사를 계속 넘겨야 하는 수고를 덜어 주기를 바랐습니다.</p>
+          <p>원래 Apple 개발자는 아니지만, 집에 이미 AI 환경이 있었습니다. 그래서 첫 버전은 Mac Studio 옆에서 MLX 모델로 돌리는 서버였습니다. 몇 주 쓰고 나니 그냥 잘 돌아간다는 걸, 그것도 아주 잘 돌아간다는 걸 알게 됐습니다.</p>
+          <p>그러면서 문제도 보였습니다. 뉴스를 읽자고 AI 서버를 직접 돌려 달라고 하는 건 너무 큰 부탁입니다. 하드웨어를 팔고 싶지도 않았고, 오픈 소스 프로젝트에 큰 재정적 위험을 지고 싶지도 않았습니다. 그때 Apple Intelligence가 나왔습니다. 기기 안에서 먼저 처리하고, 가능하면 Private Cloud Compute를 쓰는 방식이라 바로 와닿았습니다. 이제 누구나 서버도 계정도 없이 주머니 속에 이걸 가질 수 있습니다.</p>
+          <p>그리고 제가 아주 중요하게 생각하는 점이 있습니다. 어떤 스토리를 정말 읽고 싶다면 웹사이트로 가야 한다는 것입니다. NewsGator는 뉴스를 쓰는 사람들을 대체하려 하지 않습니다. 독립 언론에는 그 방문이 필요합니다.</p>
+          <p class="story-sign">저는 매일 쓰고, 매일 새로운 기능이 떠오르고, 여러분이 써 보시길 몹시 기다리고 있습니다.</p>
+        </div>
+        <div class="story-facts reveal">
+          <div class="story-fact">
+            <div class="big">2×</div>
+            <p>예전보다 두 배 많은 출처를 봅니다. 두 웹사이트가 같은 사건을 다루면 한 번만 읽습니다.</p>
+          </div>
+          <div class="story-fact">
+            <div class="big">0</div>
+            <p>앱에서 직접 돌려야 하는 서버 수. Apple Intelligence가 여러분의 기기에서 작업합니다.</p>
+          </div>
+          <div class="story-fact">
+            <div class="big">한 번 탭</div>
+            <p>으로 원문 발행처에 도착해, 기자들이 여러분의 방문을 받습니다.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="video">
+    <link rel="stylesheet" href="assets/video.css" />
+    <div class="wrap">
+      <div class="section-head reveal">
+        <div class="eyebrow">동영상</div>
+        <h2>NewsGator 살펴보기.</h2>
+        <p class="sub">앱을 짧게 둘러보세요.</p>
+      </div>
+      <div class="video-frame reveal">
+        <video controls playsinline preload="none" poster="assets/video/poster.jpg" src="assets/video/newsgator-demo.mp4"></video>
+      </div>
+      <p class="video-note">더 많은 영상은 <a href="https://www.youtube.com/@NewsGatorApp" rel="noopener">YouTube 채널</a>에서 확인하세요.</p>
+    </div>
+  </section>
+
   <section id="how">
     <div class="wrap">
       <div class="section-head reveal">
@@ -587,7 +643,7 @@ footer {
         <article class="card reveal">
           <div class="step-num">01</div>
           <h3>소스를 추가하세요</h3>
-          <p>RSS 피드, IMAP 뉴스레터, FreshRSS·Miniflux·Inoreader 같은 동기화 리더 계정을 가져오세요. OPML 가져오기로 설정도 빠르게 끝낼 수 있습니다.</p>
+          <p>RSS 피드, YouTube 채널, IMAP 뉴스레터, FreshRSS·Miniflux·Inoreader 같은 동기화 리더 계정을 가져오세요. OPML과 YouTube 구독 가져오기로 설정도 빠르게 끝낼 수 있습니다.</p>
         </article>
         <article class="card reveal">
           <div class="step-num">02</div>
@@ -679,6 +735,10 @@ footer {
           <p>스토리 요약을 공유하면서도 원문 기사로 바로 연결할 수 있습니다.</p>
         </article>
         <article class="feature reveal">
+          <h3>기사만이 아니라 동영상도</h3>
+          <p>YouTube 채널을 구독하거나 내 구독 목록을 가져오세요. NewsGator는 자막을 바탕으로 각 동영상을 요약하고, 같은 사건을 다루는 기사와 묶어 스토리 안에서 바로 재생합니다. 쇼츠는 건너뜁니다.</p>
+        </article>
+        <article class="feature reveal">
           <h3>스토리 RSS 피드</h3>
           <p>정리된 스토리 아카이브 자체를 어떤 RSS 리더에서든 다시 구독할 수 있습니다.</p>
         </article>
@@ -711,21 +771,6 @@ footer {
           <p>채팅에 앱 사용법을 물어보세요. 내장 문서를 바탕으로 기기에서 답변합니다.</p>
         </article>
       </div>
-    </div>
-  </section>
-
-  <section id="video">
-    <link rel="stylesheet" href="assets/video.css" />
-    <div class="wrap">
-      <div class="section-head reveal">
-        <div class="eyebrow">동영상</div>
-        <h2>NewsGator 살펴보기.</h2>
-        <p class="sub">앱을 짧게 둘러보세요.</p>
-      </div>
-      <div class="video-frame reveal">
-        <video controls playsinline preload="none" poster="assets/video/poster.jpg" src="assets/video/newsgator-demo.mp4"></video>
-      </div>
-      <p class="video-note">더 많은 영상은 <a href="https://www.youtube.com/@NewsGatorApp" rel="noopener">YouTube 채널</a>에서 확인하세요.</p>
     </div>
   </section>
 
@@ -846,7 +891,7 @@ footer {
 
   <section class="cta-block">
     <div class="wrap reveal">
-      <div class="eyebrow">오픈 소스</div>
+      <div class="eyebrow">서버는 오픈 소스입니다</div>
       <h2>중복 잡음은 줄이고, 핵심은 더 많이.</h2>
       <p class="sub">NewsGator는 무엇을 읽을 가치가 있는지 빠르게 판단하도록 돕고, 그다음에는 조용히 물러납니다. 광고도, 타사 추적기도, 분석도 없습니다.</p>
       <div class="actions" style="justify-content:center;">

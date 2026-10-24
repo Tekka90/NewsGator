@@ -282,6 +282,16 @@ p { margin: 0; }
   color: var(--muted);
 }
 .card p { margin-top: 12px; font-size: 15.5px; }
+.story-section { background: var(--surface); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.story-grid { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 56px; align-items: start; }
+.story-copy h2 { font-family: var(--font-display); font-size: clamp(34px, 5vw, 52px); line-height: 1.08; margin: 12px 0 22px; color: var(--forest-dark); }
+.story-copy p { margin: 0 0 16px; font-size: 18px; }
+.story-sign { color: var(--muted); font-size: 15px; }
+.story-facts { display: grid; gap: 16px; }
+.story-fact { background: var(--gold-soft); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; }
+.story-fact .big { font-family: var(--font-display); font-size: 40px; line-height: 1; color: var(--forest); }
+.story-fact p { margin: 8px 0 0; color: var(--muted); font-size: 15.5px; }
+@media (max-width: 980px) { .story-grid { grid-template-columns: 1fr; gap: 34px; } }
 .modes {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -516,6 +526,7 @@ footer {
       <span>NewsGator</span>
     </a>
     <div class="nav-links" aria-label="主导航">
+      <a href="#story">为何而做</a>
       <a href="#how">工作方式</a>
       <a href="#modes">两种引擎</a>
       <a href="#features">功能</a>
@@ -574,6 +585,51 @@ footer {
     </div>
   </section>
 
+  <section id="story" class="story-section">
+    <div class="wrap">
+      <div class="story-grid">
+        <div class="story-copy reveal">
+          <div class="eyebrow">NewsGator 为何而生</div>
+          <h2>同一个故事，我受够了读五遍。</h2>
+          <p>我希望 AI 帮我只读真正与我相关的内容，也不用再一遍遍跳过那些我在别处已经读过的文章。</p>
+          <p>我本来不是 Apple 开发者，但家里已经有一套 AI 环境。所以最初的版本，就是在 Mac Studio 旁边跑一台服务器，用 MLX 模型。几周之后，我发现它真的能用，而且效果很好。</p>
+          <p>它也让我看清了问题：要别人为了读新闻专门去运行一台 AI 服务器，要求太高了。我不想卖硬件，也不想为一个开源项目承担很大的资金风险。后来 Apple Intelligence 出现了。优先在设备上运行，条件允许时使用 Private Cloud Compute，我立刻就明白了。现在任何人都可以把它装进口袋，不需要服务器，也不需要账号。</p>
+          <p>还有一点我很在意：真正想读一个故事时，你会去原网站。NewsGator 从不想取代写新闻的人。独立媒体需要这些访问。</p>
+          <p class="story-sign">我每天都在用，每天都会想到新功能，也迫不及待想让你试试。</p>
+        </div>
+        <div class="story-facts reveal">
+          <div class="story-fact">
+            <div class="big">2×</div>
+            <p>比我以前关注的来源多一倍。两个网站报道同一件事时，我只读一次。</p>
+          </div>
+          <div class="story-fact">
+            <div class="big">0</div>
+            <p>应用无需运行任何服务器。Apple Intelligence 直接在你的设备上完成工作。</p>
+          </div>
+          <div class="story-fact">
+            <div class="big">轻点一下</div>
+            <p>就能前往原始发布者，让记者获得你的访问。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="video">
+    <link rel="stylesheet" href="assets/video.css" />
+    <div class="wrap">
+      <div class="section-head reveal">
+        <div class="eyebrow">视频</div>
+        <h2>看看 NewsGator 的实际效果。</h2>
+        <p class="sub">应用的简短导览。</p>
+      </div>
+      <div class="video-frame reveal">
+        <video controls playsinline preload="none" poster="assets/video/poster.jpg" src="assets/video/newsgator-demo.mp4"></video>
+      </div>
+      <p class="video-note">更多视频请见我们的 <a href="https://www.youtube.com/@NewsGatorApp" rel="noopener">YouTube 频道</a>。</p>
+    </div>
+  </section>
+
   <section id="how">
     <div class="wrap">
       <div class="section-head reveal">
@@ -586,7 +642,7 @@ footer {
         <article class="card reveal">
           <div class="step-num">01</div>
           <h3>添加你的来源</h3>
-          <p>导入 RSS 订阅、IMAP 新闻简报，或同步 FreshRSS、Miniflux、Inoreader 等阅读器账号。支持 OPML，设置很快完成。</p>
+          <p>导入 RSS 订阅、YouTube 频道、IMAP 新闻简报，或同步 FreshRSS、Miniflux、Inoreader 等阅读器账号。支持导入 OPML 和 YouTube 订阅，设置很快完成。</p>
         </article>
         <article class="card reveal">
           <div class="step-num">02</div>
@@ -678,6 +734,10 @@ footer {
           <p>分享故事摘要的同时，仍可直接链接到原始报道。</p>
         </article>
         <article class="feature reveal">
+          <h3>不只是文章，还有视频</h3>
+          <p>关注 YouTube 频道，或导入你的订阅。NewsGator 会根据字幕为每个视频生成摘要，把它与报道同一事件的文章归为一组，并直接在故事中播放。Shorts 会被跳过。</p>
+        </article>
+        <article class="feature reveal">
           <h3>故事 RSS feed</h3>
           <p>你提炼后的故事归档本身也能在任何 RSS 阅读器中订阅。</p>
         </article>
@@ -710,21 +770,6 @@ footer {
           <p>向聊天询问应用的用法：帮助内容基于内置文档，在你的设备上回答。</p>
         </article>
       </div>
-    </div>
-  </section>
-
-  <section id="video">
-    <link rel="stylesheet" href="assets/video.css" />
-    <div class="wrap">
-      <div class="section-head reveal">
-        <div class="eyebrow">视频</div>
-        <h2>看看 NewsGator 的实际效果。</h2>
-        <p class="sub">应用的简短导览。</p>
-      </div>
-      <div class="video-frame reveal">
-        <video controls playsinline preload="none" poster="assets/video/poster.jpg" src="assets/video/newsgator-demo.mp4"></video>
-      </div>
-      <p class="video-note">更多视频请见我们的 <a href="https://www.youtube.com/@NewsGatorApp" rel="noopener">YouTube 频道</a>。</p>
     </div>
   </section>
 
@@ -845,7 +890,7 @@ footer {
 
   <section class="cta-block">
     <div class="wrap reveal">
-      <div class="eyebrow">开源</div>
+      <div class="eyebrow">服务器已开源</div>
       <h2>更少重复噪音，更多有效信号。</h2>
       <p class="sub">NewsGator 帮你判断什么值得读，然后退到幕后。无广告、无第三方追踪器、无分析统计。</p>
       <div class="actions" style="justify-content:center;">

@@ -282,6 +282,16 @@ p { margin: 0; }
   color: var(--muted);
 }
 .card p { margin-top: 12px; font-size: 15.5px; }
+.story-section { background: var(--surface); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.story-grid { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 56px; align-items: start; }
+.story-copy h2 { font-family: var(--font-display); font-size: clamp(34px, 5vw, 52px); line-height: 1.08; margin: 12px 0 22px; color: var(--forest-dark); }
+.story-copy p { margin: 0 0 16px; font-size: 18px; }
+.story-sign { color: var(--muted); font-size: 15px; }
+.story-facts { display: grid; gap: 16px; }
+.story-fact { background: var(--gold-soft); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; }
+.story-fact .big { font-family: var(--font-display); font-size: 40px; line-height: 1; color: var(--forest); }
+.story-fact p { margin: 8px 0 0; color: var(--muted); font-size: 15.5px; }
+@media (max-width: 980px) { .story-grid { grid-template-columns: 1fr; gap: 34px; } }
 .modes {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -516,6 +526,7 @@ footer {
       <span>NewsGator</span>
     </a>
     <div class="nav-links" aria-label="Hauptnavigation">
+      <a href="#story">Warum</a>
       <a href="#how">So funktioniert es</a>
       <a href="#modes">Zwei Modi</a>
       <a href="#features">Funktionen</a>
@@ -574,6 +585,51 @@ footer {
     </div>
   </section>
 
+  <section id="story" class="story-section">
+    <div class="wrap">
+      <div class="story-grid">
+        <div class="story-copy reveal">
+          <div class="eyebrow">Warum es NewsGator gibt</div>
+          <h2>Ich hatte es satt, dieselbe Story fünfmal zu lesen.</h2>
+          <p>Ich wollte, dass mir die KI hilft, nur das zu lesen, was mich wirklich interessiert, und mir erspart, immer wieder Artikel zu überspringen, die ich schon woanders gelesen hatte.</p>
+          <p>Ich bin ursprünglich kein Apple-Entwickler, hatte aber zu Hause schon einen KI-Stack. Meine erste Version war also ein Server neben meinem Mac Studio, mit MLX-Modellen. Nach ein paar Wochen merkte ich, dass es einfach funktionierte, und zwar richtig gut.</p>
+          <p>Es zeigte mir aber auch das Problem: Von jemandem zu verlangen, einen KI-Server zu betreiben, nur um Nachrichten zu lesen, ist viel verlangt. Ich wollte keine Hardware verkaufen und für ein Open-Source-Projekt auch keine großen finanziellen Risiken eingehen. Dann kam Apple Intelligence. Zuerst auf dem Gerät, wenn möglich Private Cloud Compute: Es hat sofort gepasst. Jetzt kann jeder das in der Hosentasche haben, ohne Server und ohne Konto.</p>
+          <p>Und eines ist mir sehr wichtig: Wenn Sie eine Story wirklich lesen wollen, gehen Sie auf die Website. NewsGator versucht nie, die Menschen zu ersetzen, die die Nachrichten schreiben. Die unabhängige Presse braucht diese Besuche.</p>
+          <p class="story-sign">Ich nutze es jeden Tag, mir fällt jeden Tag eine neue Funktion ein, und ich kann es kaum erwarten, dass Sie es ausprobieren.</p>
+        </div>
+        <div class="story-facts reveal">
+          <div class="story-fact">
+            <div class="big">2×</div>
+            <p>so viele Quellen wie vorher. Wenn zwei Websites über dasselbe Ereignis berichten, lese ich es nur einmal.</p>
+          </div>
+          <div class="story-fact">
+            <div class="big">0</div>
+            <p>Server, die Sie für die App betreiben müssen. Apple Intelligence erledigt die Arbeit auf Ihren Geräten.</p>
+          </div>
+          <div class="story-fact">
+            <div class="big">1 Tipp</div>
+            <p>zum Original-Verlag, damit die Journalisten Ihren Besuch bekommen.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="video">
+    <link rel="stylesheet" href="assets/video.css" />
+    <div class="wrap">
+      <div class="section-head reveal">
+        <div class="eyebrow">Video</div>
+        <h2>NewsGator in Aktion.</h2>
+        <p class="sub">Eine kurze Tour durch die App.</p>
+      </div>
+      <div class="video-frame reveal">
+        <video controls playsinline preload="none" poster="assets/video/poster.jpg" src="assets/video/newsgator-demo.mp4"></video>
+      </div>
+      <p class="video-note">Mehr auf <a href="https://www.youtube.com/@NewsGatorApp" rel="noopener">unserem YouTube-Kanal</a>.</p>
+    </div>
+  </section>
+
   <section id="how">
     <div class="wrap">
       <div class="section-head reveal">
@@ -586,7 +642,7 @@ footer {
         <article class="card reveal">
           <div class="step-num">01</div>
           <h3>Quellen hinzufügen</h3>
-          <p>Bringen Sie RSS-Feeds, IMAP-Newsletter oder ein synchronisiertes Reader-Konto wie FreshRSS, Miniflux oder Inoreader zusammen. Mit OPML ist die Einrichtung schnell erledigt.</p>
+          <p>Bringen Sie RSS-Feeds, YouTube-Kanäle, IMAP-Newsletter oder ein synchronisiertes Reader-Konto wie FreshRSS, Miniflux oder Inoreader zusammen. Mit OPML- und YouTube-Abo-Import ist die Einrichtung schnell erledigt.</p>
         </article>
         <article class="card reveal">
           <div class="step-num">02</div>
@@ -678,6 +734,10 @@ footer {
           <p>Teilen Sie eine Story-Zusammenfassung und verlinken Sie trotzdem direkt auf die Originalberichterstattung.</p>
         </article>
         <article class="feature reveal">
+          <h3>Videos, nicht nur Artikel</h3>
+          <p>Folgen Sie YouTube-Kanälen oder importieren Sie Ihre Abos. NewsGator fasst jedes Video anhand seines Transkripts zusammen, ordnet es den Artikeln zum selben Ereignis zu und spielt es direkt in der Story ab. Shorts werden übersprungen.</p>
+        </article>
+        <article class="feature reveal">
           <h3>Story-RSS-Feed</h3>
           <p>Ihr verdichtetes Story-Archiv lässt sich selbst in jedem RSS-Reader lesen.</p>
         </article>
@@ -710,21 +770,6 @@ footer {
           <p>Fragen Sie den Chat, wie die App funktioniert: Die Hilfe stützt sich auf die integrierte Dokumentation, direkt auf Ihrem Gerät.</p>
         </article>
       </div>
-    </div>
-  </section>
-
-  <section id="video">
-    <link rel="stylesheet" href="assets/video.css" />
-    <div class="wrap">
-      <div class="section-head reveal">
-        <div class="eyebrow">Video</div>
-        <h2>NewsGator in Aktion.</h2>
-        <p class="sub">Eine kurze Tour durch die App.</p>
-      </div>
-      <div class="video-frame reveal">
-        <video controls playsinline preload="none" poster="assets/video/poster.jpg" src="assets/video/newsgator-demo.mp4"></video>
-      </div>
-      <p class="video-note">Mehr auf <a href="https://www.youtube.com/@NewsGatorApp" rel="noopener">unserem YouTube-Kanal</a>.</p>
     </div>
   </section>
 
@@ -845,7 +890,7 @@ footer {
 
   <section class="cta-block">
     <div class="wrap reveal">
-      <div class="eyebrow">Open Source</div>
+      <div class="eyebrow">Der Server ist Open Source</div>
       <h2>Weniger doppelte Unruhe. Mehr Signal.</h2>
       <p class="sub">NewsGator hilft Ihnen zu entscheiden, was lesenswert ist, und tritt dann in den Hintergrund. Keine Werbung, keine Tracker von Drittanbietern, keine Analysedaten.</p>
       <div class="actions" style="justify-content:center;">

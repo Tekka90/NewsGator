@@ -658,7 +658,8 @@ Notes on the current code:
   the page light — Mac shots at 1400px, iPhone shots at 700px; `mac-chat.png`
   is additionally cropped to drop empty conversation whitespace below the
   single exchange). CTAs link to both `github.com/Tekka90/NewsGator` (server)
-  and `github.com/Tekka90/Newsgator-Apple` (native app) throughout.
+  and `github.com/Tekka90/Newsgator-Apple` (native app) throughout. The English page has a
+  `#story` "Why NewsGator exists" founder section right after the hero (other languages pending).
   Screenshots in `docs/assets/shots/` are captured against a seeded demo DB,
   never the production instance. Regenerate:
   `backend/src/app/scripts/seed_demo.py` writes fake feeds/stories/activity/usage
