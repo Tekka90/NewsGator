@@ -264,7 +264,8 @@ async def _article_stats(
             .group_by(Article.story_id)
         )
         for story_id, count, first_published in rows.all():
-            stats[story_id] = (count, first_published)
+            if story_id is not None:
+                stats[story_id] = (count, first_published)
     return stats
 
 
@@ -376,7 +377,7 @@ def _filtered_stories(
     reverse: bool,
     since: datetime | None,
     extra: Sequence[ColumnElement[bool]] = (),
-) -> Select[tuple[Story]]:
+) -> Select[Any]:
     """Visible stories of the user, filtered and ordered (published, sources, ...), in SQL.
 
     ``extra`` are additional AND conditions (preset criteria, feed sets); ``sort="saved_at"``

@@ -6,6 +6,7 @@ Requires-Python: >=3.12
 Requires-Dist: fastapi>=0.115
 Requires-Dist: python-multipart>=0.0.12
 Requires-Dist: uvicorn[standard]>=0.30
+Requires-Dist: youtube-transcript-api>=1.0
 Requires-Dist: sqlalchemy>=2.0
 Requires-Dist: alembic>=1.13
 Requires-Dist: pydantic>=2.7
@@ -29,5 +30,6 @@ Requires-Dist: aiosqlite>=0.20
 Provides-Extra: dev
 Requires-Dist: pytest>=8.2; extra == "dev"
 Requires-Dist: pytest-asyncio>=0.23; extra == "dev"
+Requires-Dist: pytest-cov>=5.0; extra == "dev"
 Requires-Dist: ruff>=0.5; extra == "dev"
 Requires-Dist: mypy>=1.10; extra == "dev"
