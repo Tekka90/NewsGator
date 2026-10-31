@@ -25,7 +25,7 @@ dependencies = [
     "sqlite-vec>=0.1",
     # Pin to match common self-hosted Qdrant servers (1.17.x); a much newer
     # client warns/fails against older servers (check_compatibility).
-    "qdrant-client>=1.12,<1.18",
+    "qdrant-client>=1.12,<1.21",
     "numpy>=2.0",
     "anyio>=4.4",
     "greenlet>=3.0",
