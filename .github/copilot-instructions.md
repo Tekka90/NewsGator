@@ -154,7 +154,7 @@ Bearer` (iOS standalone PWAs drop cookies); `current_user` in `api/deps.py`
 accepts cookie → Bearer → `?token=` (for SSE, which can't set headers).
 Story-list ordering defaults to article publication date, oldest first, the
 default filter is **Unread**, and the user's filter/sort/order choices are
-persisted server-side (`user.story_filter` / `story_sort` / `story_order`,
+persisted server-side (`user.story_filter`; `story_sort` / `story_order` are deprecated and ignored, the story views own the order;
 Alembic 0006/0007, `PATCH /auth/me`) so every device follows. On touch-first
 devices the Stories page renders a swipeable card deck instead of the
 list: swipe left = mark read + next, swipe right = previous. Swiping left
