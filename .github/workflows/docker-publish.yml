@@ -56,7 +56,7 @@ jobs:
       # assembled into one multi-arch manifest by the "merge" job.
       - name: Build (and push by digest on release)
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./Dockerfile
