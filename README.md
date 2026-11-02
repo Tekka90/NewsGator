@@ -77,7 +77,7 @@ because most publishers block embedding via `X-Frame-Options` / CSP `frame-ances
 
 ## Docker (production)
 
-Using the official image:
+Using the official multi-arch image (`linux/amd64` and `linux/arm64`):
 
 ```bash
 cd docker
