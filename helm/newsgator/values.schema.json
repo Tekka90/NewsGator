@@ -1,0 +1,1113 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "affinity": {
+      "additionalProperties": false,
+      "required": [],
+      "title": "affinity",
+      "type": "object"
+    },
+    "autoscaling": {
+      "additionalProperties": false,
+      "description": "This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "maxReplicas": {
+          "default": 100,
+          "title": "maxReplicas",
+          "type": "integer"
+        },
+        "minReplicas": {
+          "default": 1,
+          "title": "minReplicas",
+          "type": "integer"
+        },
+        "targetCPUUtilizationPercentage": {
+          "default": 80,
+          "title": "targetCPUUtilizationPercentage",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "enabled",
+        "minReplicas",
+        "maxReplicas",
+        "targetCPUUtilizationPercentage"
+      ],
+      "title": "autoscaling",
+      "type": "object"
+    },
+    "common": {
+      "additionalProperties": true,
+      "description": "bitnami common dependency values",
+      "required": [],
+      "title": "common"
+    },
+    "config": {
+      "additionalProperties": false,
+      "description": "\nEvery value maps to an environment variable of the NewsGator backend\n(see docker/.env.example). Non-sensitive values go to a ConfigMap,\ncredentials and tokens go to a Secret. Values set here are env-locked\nin the admin Settings GUI (env var \u003e DB override \u003e code default).",
+      "properties": {
+        "categorySuggestions": {
+          "additionalProperties": false,
+          "description": "\nThe summarize LLM call may propose a new category when none of the current taxonomy fits well; recurring proposals surface to admins, never auto-applied.",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "description": "Enable category-suggestion detection",
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "minArticles": {
+              "default": 5,
+              "description": "Distinct articles before proposing",
+              "title": "minArticles",
+              "type": "integer"
+            },
+            "windowDays": {
+              "default": 30,
+              "description": "Rolling window for the count",
+              "title": "windowDays",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "enabled",
+            "minArticles",
+            "windowDays"
+          ],
+          "title": "categorySuggestions",
+          "type": "object"
+        },
+        "chat": {
+          "additionalProperties": false,
+          "properties": {
+            "candidates": {
+              "default": 40,
+              "description": "ANN candidates re-ranked per question",
+              "title": "candidates",
+              "type": "integer"
+            },
+            "enabled": {
+              "default": true,
+              "description": "Enable the /chat endpoint",
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "topK": {
+              "default": 12,
+              "description": "Stories handed to the LLM as grounding",
+              "title": "topK",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "enabled",
+            "topK",
+            "candidates"
+          ],
+          "title": "chat",
+          "type": "object"
+        },
+        "clustering": {
+          "additionalProperties": false,
+          "properties": {
+            "freezeAfterHours": {
+              "default": 72,
+              "description": "Hours after which a story is frozen and no longer accepts new sources",
+              "title": "freezeAfterHours",
+              "type": "integer"
+            },
+            "tauAttach": {
+              "default": 0.82,
+              "description": "Cosine-similarity threshold to attach an article to an existing story",
+              "title": "tauAttach",
+              "type": "number"
+            },
+            "tauGray": {
+              "default": 0.7,
+              "description": "Lower bound of the gray zone triggering a pairwise LLM decision",
+              "title": "tauGray",
+              "type": "number"
+            }
+          },
+          "required": [
+            "tauAttach",
+            "tauGray",
+            "freezeAfterHours"
+          ],
+          "title": "clustering",
+          "type": "object"
+        },
+        "databaseUrl": {
+          "default": "sqlite+aiosqlite:////data/newsgator.db",
+          "description": "SQLAlchemy async database URL. Stored in the Secret because it may embed credentials. The default points at the persistent volume mounted at /data.",
+          "title": "databaseUrl",
+          "type": "string"
+        },
+        "ingestion": {
+          "additionalProperties": false,
+          "properties": {
+            "articleProcessTimeoutMinutes": {
+              "default": 15,
+              "description": "Timeout in minutes for processing a single article through all stages",
+              "title": "articleProcessTimeoutMinutes",
+              "type": "integer"
+            },
+            "backlogSweepMinutes": {
+              "default": 30,
+              "description": "How often articles stuck mid-pipeline (LLM errors, restarts) are retried",
+              "title": "backlogSweepMinutes",
+              "type": "integer"
+            },
+            "feedDisableAfterDays": {
+              "default": 7,
+              "description": "Disable a feed after this many days of consecutive failures",
+              "title": "feedDisableAfterDays",
+              "type": "integer"
+            },
+            "fulltextMinChars": {
+              "default": 400,
+              "description": "Below this extracted-text length the archive.is fallback is tried",
+              "title": "fulltextMinChars",
+              "type": "integer"
+            },
+            "pollIntervalMaxMinutes": {
+              "default": 60,
+              "description": "Maximum feed poll interval in minutes",
+              "title": "pollIntervalMaxMinutes",
+              "type": "integer"
+            },
+            "pollIntervalMinMinutes": {
+              "default": 15,
+              "description": "Minimum feed poll interval in minutes",
+              "title": "pollIntervalMinMinutes",
+              "type": "integer"
+            },
+            "retentionDays": {
+              "default": 45,
+              "description": "Days articles/stories are retained before the nightly purge",
+              "title": "retentionDays",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "retentionDays",
+            "feedDisableAfterDays",
+            "pollIntervalMinMinutes",
+            "pollIntervalMaxMinutes",
+            "fulltextMinChars",
+            "backlogSweepMinutes",
+            "articleProcessTimeoutMinutes"
+          ],
+          "title": "ingestion",
+          "type": "object"
+        },
+        "language": {
+          "additionalProperties": false,
+          "properties": {
+            "headlineMaxWords": {
+              "default": 12,
+              "description": "Headline length guidance (1-40, must be \u003e= headlineMinWords)",
+              "title": "headlineMaxWords",
+              "type": "integer"
+            },
+            "headlineMinWords": {
+              "default": 0,
+              "description": "Headline length guidance (0 = no minimum in the prompt, max 40)",
+              "title": "headlineMinWords",
+              "type": "integer"
+            },
+            "summary": {
+              "default": "en",
+              "description": "Language all summaries/embeddings are produced in (ISO 639-1)",
+              "title": "summary",
+              "type": "string"
+            },
+            "summaryMaxSentences": {
+              "default": 5,
+              "description": "Story summary length guidance, merge + headline prompts only (1-12)",
+              "title": "summaryMaxSentences",
+              "type": "integer"
+            },
+            "summaryMinSentences": {
+              "default": 3,
+              "description": "Story summary length guidance, merge + headline prompts only (1-12, must be \u003c= summaryMaxSentences)",
+              "title": "summaryMinSentences",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "summary",
+            "summaryMinSentences",
+            "summaryMaxSentences",
+            "headlineMinWords",
+            "headlineMaxWords"
+          ],
+          "title": "language",
+          "type": "object"
+        },
+        "llm": {
+          "additionalProperties": false,
+          "description": "\nDefaults target OpenRouter so the chart works out-of-the-box without a local LLM:\nset llm.apiKey to your OpenRouter key (https://openrouter.ai/keys) and the\npipeline is fully functional. Free models are used by default; the embedding\nmodel MUST stay 1024-dimensional (sqlite-vec tables are created for 1024).",
+          "properties": {
+            "apiKey": {
+              "default": "",
+              "description": "Bearer token sent to the LLM server. OpenRouter requires a real API key; local servers usually ignore it. Stored in the Secret.",
+              "title": "apiKey",
+              "type": "string"
+            },
+            "baseUrl": {
+              "default": "https://openrouter.ai/api/v1",
+              "description": "Base URL of the external OpenAI-compatible LLM server",
+              "title": "baseUrl",
+              "type": "string"
+            },
+            "contextTokens": {
+              "default": 32768,
+              "description": "Model context window in tokens; longer articles are condensed map-reduce style",
+              "title": "contextTokens",
+              "type": "integer"
+            },
+            "discoveryBudgetS": {
+              "default": 40,
+              "description": "Feed discovery time budget in seconds; partial results are returned after it",
+              "title": "discoveryBudgetS",
+              "type": "integer"
+            },
+            "embedBaseUrl": {
+              "default": "",
+              "description": "Embeddings endpoint. Empty = defaults to llm.baseUrl.",
+              "title": "embedBaseUrl",
+              "type": "string"
+            },
+            "embedModel": {
+              "default": "baai/bge-m3",
+              "description": "Embeddings model (must output 1024 dimensions)",
+              "title": "embedModel",
+              "type": "string"
+            },
+            "model": {
+              "default": "meta-llama/llama-3.3-70b-instruct",
+              "description": "baseUrl: \"http://localhost:8080/v1\"\nChat model name served by the LLM server",
+              "title": "model",
+              "type": "string"
+            },
+            "timeoutS": {
+              "default": 120,
+              "description": "LLM request timeout in seconds (long articles on slow models need headroom)",
+              "title": "timeoutS",
+              "type": "integer"
+            },
+            "trace": {
+              "additionalProperties": false,
+              "description": "Live LLM interaction trace on the Activity page (prompts/replies, in-memory only - never stored in the DB)",
+              "properties": {
+                "enabled": {
+                  "default": true,
+                  "description": "Enable the live LLM interaction trace",
+                  "title": "enabled",
+                  "type": "boolean"
+                },
+                "maxChars": {
+                  "default": 8000,
+                  "description": "Per-message clamp; longer text is truncated",
+                  "title": "maxChars",
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "enabled",
+                "maxChars"
+              ],
+              "title": "trace",
+              "type": "object"
+            }
+          },
+          "required": [
+            "baseUrl",
+            "model",
+            "apiKey",
+            "embedBaseUrl",
+            "embedModel",
+            "contextTokens",
+            "timeoutS",
+            "discoveryBudgetS",
+            "trace"
+          ],
+          "title": "llm",
+          "type": "object"
+        },
+        "newsletter": {
+          "additionalProperties": false,
+          "properties": {
+            "llmClean": {
+              "default": true,
+              "description": "One LLM call first deletes the non-news chrome (intro, socials, sponsors, platform self-links) from the full email before link extraction",
+              "title": "llmClean",
+              "type": "boolean"
+            },
+            "llmExtract": {
+              "default": true,
+              "description": "One LLM call per newsletter maps links to their intro text; false = code heuristic only",
+              "title": "llmExtract",
+              "type": "boolean"
+            },
+            "mailMaxMessagesPerPoll": {
+              "default": 20,
+              "description": "Cap per account per poll (oldest first)",
+              "title": "mailMaxMessagesPerPoll",
+              "type": "integer"
+            },
+            "mailPollMinutes": {
+              "default": 15,
+              "description": "How often all IMAP accounts are polled",
+              "title": "mailPollMinutes",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "mailPollMinutes",
+            "mailMaxMessagesPerPoll",
+            "llmClean",
+            "llmExtract"
+          ],
+          "title": "newsletter",
+          "type": "object"
+        },
+        "readeck": {
+          "additionalProperties": false,
+          "description": "\nThe \"Save to Readeck\" action appears on stories only when BOTH baseUrl and token are set.",
+          "properties": {
+            "baseUrl": {
+              "default": "",
+              "description": "Readeck instance base URL. Empty = integration disabled.",
+              "title": "baseUrl",
+              "type": "string"
+            },
+            "token": {
+              "default": "",
+              "description": "Readeck API token. Stored in the Secret, only rendered when set.",
+              "title": "token",
+              "type": "string"
+            }
+          },
+          "required": [
+            "baseUrl",
+            "token"
+          ],
+          "title": "readeck",
+          "type": "object"
+        },
+        "reader": {
+          "additionalProperties": false,
+          "properties": {
+            "pollMinutes": {
+              "default": 15,
+              "description": "How often all connected reader accounts are polled",
+              "title": "pollMinutes",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "pollMinutes"
+          ],
+          "title": "reader",
+          "type": "object"
+        },
+        "secretKey": {
+          "default": "",
+          "description": "Session-cookie signing secret. When left empty, a random 64-character key is generated on first install and reused on upgrades. Stored in the Secret.",
+          "title": "secretKey",
+          "type": "string"
+        },
+        "sharing": {
+          "additionalProperties": false,
+          "properties": {
+            "languages": {
+              "default": "en,fr,de,es,it,pt,nl",
+              "description": "Languages offered by the share button (comma-separated ISO 639-1 codes). Picking one translates the story headline + summary on demand via the LLM; \"as is\" sharing never calls the LLM.",
+              "title": "languages",
+              "type": "string"
+            }
+          },
+          "required": [
+            "languages"
+          ],
+          "title": "sharing",
+          "type": "object"
+        },
+        "vectorStore": {
+          "additionalProperties": false,
+          "properties": {
+            "backend": {
+              "default": "sqlite_vec",
+              "description": "Vector backend: sqlite_vec (default, zero-ops) or qdrant (external server - never spun up by this chart)",
+              "enum": [
+                "sqlite_vec",
+                "qdrant"
+              ],
+              "required": [],
+              "title": "backend"
+            },
+            "qdrant": {
+              "additionalProperties": false,
+              "description": "External Qdrant server (only used when backend=qdrant)",
+              "properties": {
+                "apiKey": {
+                  "default": "",
+                  "description": "Qdrant API key. Stored in the Secret, only rendered when set.",
+                  "title": "apiKey",
+                  "type": "string"
+                },
+                "url": {
+                  "default": "",
+                  "description": "Qdrant base URL. Empty = unset.",
+                  "title": "url",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "url",
+                "apiKey"
+              ],
+              "title": "qdrant",
+              "type": "object"
+            }
+          },
+          "required": [
+            "qdrant"
+          ],
+          "title": "vectorStore",
+          "type": "object"
+        }
+      },
+      "required": [
+        "databaseUrl",
+        "secretKey",
+        "llm",
+        "language",
+        "vectorStore",
+        "clustering",
+        "ingestion",
+        "newsletter",
+        "reader",
+        "readeck",
+        "sharing",
+        "chat",
+        "categorySuggestions"
+      ],
+      "title": "config",
+      "type": "object"
+    },
+    "fullnameOverride": {
+      "default": "",
+      "title": "fullnameOverride",
+      "type": "string"
+    },
+    "global": {
+      "description": "Global values are values that can be accessed from any chart or subchart by exactly the same name.",
+      "required": [],
+      "title": "global",
+      "type": "object"
+    },
+    "httpRoute": {
+      "additionalProperties": false,
+      "description": "Expose the service via gateway-api HTTPRoute\nRequires Gateway API resources and suitable controller installed within the cluster\n(see: https://gateway-api.sigs.k8s.io/guides/)",
+      "properties": {
+        "annotations": {
+          "additionalProperties": false,
+          "description": "HTTPRoute annotations.",
+          "required": [],
+          "title": "annotations",
+          "type": "object"
+        },
+        "enabled": {
+          "default": false,
+          "description": "HTTPRoute enabled.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "hostnames": {
+          "description": "Hostnames matching HTTP header.",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              }
+            ],
+            "required": []
+          },
+          "title": "hostnames",
+          "type": "array"
+        },
+        "parentRefs": {
+          "description": "Which Gateways this Route is attached to.",
+          "items": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "default": "gateway",
+                    "title": "name",
+                    "type": "string"
+                  },
+                  "sectionName": {
+                    "default": "http",
+                    "title": "sectionName",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "sectionName"
+                ],
+                "type": "object"
+              }
+            ],
+            "required": []
+          },
+          "title": "parentRefs",
+          "type": "array"
+        },
+        "rules": {
+          "description": "List of rules and filters applied.",
+          "items": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "matches": {
+                    "items": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "path": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "type": {
+                                  "default": "PathPrefix",
+                                  "title": "type",
+                                  "type": "string"
+                                },
+                                "value": {
+                                  "default": "/headers",
+                                  "title": "value",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "value"
+                              ],
+                              "title": "path",
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "path"
+                          ],
+                          "type": "object"
+                        }
+                      ],
+                      "required": []
+                    },
+                    "title": "matches",
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "matches"
+                ],
+                "type": "object"
+              }
+            ],
+            "required": []
+          },
+          "title": "rules",
+          "type": "array"
+        }
+      },
+      "required": [
+        "enabled",
+        "annotations",
+        "parentRefs",
+        "hostnames",
+        "rules"
+      ],
+      "title": "httpRoute",
+      "type": "object"
+    },
+    "image": {
+      "additionalProperties": false,
+      "description": "This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/",
+      "properties": {
+        "pullPolicy": {
+          "default": "IfNotPresent",
+          "description": "This sets the pull policy for images.",
+          "title": "pullPolicy",
+          "type": "string"
+        },
+        "repository": {
+          "default": "tekka90/newsgator",
+          "title": "repository",
+          "type": "string"
+        },
+        "tag": {
+          "default": "",
+          "description": "Overrides the image tag whose default is the chart appVersion.",
+          "title": "tag",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repository",
+        "pullPolicy",
+        "tag"
+      ],
+      "title": "image",
+      "type": "object"
+    },
+    "imagePullSecrets": {
+      "description": "This is for the secretes for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/",
+      "items": {
+        "required": []
+      },
+      "title": "imagePullSecrets",
+      "type": "array"
+    },
+    "ingress": {
+      "additionalProperties": false,
+      "description": "This block is for setting up the ingress for more information can be found here: https://kubernetes.io/docs/concepts/services-networking/ingress/",
+      "properties": {
+        "annotations": {
+          "additionalProperties": true,
+          "required": [],
+          "title": "annotations"
+        },
+        "className": {
+          "default": "",
+          "title": "className",
+          "type": "string"
+        },
+        "enabled": {
+          "default": false,
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "hosts": {
+          "description": "kubernetes.io/ingress.class: nginx\nkubernetes.io/tls-acme: \"true\"",
+          "items": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "host": {
+                    "default": "chart-example.local",
+                    "title": "host",
+                    "type": "string"
+                  },
+                  "paths": {
+                    "items": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "path": {
+                              "default": "/",
+                              "title": "path",
+                              "type": "string"
+                            },
+                            "pathType": {
+                              "default": "ImplementationSpecific",
+                              "title": "pathType",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "path",
+                            "pathType"
+                          ],
+                          "type": "object"
+                        }
+                      ],
+                      "required": []
+                    },
+                    "title": "paths",
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "host",
+                  "paths"
+                ],
+                "type": "object"
+              }
+            ],
+            "required": []
+          },
+          "title": "hosts",
+          "type": "array"
+        },
+        "tls": {
+          "items": {
+            "required": []
+          },
+          "title": "tls",
+          "type": "array"
+        }
+      },
+      "required": [
+        "enabled",
+        "className",
+        "hosts",
+        "tls"
+      ],
+      "title": "ingress",
+      "type": "object"
+    },
+    "livenessProbe": {
+      "additionalProperties": true,
+      "description": "This is to setup the startup, liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "httpGet": {
+          "additionalProperties": false,
+          "properties": {
+            "path": {
+              "default": "/api/health",
+              "title": "path",
+              "type": "string"
+            },
+            "port": {
+              "default": "http-frontend",
+              "title": "port",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "port"
+          ],
+          "title": "httpGet",
+          "type": "object"
+        }
+      },
+      "required": [
+        "enabled",
+        "httpGet"
+      ],
+      "title": "livenessProbe"
+    },
+    "nameOverride": {
+      "default": "",
+      "description": "This is to override the chart name.",
+      "title": "nameOverride",
+      "type": "string"
+    },
+    "nodeSelector": {
+      "additionalProperties": false,
+      "required": [],
+      "title": "nodeSelector",
+      "type": "object"
+    },
+    "persistence": {
+      "additionalProperties": false,
+      "description": "enable persistence using a PersistentVolumeClaim",
+      "properties": {
+        "accessModes": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              }
+            ],
+            "required": []
+          },
+          "title": "accessModes",
+          "type": "array"
+        },
+        "enabled": {
+          "default": false,
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "size": {
+          "default": "1Gi",
+          "title": "size",
+          "type": "string"
+        }
+      },
+      "required": [
+        "enabled",
+        "accessModes",
+        "size"
+      ],
+      "title": "persistence",
+      "type": "object"
+    },
+    "podAnnotations": {
+      "additionalProperties": false,
+      "description": "This is for setting Kubernetes Annotations to a Pod.\nFor more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/",
+      "required": [],
+      "title": "podAnnotations",
+      "type": "object"
+    },
+    "podLabels": {
+      "additionalProperties": false,
+      "description": "This is for setting Kubernetes Labels to a Pod.\nFor more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/",
+      "required": [],
+      "title": "podLabels",
+      "type": "object"
+    },
+    "podSecurityContext": {
+      "additionalProperties": false,
+      "required": [],
+      "title": "podSecurityContext",
+      "type": "object"
+    },
+    "readinessProbe": {
+      "additionalProperties": true,
+      "properties": {
+        "enabled": {
+          "default": true,
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "httpGet": {
+          "additionalProperties": false,
+          "properties": {
+            "path": {
+              "default": "/api/health",
+              "title": "path",
+              "type": "string"
+            },
+            "port": {
+              "default": "http-backend",
+              "title": "port",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "port"
+          ],
+          "title": "httpGet",
+          "type": "object"
+        }
+      },
+      "required": [
+        "enabled",
+        "httpGet"
+      ],
+      "title": "readinessProbe"
+    },
+    "replicaCount": {
+      "default": 1,
+      "description": "This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/",
+      "title": "replicaCount",
+      "type": "integer"
+    },
+    "resources": {
+      "additionalProperties": true,
+      "description": "resources configuration for the container",
+      "required": [],
+      "title": "resources"
+    },
+    "securityContext": {
+      "additionalProperties": false,
+      "required": [],
+      "title": "securityContext",
+      "type": "object"
+    },
+    "service": {
+      "additionalProperties": false,
+      "description": "backend port",
+      "properties": {
+        "port": {
+          "default": 8000,
+          "title": "port",
+          "type": "integer"
+        },
+        "type": {
+          "default": "ClusterIP",
+          "title": "type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "port"
+      ],
+      "title": "service",
+      "type": "object"
+    },
+    "serviceAccount": {
+      "additionalProperties": false,
+      "description": "This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/",
+      "properties": {
+        "annotations": {
+          "additionalProperties": false,
+          "description": "Annotations to add to the service account",
+          "required": [],
+          "title": "annotations",
+          "type": "object"
+        },
+        "automount": {
+          "default": true,
+          "description": "Automatically mount a ServiceAccount's API credentials?",
+          "title": "automount",
+          "type": "boolean"
+        },
+        "create": {
+          "default": true,
+          "description": "Specifies whether a service account should be created",
+          "title": "create",
+          "type": "boolean"
+        },
+        "name": {
+          "default": "",
+          "description": "The name of the service account to use.\nIf not set and create is true, a name is generated using the fullname template",
+          "title": "name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "create",
+        "automount",
+        "annotations",
+        "name"
+      ],
+      "title": "serviceAccount",
+      "type": "object"
+    },
+    "serviceFrontend": {
+      "additionalProperties": false,
+      "description": "frontend port",
+      "properties": {
+        "port": {
+          "default": 3000,
+          "title": "port",
+          "type": "integer"
+        },
+        "type": {
+          "default": "ClusterIP",
+          "title": "type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "port"
+      ],
+      "title": "serviceFrontend",
+      "type": "object"
+    },
+    "startupProbe": {
+      "additionalProperties": true,
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "failureThreshold": {
+          "default": 10,
+          "title": "failureThreshold",
+          "type": "integer"
+        },
+        "httpGet": {
+          "additionalProperties": false,
+          "properties": {
+            "path": {
+              "default": "/api/health",
+              "title": "path",
+              "type": "string"
+            },
+            "port": {
+              "default": "http-backend",
+              "title": "port",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "port"
+          ],
+          "title": "httpGet",
+          "type": "object"
+        },
+        "initialDelaySeconds": {
+          "default": 30,
+          "title": "initialDelaySeconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "enabled",
+        "initialDelaySeconds",
+        "failureThreshold",
+        "httpGet"
+      ],
+      "title": "startupProbe"
+    },
+    "tolerations": {
+      "items": {
+        "required": []
+      },
+      "title": "tolerations",
+      "type": "array"
+    },
+    "volumeMounts": {
+      "description": "Additional volumeMounts on the output Deployment definition.",
+      "items": {
+        "required": []
+      },
+      "title": "volumeMounts",
+      "type": "array"
+    },
+    "volumes": {
+      "description": "Additional volumes on the output Deployment definition.",
+      "items": {
+        "required": []
+      },
+      "title": "volumes",
+      "type": "array"
+    }
+  },
+  "required": [
+    "config",
+    "replicaCount",
+    "image",
+    "imagePullSecrets",
+    "nameOverride",
+    "fullnameOverride",
+    "serviceAccount",
+    "podAnnotations",
+    "podLabels",
+    "podSecurityContext",
+    "securityContext",
+    "service",
+    "serviceFrontend",
+    "ingress",
+    "httpRoute",
+    "autoscaling",
+    "persistence",
+    "volumes",
+    "volumeMounts",
+    "nodeSelector",
+    "tolerations",
+    "affinity"
+  ],
+  "type": "object"
+}

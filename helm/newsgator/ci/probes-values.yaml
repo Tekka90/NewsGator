@@ -1,0 +1,8 @@
+startupProbe:
+  enabled: true
+
+livenessProbe:
+  enabled: true
+
+readinessProbe:
+  enabled: true

@@ -1,0 +1,59 @@
+# Exercises every config value with non-default settings (ConfigMap + Secret rendering).
+config:
+  databaseUrl: "sqlite+aiosqlite:////data/ci.db"
+  secretKey: "ci-fixed-secret-key"
+  llm:
+    baseUrl: "http://llm.ci.svc:8080/v1"
+    model: "ci-chat-model"
+    apiKey: "ci-llm-key"
+    embedBaseUrl: "http://embed.ci.svc:8080/v1"
+    embedModel: "ci-embed-model"
+    contextTokens: 16384
+    timeoutS: 60
+    discoveryBudgetS: 20
+    trace:
+      enabled: false
+      maxChars: 4000
+  language:
+    summary: "fr"
+    summaryMinSentences: 2
+    summaryMaxSentences: 4
+    headlineMinWords: 2
+    headlineMaxWords: 10
+  vectorStore:
+    backend: "qdrant"
+    qdrant:
+      url: "http://qdrant.ci.svc:6333"
+      apiKey: "ci-qdrant-key"
+  clustering:
+    tauAttach: 0.85
+    tauGray: 0.75
+    freezeAfterHours: 48
+  ingestion:
+    retentionDays: 30
+    feedDisableAfterDays: 5
+    pollIntervalMinMinutes: 10
+    pollIntervalMaxMinutes: 30
+    fulltextMinChars: 200
+    backlogSweepMinutes: 15
+    articleProcessTimeoutMinutes: 10
+  newsletter:
+    mailPollMinutes: 10
+    mailMaxMessagesPerPoll: 10
+    llmClean: false
+    llmExtract: false
+  reader:
+    pollMinutes: 10
+  readeck:
+    baseUrl: "http://readeck.ci.svc:8000"
+    token: "ci-readeck-token"
+  sharing:
+    languages: "en,fr"
+  chat:
+    enabled: false
+    topK: 5
+    candidates: 20
+  categorySuggestions:
+    enabled: false
+    minArticles: 3
+    windowDays: 14
