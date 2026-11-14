@@ -9,7 +9,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # --- backend runtime ---
-FROM python:3.12-slim AS backend
+FROM python:3.15-slim AS backend
 # Injected by the release workflow (tag → APP_VERSION, commit SHA → GIT_COMMIT);
 # reported by /api/health and the API docs.
 ARG APP_VERSION=dev
