@@ -6,6 +6,13 @@ on:
   push:
     branches:
       - main             # build-only validation on every push to main (no push to Hub)
+  pull_request:          # build-only validation of PRs that can change the image
+    paths:
+      - Dockerfile
+      - docker/**
+      - backend/pyproject.toml
+      - frontend/package*.json
+      - .github/workflows/docker-publish.yml
 
 env:
   IMAGE: tekka90/newsgator
