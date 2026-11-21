@@ -19,7 +19,7 @@ from app.version import VERSION
 router = APIRouter(tags=["ops"])
 
 # Capabilities clients can probe to tell whether the running server is recent enough.
-FEATURES = ["story_history"]
+FEATURES = ["story_history", "topics"]
 STARTED_AT = datetime.now(UTC).isoformat(timespec="seconds")
 
 

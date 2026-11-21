@@ -21,7 +21,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models import Article, ClusterDecision, Story, StoryRevision
-from app.services import activity, llm_client, llmtrace, prompts, saved_links, usage
+from app.services import (
+    activity,
+    llm_client,
+    llmtrace,
+    prompts,
+    saved_links,
+    topics,
+    usage,
+)
 from app.services.vectorstore import cosine_similarity, get_vector_store
 
 HALF_LIFE_HOURS = 24.0
@@ -103,13 +111,29 @@ async def cluster_article(session: AsyncSession, article_id: int) -> None:
             decision=decision,
         )
     )
+    story_id = matched.id  # read before the commit expires the instance
     await activity.emit(
         session,
         "cluster",
         "cluster_attach" if decision.startswith("attach") else "cluster_new",
-        {"article_id": article.id, "story_id": matched.id, "similarity": similarity},
+        {"article_id": article.id, "story_id": story_id, "similarity": similarity},
     )
     await session.commit()
+    await _refresh_topic_state(session, story_id)
+
+
+async def _refresh_topic_state(session: AsyncSession, story_id: int) -> None:
+    """Topic Radar fast path; must never break clustering."""
+    try:
+        async with session.begin_nested():  # a failure must not roll back the clustering
+            await topics.evaluate_story(session, story_id)
+        await session.commit()
+    except Exception as exc:
+        await activity.emit(
+            session, "topics", "evaluate_error", {"story_id": story_id, "error": str(exc)},
+            level="error",
+        )
+        await session.commit()
 
 
 async def _gray_zone_check(

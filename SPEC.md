@@ -440,6 +440,39 @@ user must be able to fix it. Corrections can later feed threshold tuning.
 ---
 
 
+### Topic Radar — mute / follow whole topics (2026-11-21, Alembic `0032`)
+
+A **topic** is a cluster of story centroids over a rolling window (`TOPIC_WINDOW_DAYS`); same
+`EMBED_MODEL` vectors as clustering, no keyword lists. `services/topics.py::refresh_topics` (scheduler
+`topic_refresh_sweep`, every `TOPIC_REFRESH_MINUTES`) assigns window stories to existing topics
+(cosine to the topic centroid `>= TOPIC_MATCH_THRESHOLD`), clusters the rest greedily, promotes
+clusters with `>= TOPIC_MIN_STORIES` stories from `>= TOPIC_MIN_SOURCES` distinct hosts, names each new
+topic with ONE LLM call (`topic_label`, `SUMMARY_LANGUAGE`; fallback = most central headline), fades
+topics idle for `TOPIC_FADE_DAYS`, and expires user rules. `cluster_article` calls
+`evaluate_story` (no LLM; savepoint-isolated) so new stories join topics/rules immediately.
+Topic centroids are stored in the DB (few rows, brute-force numpy) — not in the `VectorStore`.
+
+Users act through a **rule** (`topic_rule`, per user, mode `mute|follow`): it snapshots the topic
+centroid + threshold + `embed_model`, so it outlives the topic and re-matches a returning subject.
+Duration: `fade` (default: ends when the source topic fades), `7d`, `30d`, `forever`. One rule per
+user+topic. Matches are materialized in `story_rule_match`. **Ignored** is derived: a story matching a
+mute rule and no follow rule, and not saved (follow beats mute; saved is never ignored). Ignored
+stories are neither read nor unread nor "updated", read state is never pushed to reader APIs, and a
+new version stays ignored. "Not about this" feedback (`topic_feedback`, invariant 9) raises that
+rule's threshold just above the story's similarity.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /topics` | topics worth showing: the user's ruled topics + up to `TOPIC_MAX_VISIBLE` trending ones whose share of the user's unread is `>= TOPIC_MIN_USER_SHARE`; `[{id,label,description,story_count,source_count,unread_count,recent_count,last_story_at,rule:{id,mode}\|null}]`; 404 when `TOPICS_ENABLED` is off |
+| `GET /topics/{id}/preview` | `{would_hide_unread, samples:[{id,title}]}` for the user |
+| `POST /topics/{id}/rules` | body `{mode: mute\|follow, duration: fade\|7d\|30d\|forever}` → rule (201); replaces an existing rule on that topic |
+| `GET /topic-rules`, `DELETE /topic-rules/{id}` | the user's rules (`matched_stories`, `hidden_unread`, `expires_at`, `until_fade`); delete = unmute |
+| `POST /topic-rules/{id}/feedback` | body `{story_id}`: "not about this topic" |
+| `GET /stories?ignored=hide\|include\|only` | default `hide`; `include` flags `ignored: true`; story items gain `ignored`, `followed`, `topic_rule_id`; `/stories/counts` gains `ignored` (not part of the other counts); presets/counts/facets/widget exclude ignored |
+
+Shared contract: `backend/tests/fixtures/topic_vectors.json` (rule matching, visibility, clustering) —
+the Swift twin must pass it. `/health` `features` includes `topics`.
+
 ### Story presets ("Smart Views") — 2026-10-21, Alembic `0024`
 
 A preset = filter + presentation. Stored per user as one JSON document on `user.story_presets`

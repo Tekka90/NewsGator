@@ -130,6 +130,7 @@ async def test_start_and_stop_scheduler_registers_jobs(monkeypatch) -> None:
         "mail_poll_sweep",
         "reader_poll_sweep",
         "retention_sweep",
+        "topic_refresh_sweep",
     }
     assert all(j["max_instances"] == 1 and j["coalesce"] for j in added)
     scheduler.stop_scheduler()

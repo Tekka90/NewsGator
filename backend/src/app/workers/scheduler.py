@@ -54,6 +54,15 @@ async def freeze_sweep() -> None:
         break
 
 
+async def topic_refresh_sweep() -> None:
+    """Discover/fade topics and expire user mute/follow rules (Topic Radar)."""
+    from app.services.topics import refresh_topics
+
+    async for session in get_session():
+        await refresh_topics(session)
+        break
+
+
 async def llm_backlog_sweep() -> None:
     """Requeue unclustered articles stuck mid-pipeline (LLM failure, crash recovery).
 
@@ -93,6 +102,14 @@ def start_scheduler() -> None:
         trigger="interval",
         minutes=settings.backlog_sweep_minutes,
         id="llm_backlog_sweep",
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        topic_refresh_sweep,
+        trigger="interval",
+        minutes=settings.topic_refresh_minutes,
+        id="topic_refresh_sweep",
         max_instances=1,
         coalesce=True,
     )

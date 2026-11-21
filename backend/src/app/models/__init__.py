@@ -2,7 +2,18 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, TypeDecorator
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    LargeBinary,
+    String,
+    Text,
+    TypeDecorator,
+)
 from sqlalchemy.engine import Dialect
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -474,3 +485,84 @@ class ChatMessage(Base):
     stories_json: Mapped[str] = mapped_column(Text, default="[]")
     latency_ms: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
+
+
+# --- Topic Radar (services/topics.py) ---
+
+
+class Topic(Base):
+    """Cluster of story centroids over a rolling window (global, like stories)."""
+
+    __tablename__ = "topic"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    label: Mapped[str] = mapped_column(String(256), default="")
+    description: Mapped[str] = mapped_column(Text, default="")
+    # Language the label/description were written in (SUMMARY_LANGUAGE at creation)
+    label_language: Mapped[str] = mapped_column(String(8), default="")
+    # float32 little-endian vector; topics are few, matching is brute-force numpy
+    centroid: Mapped[bytes] = mapped_column(LargeBinary)
+    story_count: Mapped[int] = mapped_column(Integer, default=0)
+    source_count: Mapped[int] = mapped_column(Integer, default=0)
+    first_seen_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    last_story_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    status: Mapped[str] = mapped_column(String(16), default="active", index=True)  # active|faded
+
+
+class StoryTopic(Base):
+    __tablename__ = "story_topic"
+
+    story_id: Mapped[int] = mapped_column(
+        ForeignKey("story.id", ondelete="CASCADE"), primary_key=True
+    )
+    topic_id: Mapped[int] = mapped_column(
+        ForeignKey("topic.id", ondelete="CASCADE"), primary_key=True, index=True
+    )
+    similarity: Mapped[float] = mapped_column(Float, default=0.0)
+
+
+class TopicRule(Base):
+    """Per-user mute/follow rule. Keeps its own centroid so it outlives the topic."""
+
+    __tablename__ = "topic_rule"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), index=True)
+    mode: Mapped[str] = mapped_column(String(8))  # mute|follow
+    label: Mapped[str] = mapped_column(String(256), default="")
+    centroid: Mapped[bytes] = mapped_column(LargeBinary)
+    embed_model: Mapped[str] = mapped_column(String(128), default="")
+    threshold: Mapped[float] = mapped_column(Float)
+    source_topic_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Rule ends when the source topic fades (the default for mutes)
+    until_fade: Mapped[bool] = mapped_column(Boolean, default=False)
+    expires_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+
+class StoryRuleMatch(Base):
+    """Materialized (rule, story) matches — keeps story-list filtering a cheap SQL join."""
+
+    __tablename__ = "story_rule_match"
+
+    rule_id: Mapped[int] = mapped_column(
+        ForeignKey("topic_rule.id", ondelete="CASCADE"), primary_key=True
+    )
+    story_id: Mapped[int] = mapped_column(
+        ForeignKey("story.id", ondelete="CASCADE"), primary_key=True, index=True
+    )
+    user_id: Mapped[int] = mapped_column(Integer, index=True)
+    mode: Mapped[str] = mapped_column(String(8))
+
+
+class TopicFeedback(Base):
+    """"This story is not about the topic" — labeled pairs (invariant 9). No FKs."""
+
+    __tablename__ = "topic_feedback"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer)
+    story_id: Mapped[int] = mapped_column(Integer)
+    rule_id: Mapped[int] = mapped_column(Integer)
+    similarity: Mapped[float] = mapped_column(Float, default=0.0)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)

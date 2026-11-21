@@ -681,3 +681,13 @@ resolution, Takeout CSV). `services/llm_budget.py` + `services/condense.py` repl
 `text[:8000]` truncation with map-reduce condensation sized by `LLM_CONTEXT_TOKENS`.
 `POST /feeds/import-subscriptions` imports Takeout CSV or OPML. Shared vectors for the Swift
 side: `backend/tests/fixtures/youtube_vectors.json`. Tests: `tests/test_youtube.py`.
+
+Topic Radar (2026-11-21, Alembic 0032): users mute/follow whole *topics* (clusters of story centroids,
+`services/topics.py`) via per-user rules that snapshot the topic centroid; "ignored" stories are derived
+(mute rule match, no follow match, not saved), hidden from lists/counts by default (`ignored=` param),
+never marked read and never pushed to reader APIs. Topic discovery is generic (embeddings + one LLM
+label per topic, rule 0 — no keyword lists); the `topic_refresh_sweep` job + `evaluate_story` hook in
+`cluster_article` maintain it. Tunables are `TOPIC_*` settings. Semantics are shared with the Apple
+standalone pipeline through `tests/fixtures/topic_vectors.json`. See SPEC.md "Topic Radar" and
+`docs/TOPIC_RADAR_PLAN.md`.
+

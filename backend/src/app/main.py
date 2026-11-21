@@ -26,6 +26,7 @@ from app.api import (
     users,
 )
 from app.api import settings as settings_api
+from app.api import topics as topics_api
 from app.core.config import settings
 from app.core.db import get_engine, get_session, init_engine
 from app.models import SEED_CATEGORIES, Category
@@ -108,6 +109,7 @@ def create_app() -> FastAPI:
     app.include_router(favicons.router, prefix="/api")
     app.include_router(usage.router, prefix="/api")
     app.include_router(chat.router, prefix="/api")
+    app.include_router(topics_api.router, prefix="/api")
     app.include_router(feed.router, prefix="/api")
     return app
 
@@ -140,6 +142,12 @@ ALEMBIC_DIR = BACKEND_DIR / "alembic"
 # no alembic_version table. Each entry maps schema markers that must ALL be
 # present to the revision such a DB should be stamped at, newest first.
 _LEGACY_STAMPS: list[tuple[list[tuple[str, str]], str]] = [
+    (
+        [
+            ("topic_rule", "until_fade"),
+        ],
+        "0032_topic_radar",
+    ),
     (
         [
             ("user", "ui_language"),

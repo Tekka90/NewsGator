@@ -24,6 +24,7 @@ from app.models import (
     OverridePair,
     Story,
     StoryRevision,
+    StoryRuleMatch,
     StoryState,
     StoryTranslation,
     User,
@@ -32,6 +33,7 @@ from app.models import (
 )
 from app.services import activity, listen_text, llm_client, process, saved_links
 from app.services import story_presets as presets_svc
+from app.services import topics as topics_svc
 from app.services.fulltext import fetch_full_text
 from app.services.vectorstore import cosine_similarity, get_vector_store
 
@@ -66,6 +68,10 @@ class StoryListItem(BaseModel):
     video_embed_url: str | None = None
     video_provider: str | None = None  # youtube | file | embed
     video_duration: int | None = None  # seconds
+    # Topic Radar: matched a mute rule (hidden by default) / a follow rule
+    ignored: bool = False
+    followed: bool = False
+    topic_rule_id: int | None = None
 
 
 class ArticleOut(BaseModel):
@@ -306,9 +312,12 @@ async def _story_items(
 
     translations = await batch_get_translations(session, page_ids, user_lang)
 
+    visibility = await topics_svc.story_visibility_map(session, user.id, page_ids)
+
     out: list[StoryListItem] = []
     for story in page:
         state = states.get(story.id)
+        vis, rule_id = visibility.get(story.id, (topics_svc.VISIBLE, None))
         is_read, updated = _flags(state, story)
         is_saved, saved_at = _saved_flag(state)
         source_count, published_at = stats.get(story.id, (0, None))
@@ -342,6 +351,9 @@ async def _story_items(
                 saved=is_saved,
                 saved_at=saved_at,
                 readeck_bookmark_id=story.readeck_bookmark_id,
+                ignored=vis == topics_svc.IGNORED,
+                followed=vis == topics_svc.FOLLOWED,
+                topic_rule_id=rule_id,
                 **videos.get(story.id, {}),
             )
         )
@@ -352,9 +364,31 @@ def _is_read_sql() -> ColumnElement[bool]:
     return func.coalesce(StoryState.is_read, false())
 
 
-def _flag_conditions(filter: str, saved: bool) -> list[ColumnElement[bool]]:
-    """SQL twin of ``_flags`` / ``_saved_flag`` (needs StoryState outer-joined)."""
+def _ignored_sql(user_id: int) -> ColumnElement[bool]:
+    """SQL twin of ``topics.visibility`` == ignored (needs StoryState outer-joined)."""
+    muted = select(StoryRuleMatch.story_id).where(
+        StoryRuleMatch.user_id == user_id, StoryRuleMatch.mode == topics_svc.MODE_MUTE
+    )
+    followed = select(StoryRuleMatch.story_id).where(
+        StoryRuleMatch.user_id == user_id, StoryRuleMatch.mode == topics_svc.MODE_FOLLOW
+    )
+    return and_(
+        Story.id.in_(muted), Story.id.not_in(followed), StoryState.saved_at.is_(None)
+    )
+
+
+def _flag_conditions(
+    filter: str, saved: bool, user_id: int | None = None, ignored: str = "hide"
+) -> list[ColumnElement[bool]]:
+    """SQL twin of ``_flags`` / ``_saved_flag`` (needs StoryState outer-joined).
+
+    ``ignored``: hide (default) | include | only — stories muted through Topic Radar."""
     conditions: list[ColumnElement[bool]] = []
+    if user_id is not None:
+        if ignored == "hide":
+            conditions.append(~_ignored_sql(user_id))
+        elif ignored == "only":
+            conditions.append(_ignored_sql(user_id))
     if filter == "unread":
         conditions.append(_is_read_sql().is_(False))
     elif filter == "updated":
@@ -377,6 +411,7 @@ def _filtered_stories(
     reverse: bool,
     since: datetime | None,
     extra: Sequence[ColumnElement[bool]] = (),
+    ignored: str = "hide",
 ) -> Select[Any]:
     """Visible stories of the user, filtered and ordered (published, sources, ...), in SQL.
 
@@ -399,7 +434,11 @@ def _filtered_stories(
         select(Story)
         .outerjoin(stats, stats.c.sid == Story.id)
         .outerjoin(StoryState, and_(StoryState.story_id == Story.id, StoryState.user_id == user.id))
-        .where(Story.id.in_(visible), *_flag_conditions(filter, saved), *extra)
+        .where(
+            Story.id.in_(visible),
+            *_flag_conditions(filter, saved, user.id, ignored),
+            *extra,
+        )
     )
     if category:
         query = query.where(Story.category == category)
@@ -539,6 +578,9 @@ async def list_stories(
     # a story id does not. Empty when the story is not part of the list.
     before: int | None = Query(default=None, ge=1),
     after: int | None = Query(default=None, ge=1),
+    # Topic Radar: stories muted by a topic rule are hidden by default;
+    # `include` shows them with `ignored: true`, `only` lists just those
+    ignored: str = Query(default="hide", pattern="^(hide|include|only)$"),
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[StoryListItem]:
@@ -592,6 +634,7 @@ async def list_stories(
         reverse=order == "desc",
         since=since,
         extra=extra,
+        ignored=ignored,
     )
     cursor = before if before is not None else after
     if cursor is not None and limit is not None:
@@ -668,7 +711,7 @@ async def widget_snapshot(
             .outerjoin(
                 StoryState, and_(StoryState.story_id == Story.id, StoryState.user_id == user.id)
             )
-            .where(Story.id.in_(visible))
+            .where(Story.id.in_(visible), ~_ignored_sql(user.id))
         )
     ).all()
     ids = {row[0] for row in rows}
@@ -736,6 +779,7 @@ class StoryCountsOut(BaseModel):
     unread: int
     updated: int
     saved: int
+    ignored: int = 0  # hidden by Topic Radar mute rules (not part of the other counts)
 
 
 @router.get("/counts")
@@ -753,14 +797,20 @@ async def story_counts(
         Article.feed_id.in_([feed] if feed is not None else user_feed_ids),
         Article.story_id.is_not(None),
     )
-    unread = _is_read_sql().is_(False)
-    updated = and_(StoryState.is_read.is_(True), Story.version > StoryState.read_at_version)
+    hidden = _ignored_sql(user.id)
+    unread = and_(~hidden, _is_read_sql().is_(False))
+    updated = and_(
+        ~hidden, StoryState.is_read.is_(True), Story.version > StoryState.read_at_version
+    )
     query = (
         select(
-            func.count(),
+            func.coalesce(func.sum(case((~hidden, 1), else_=0)), 0),
             func.coalesce(func.sum(case((unread, 1), else_=0)), 0),
             func.coalesce(func.sum(case((updated, 1), else_=0)), 0),
-            func.coalesce(func.sum(case((StoryState.saved_at.is_not(None), 1), else_=0)), 0),
+            func.coalesce(
+                func.sum(case((and_(~hidden, StoryState.saved_at.is_not(None)), 1), else_=0)), 0
+            ),
+            func.coalesce(func.sum(case((hidden, 1), else_=0)), 0),
         )
         .select_from(Story)
         .outerjoin(StoryState, and_(StoryState.story_id == Story.id, StoryState.user_id == user.id))
@@ -768,8 +818,10 @@ async def story_counts(
     )
     if category:
         query = query.where(Story.category == category)
-    total, n_unread, n_updated, n_saved = (await session.execute(query)).one()
-    return StoryCountsOut(all=total, unread=n_unread, updated=n_updated, saved=n_saved)
+    total, n_unread, n_updated, n_saved, n_ignored = (await session.execute(query)).one()
+    return StoryCountsOut(
+        all=total, unread=n_unread, updated=n_updated, saved=n_saved, ignored=n_ignored
+    )
 
 
 class PresetCountsOut(BaseModel):
@@ -809,6 +861,7 @@ async def preset_counts(
 
     by_status: dict[str, int] = {}
     if any(only_status(p) for p in presets):
+        hidden = _ignored_sql(user.id)
         unread = _is_read_sql().is_(False)
         updated = and_(StoryState.is_read.is_(True), Story.version > StoryState.read_at_version)
         total, n_unread, n_updated, n_saved = (
@@ -825,7 +878,7 @@ async def preset_counts(
                 .outerjoin(
                     StoryState, and_(StoryState.story_id == Story.id, StoryState.user_id == user.id)
                 )
-                .where(Story.id.in_(visible))
+                .where(Story.id.in_(visible), ~hidden)
             )
         ).one()
         by_status = {"any": total, "unread": n_unread, "updated": n_updated, "saved": n_saved}
@@ -845,7 +898,9 @@ async def preset_counts(
         counts[p["id"]] = int(
             await session.scalar(
                 select(func.count()).select_from(
-                    joined.where(Story.id.in_(visible), *conditions).subquery()
+                    joined.where(
+                        Story.id.in_(visible), ~_ignored_sql(user.id), *conditions
+                    ).subquery()
                 )
             )
             or 0
@@ -887,7 +942,7 @@ async def story_facets(
     filtered = (
         select(Story.id.label("sid"), Story.category.label("category"))
         .outerjoin(StoryState, and_(StoryState.story_id == Story.id, StoryState.user_id == user.id))
-        .where(*_flag_conditions(filter, saved))
+        .where(*_flag_conditions(filter, saved, user.id))
         .subquery()
     )
     pairs = (

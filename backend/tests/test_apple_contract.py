@@ -137,6 +137,7 @@ def test_story_list_detail_revision_and_feed_options(live: httpx.Client) -> None
         "readeck_bookmark_id": None,
         "video_id": None, "media_kind": None, "video_url": None, "video_embed_url": None,
         "video_provider": None, "video_duration": None,
+        "ignored": False, "followed": False, "topic_rule_id": None,
     }
     detail = live.get("/api/stories/1").json()
     assert set(detail) == {

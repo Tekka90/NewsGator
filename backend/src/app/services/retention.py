@@ -19,7 +19,9 @@ from app.models import (
     OverridePair,
     Story,
     StoryRevision,
+    StoryRuleMatch,
     StoryState,
+    StoryTopic,
     StoryTranslation,
 )
 from app.services import activity
@@ -77,6 +79,10 @@ async def purge_old_data(session: AsyncSession) -> dict[str, int]:
         )
         await session.execute(
             delete(StoryTranslation).where(StoryTranslation.story_id.in_(story_ids))
+        )
+        await session.execute(delete(StoryTopic).where(StoryTopic.story_id.in_(story_ids)))
+        await session.execute(
+            delete(StoryRuleMatch).where(StoryRuleMatch.story_id.in_(story_ids))
         )
         await session.execute(delete(Story).where(Story.id.in_(story_ids)))
     report["stories"] = len(story_ids)

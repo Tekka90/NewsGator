@@ -115,6 +115,18 @@ class Settings(BaseSettings):
     chat_top_k: int = 12  # stories handed to the LLM as grounding
     chat_candidates: int = 40  # ANN candidates re-ranked by exact cosine
 
+    # Topic Radar (services/topics.py): clusters of stories users can mute / follow
+    topics_enabled: bool = True
+    topic_window_days: int = 14  # stories considered when discovering topics
+    topic_min_stories: int = 5  # smallest cluster promoted to a topic
+    topic_min_sources: int = 3  # distinct source hosts a topic needs
+    topic_match_threshold: float = 0.55  # cosine(story centroid, topic/rule centroid)
+    topic_refresh_minutes: int = 60  # discovery / fade / rule-expiry sweep
+    topic_fade_days: int = 7  # no new story for this long -> topic faded
+    topic_max_visible: int = 8  # chips offered to a user at once
+    topic_min_user_share: float = 0.03  # topic share of the user's unread to be offered
+    topic_rule_scan_days: int = 30  # stories re-evaluated when a rule is created
+
     # Readeck integration (optional — enabled only when both are set)
     readeck_base_url: str | None = None
     readeck_token: str | None = None

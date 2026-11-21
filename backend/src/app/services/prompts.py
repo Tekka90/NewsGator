@@ -226,6 +226,25 @@ Reply with JSON: {{"same_event": true|false}}"""
     return system, user
 
 
+def topic_label(headlines: list[str]) -> tuple[str, str]:
+    """Name a cluster of related stories (Topic Radar). Written in SUMMARY_LANGUAGE."""
+    lang = summary_language_name()
+    system = (
+        "You name recurring news topics for a personal news reader. "
+        f"Always write in {lang}. Reply with ONLY a valid JSON object."
+    )
+    listing = "\n".join(f"- {h}" for h in headlines)
+    user = f"""These headlines belong to one broad news topic:
+{listing}
+
+Name the topic in {lang}: a short label (2-5 words, a noun phrase, no quotes, no trailing
+punctuation) that a reader would recognise as the overall subject, and a one-sentence
+description of what the coverage is about.
+
+Reply with JSON: {{"label": "...", "description": "..."}}"""
+    return system, user
+
+
 def newsletter_clean(subject: str, body: str) -> tuple[str, str]:
     """Pass 1 of newsletter processing: delete everything that is not news.
 

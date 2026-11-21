@@ -19,7 +19,7 @@ Everything is generic: embeddings + LLM labels, no hardcoded terms (rule 0).
 
 ## 3. Server pipeline (`services/topics.py`)
 1. Assign (after clustering, on create / version bump): ANN on `topic` collection + exact cosine re-rank;
-   `>= TOPIC_MATCH_THRESHOLD` assigns, borderline band (`TOPIC_BORDERLINE_MARGIN`) gets one pairwise LLM check.
+   `>= TOPIC_MATCH_THRESHOLD` assigns (no LLM in v1; corrections come from user feedback).
 2. Birth (`topic_refresh` scheduler job, every `TOPIC_REFRESH_MINUTES`): greedy density clustering of unassigned
    story centroids in `TOPIC_WINDOW_DAYS`; keep clusters with `>= TOPIC_MIN_STORIES` stories and
    `>= TOPIC_MIN_SOURCES` distinct source hosts.
@@ -28,12 +28,12 @@ Everything is generic: embeddings + LLM labels, no hardcoded terms (rule 0).
 5. Rule matching: a rule matches a story when cosine(story centroid, rule centroid) `>= rule.threshold`.
 6. Events: `topic_created|assigned|faded|labeled|rule_matched`; usage kinds `topic_label`, `topic_pairwise`.
 
-## 4. Schema (one Alembic revision 0028 + `_LEGACY_STAMPS` entry)
+## 4. Schema (one Alembic revision 0032 + `_LEGACY_STAMPS` entry)
 - `topic(id, label, description, label_language, story_count, source_count, first_seen_at, last_story_at, status)`
 - `story_topic(story_id PK, topic_id PK, similarity)`
 - `topic_rule(id, user_id, mode, label, centroid BLOB, embed_model, threshold, source_topic_id nullable, expires_at nullable, created_at)`
 - `topic_feedback(user_id, story_id, rule_id, kind, created_at)` — "not about this" labeled pairs (invariant 9).
-- Vector collection `topic` via `VectorStore` (all three backends).
+- Topic centroids live in the DB (few rows, numpy brute force) — no `VectorStore` change.
 
 ## 5. API (all under /api; document in SPEC §6 + APPLE_CLIENT_COMPATIBILITY.md)
 - `GET /topics` — trending for the user: `[{id,label,description,story_count,source_count,unread_count,velocity,rule}]`,
@@ -68,7 +68,7 @@ assignment cases; Python reference `services/topics.py::rule_matches` and Swift 
 
 ## 9. Config (`core/config.py` + `docker/.env.example` + settings whitelist)
 `TOPICS_ENABLED`, `TOPIC_WINDOW_DAYS`, `TOPIC_MIN_STORIES`, `TOPIC_MIN_SOURCES`, `TOPIC_MATCH_THRESHOLD`,
-`TOPIC_BORDERLINE_MARGIN`, `TOPIC_REFRESH_MINUTES`, `TOPIC_FADE_DAYS`, `TOPIC_MAX_VISIBLE`, `TOPIC_MIN_USER_SHARE`.
+`TOPIC_REFRESH_MINUTES`, `TOPIC_FADE_DAYS`, `TOPIC_MAX_VISIBLE`, `TOPIC_MIN_USER_SHARE`.
 
 ## 10. Order of work
 1. Server: migration, models, vector collection, `topics.py` + tests (incl. vectors), scheduler, API, stories filtering.
