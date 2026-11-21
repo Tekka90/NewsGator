@@ -53,6 +53,8 @@ class TopicOut(BaseModel):
     recent_count: int
     last_story_at: str
     rule: TopicRuleBrief | None = None
+    # constellation coordinates in [-1, 1]; only sent with ``?all=true``
+    position: list[float] | None = None
 
 
 class SampleStory(BaseModel):
@@ -103,11 +105,14 @@ def _require_enabled() -> None:
 
 @router.get("/topics")
 async def list_topics(
+    all: bool = False,
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[TopicOut]:
     """Topics worth the user's attention: those with a rule of theirs, plus the largest
-    shares of their unread stories (at most ``TOPIC_MAX_VISIBLE`` trending ones)."""
+    shares of their unread stories (at most ``TOPIC_MAX_VISIBLE`` trending ones).
+
+    ``all=true`` returns every active topic with constellation positions instead."""
     _require_enabled()
     feed_ids = await _user_feed_ids(session, user)
     if not feed_ids:
@@ -167,6 +172,16 @@ async def list_topics(
             last_story_at=t.last_story_at.isoformat(),
             rule=TopicRuleBrief(id=rule.id, mode=rule.mode) if rule else None,
         )
+
+    if all:
+        positions = topics_svc.layout_positions(
+            {t.id: topics_svc.decode(t.centroid) for t in topics.values()}
+        )
+        everything = sorted(topics.values(), key=lambda t: t.story_count, reverse=True)
+        result = [out(t) for t in everything]
+        for item in result:
+            item.position = list(positions[item.id])
+        return result
 
     trending = sorted(
         (

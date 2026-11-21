@@ -116,6 +116,27 @@ async def test_refresh_discovers_topic(client: AsyncClient, db_session, store) -
     assert len(listed) == 1 and listed[0]["unread_count"] == 5 and listed[0]["rule"] is None
 
 
+def test_layout_positions_are_bounded_and_keep_neighbours_close() -> None:
+    a1, a2, b = np.array([1.0, 0, 0, 0]), np.array([0.95, 0.1, 0, 0]), np.array([0, 0, 1.0, 0])
+    pos = topics_svc.layout_positions({1: a1, 2: a2, 3: b})
+    assert set(pos) == {1, 2, 3}
+    assert all(abs(c) <= 1.0 + 1e-9 for p in pos.values() for c in p)
+    near = float(np.linalg.norm(np.subtract(pos[1], pos[2])))
+    far = float(np.linalg.norm(np.subtract(pos[1], pos[3])))
+    assert near < far
+    assert topics_svc.layout_positions({}) == {}
+    assert topics_svc.layout_positions({7: a1}) == {7: (0.0, 0.0, 0.0)}
+
+
+async def test_topics_all_returns_positions(client: AsyncClient, db_session, store) -> None:
+    await setup_admin(client)
+    await _seed(db_session, store)
+    await _discover(db_session)
+    listed = (await client.get("/api/topics", params={"all": "true"})).json()
+    assert len(listed) == 1 and len(listed[0]["position"]) == 3
+    assert (await client.get("/api/topics")).json()[0]["position"] is None
+
+
 async def test_mute_hides_and_unmute_restores(client: AsyncClient, db_session, store) -> None:
     await setup_admin(client)
     ids = await _seed(db_session, store)
@@ -209,9 +230,7 @@ async def test_rules_are_private(client: AsyncClient, db_session, store) -> None
     assert (await client.get("/api/topic-rules")).json() == []
 
 
-async def test_new_story_is_hidden_by_existing_rule(
-    client: AsyncClient, db_session, store
-) -> None:
+async def test_new_story_is_hidden_by_existing_rule(client: AsyncClient, db_session, store) -> None:
     """Fast path after clustering: a story arriving later joins the topic and the mute rule."""
     await setup_admin(client)
     await _seed(db_session, store)
@@ -225,8 +244,12 @@ async def test_new_story_is_hidden_by_existing_rule(
         await s.flush()
         s.add(
             Article(
-                feed_id=feed.id, guid="late", url="https://late.example.com/x", title="L",
-                story_id=late.id, processing_state="clustered",
+                feed_id=feed.id,
+                guid="late",
+                url="https://late.example.com/x",
+                title="L",
+                story_id=late.id,
+                processing_state="clustered",
             )
         )
         await store.upsert_story_centroid(late.id, _vec(0, jitter=0.02))

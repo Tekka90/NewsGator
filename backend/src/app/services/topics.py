@@ -69,6 +69,34 @@ def visibility(modes: Iterable[str], *, saved: bool) -> str:
     return VISIBLE
 
 
+def layout_positions(vectors: dict[int, np.ndarray]) -> dict[int, tuple[float, float, float]]:
+    """3-D coordinates in [-1, 1] for the topic constellation.
+
+    Principal-component projection of the topic centroids, so related topics sit close
+    together. Deterministic for a given set of centroids; fewer than 3 dimensions of spread
+    (e.g. one topic) fall back to the origin on the missing axes.
+    """
+    ids = sorted(vectors)
+    if not ids:
+        return {}
+    matrix = np.stack([vectors[i] for i in ids]).astype(np.float64)
+    centered = matrix - matrix.mean(axis=0)
+    # eigen-decomposition of the small n x n Gram matrix instead of the d x d covariance
+    values, vecs = np.linalg.eigh(centered @ centered.T)
+    order = np.argsort(values)[::-1][:3]
+    coords = np.zeros((len(ids), 3))
+    for axis, k in enumerate(order):
+        scale = float(np.sqrt(max(values[k], 0.0)))
+        column = vecs[:, k] * scale
+        # fix the eigenvector sign so the layout does not flip between refreshes
+        if column[np.argmax(np.abs(column))] < 0:
+            column = -column
+        coords[:, axis] = column
+    peak = float(np.max(np.abs(coords))) or 1.0
+    coords /= peak
+    return {i: (float(c[0]), float(c[1]), float(c[2])) for i, c in zip(ids, coords, strict=True)}
+
+
 def cluster_vectors(
     vectors: dict[int, np.ndarray], threshold: float
 ) -> list[tuple[np.ndarray, list[int]]]:
