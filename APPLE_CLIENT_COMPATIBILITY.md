@@ -307,3 +307,11 @@ built, so the Apple repo doesn't keep a stale, unused reference design.
    composed from `/usage/*` (§4).
 4. **P2 (optional/future):** story `canonical_url` field, `/stories`
    pagination params, SSE resumability, feeds read-scope relaxation.
+
+## 7. Topic Radar (additive, optional)
+
+Endpoints: `GET /api/topics`, `GET /api/topics/<id>/preview`, `POST /api/topics/<id>/rules`, `GET /api/topic-rules`,
+`DELETE /api/topic-rules/<id>`, `POST /api/topic-rules/<id>/feedback`. `GET /api/stories` accepts
+`ignored=hide|include|only`; story items add `ignored`, `followed`, `topic_rule_id`; `/api/stories/counts` adds `ignored`.
+All additions are optional for old clients. The Apple client treats 404 as "topics unavailable". Apple standalone mode
+implements the same shapes locally.
