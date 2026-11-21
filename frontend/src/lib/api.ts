@@ -344,7 +344,7 @@ export const api = {
 
   // Topic Radar: trending topics + per-user mute/follow rules (404 when disabled server-side)
   topics: {
-    list: () => req<Topic[]>('/topics'),
+    list: (all = false) => req<Topic[]>(all ? '/topics?all=true' : '/topics'),
     preview: (id: number) => req<TopicPreview>(`/topics/${id}/preview`),
     createRule: (id: number, mode: TopicMode, duration: TopicDuration) =>
       req<TopicRule>(`/topics/${id}/rules`, { method: 'POST', body: { mode, duration } }),

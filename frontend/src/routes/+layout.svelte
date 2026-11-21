@@ -82,7 +82,7 @@
     <nav bind:this={navEl}>
       <strong class="brand">NewsGator</strong>
       <a href="/" class:active={page.url.pathname === '/'}>{$t('nav.stories')}</a>
-      <a href="/chat" class:active={page.url.pathname.startsWith('/chat')}>{$t('nav.chat')}</a>
+      <a href="/ai" class:active={page.url.pathname.startsWith('/ai') || page.url.pathname.startsWith('/chat')}>{$t('nav.ai')}</a>
       <a href="/feeds" class:active={page.url.pathname.startsWith('/feeds')}>{$t('nav.feeds')}</a>
       <a href="/activity" class:active={page.url.pathname.startsWith('/activity')}>{$t('nav.activity')}</a>
       {#if $currentUser?.is_admin}

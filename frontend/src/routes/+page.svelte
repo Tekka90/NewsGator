@@ -8,7 +8,6 @@
   import ReadeckIcon from '$lib/components/ReadeckIcon.svelte';
   import ShareButton from '$lib/components/ShareButton.svelte';
   import PresetBar from '$lib/components/PresetBar.svelte';
-  import TopicRadar from '$lib/components/TopicRadar.svelte';
   import { t } from '$lib/i18n';
   import {
     adjustSavedCounts,
@@ -57,9 +56,7 @@
   let readeckSaving = $state<Record<number, boolean>>({});
   let saving = $state<Record<number, boolean>>({});
   let presetCounts = $state<Record<string, number>>({});
-  let hiddenCount = $state(0);
   let showIgnored = $state(false);
-  let radar = $state<{ refresh: () => Promise<void> }>();
   // Sticky title + filter bar — its height is measured at click time so a
   // just-read story can be scrolled out exactly behind it.
   let pagehead = $state<HTMLElement>();
@@ -179,6 +176,7 @@
     // ?feed=N pre-selects the feed filter (linked from the Feeds page counts)
     const qFeed = Number(page.url.searchParams.get('feed'));
     if (qFeed > 0) feedId = qFeed;
+    if (page.url.searchParams.get('hidden') === '1') showIgnored = true;
     void (async () => {
       try {
         const doc = await api.presets.get();
@@ -228,7 +226,7 @@
       loading = false;
       return;
     }
-    const [fetchedStories, counts, plain] = await Promise.all([
+    const [fetchedStories, counts] = await Promise.all([
       api.stories.listPreset({
         preset: activeId,
         sort: sortOverride ?? undefined,
@@ -237,12 +235,10 @@
         feedId: feedId || undefined,
         ignored: showIgnored ? 'only' : undefined
       }),
-      api.presets.counts().catch(() => null),
-      api.stories.counts().catch(() => null)
+      api.presets.counts().catch(() => null)
     ]);
     stories = fetchedStories;
     if (counts) presetCounts = counts.counts;
-    hiddenCount = plain?.ignored ?? 0;
     index = 0;
     anchorIndex = 0;
     historyDone = true;
@@ -552,16 +548,10 @@
     {/if}
   </h1>
 
-  <TopicRadar
-    bind:this={radar}
-    {hiddenCount}
-    showingHidden={showIgnored}
-    onchange={load}
-    ontogglehidden={() => {
-      showIgnored = !showIgnored;
-      load();
-    }}
-  />
+  {#if showIgnored}
+    <a class="hiddenback" href="/ai">{$t('topics.backToAi')}</a>
+    <button class="hiddenback" onclick={() => { showIgnored = false; load(); }}>{$t('stories.backToStories')}</button>
+  {/if}
 
   {#if isMobile && (pullDist > 0 || refreshing)}
     <div class="pullhint" style:height="{refreshing ? 36 : pullDist}px">
@@ -855,6 +845,10 @@
 {/if}
 
 <style>
+  .hiddenback {
+    background: none; border: none; padding: 0.1rem 0.6rem 0.4rem 0; color: var(--accent);
+    font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; text-decoration: none;
+  }
   .deckvideo { margin: 0.5rem 0; }
   /* Sticky header: the title + filter bar stay put while stories scroll behind.
      top: --nav-h (measured in the layout) keeps it tucked right under the nav.

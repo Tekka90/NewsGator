@@ -366,6 +366,8 @@ export interface Topic {
   recent_count: number;
   last_story_at: string;
   rule: { id: number; mode: TopicMode } | null;
+  /** 3D constellation coordinates in [-1, 1] (only with `?all=true`). */
+  position?: [number, number, number] | null;
 }
 
 export interface TopicPreview {
