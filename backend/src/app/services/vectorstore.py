@@ -118,16 +118,47 @@ class SqliteVecStore:
         return np.frombuffer(row[0], dtype=np.float32).tolist()
 
     async def get_story_centroids(self, story_ids: list[int]) -> dict[int, list[float]]:
-        out: dict[int, list[float]] = {}
+        """Batch read. vec0 point lookups cost ~10 ms each, so read sqlite-vec's chunk
+        blobs directly (one blob per 1024 vectors) and slice; fall back to vec0 if the
+        shadow-table layout is not what we expect."""
+        try:
+            return await self._centroids_from_chunks(story_ids)
+        except Exception:
+            out: dict[int, list[float]] = {}
+            for sid in story_ids:
+                vec = await self.get_story_centroid(sid)
+                if vec:
+                    out[sid] = vec
+            return out
+
+    async def _centroids_from_chunks(self, story_ids: list[int]) -> dict[int, list[float]]:
+        placements: dict[int, list[tuple[int, int]]] = {}
         for i in range(0, len(story_ids), 500):
-            chunk = story_ids[i : i + 500]
-            marks = ",".join(f":i{n}" for n in range(len(chunk)))
+            ids = story_ids[i : i + 500]
+            marks = ",".join(f":i{n}" for n in range(len(ids)))
             rows = await self.session.execute(
-                text(f"SELECT rowid, embedding FROM vec_story WHERE rowid IN ({marks})"),
-                {f"i{n}": sid for n, sid in enumerate(chunk)},
+                text(
+                    "SELECT rowid, chunk_id, chunk_offset FROM vec_story_rowids "
+                    f"WHERE rowid IN ({marks})"
+                ),
+                {f"i{n}": sid for n, sid in enumerate(ids)},
             )
-            for rowid, blob in rows:
-                out[int(rowid)] = np.frombuffer(blob, dtype=np.float32).tolist()
+            for rowid, chunk_id, offset in rows:
+                placements.setdefault(int(chunk_id), []).append((int(rowid), int(offset)))
+        out: dict[int, list[float]] = {}
+        width = EMBED_DIM * 4
+        for chunk_id, items in placements.items():
+            blob = (
+                await self.session.execute(
+                    text("SELECT vectors FROM vec_story_vector_chunks00 WHERE rowid = :c"),
+                    {"c": chunk_id},
+                )
+            ).scalar_one()
+            for rowid, offset in items:
+                raw = blob[offset * width : (offset + 1) * width]
+                if len(raw) != width:
+                    raise ValueError("unexpected vec0 chunk layout")
+                out[rowid] = np.frombuffer(raw, dtype=np.float32).tolist()
         return out
 
     async def get_article_vector(self, article_id: int) -> list[float] | None:
