@@ -1,7 +1,7 @@
 """Topic Radar API (SPEC §6): trending topics + per-user mute/follow rules."""
 
-from datetime import timedelta
-from typing import Literal
+from datetime import datetime, timedelta
+from typing import Any, Literal
 
 import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -53,8 +53,20 @@ class TopicOut(BaseModel):
     recent_count: int
     last_story_at: str
     rule: TopicRuleBrief | None = None
+    # typed by the user: ``id`` is the negated rule id and ``rule`` is always set
+    manual: bool = False
     # constellation coordinates in [-1, 1]; only sent with ``?all=true``
     position: list[float] | None = None
+
+
+class ManualRuleCreate(BaseModel):
+    query: str
+    mode: Literal["mute", "follow"] = "follow"
+    duration: Literal["7d", "30d", "forever"] = "forever"
+
+
+class RuleUpdate(BaseModel):
+    mode: Literal["mute", "follow"]
 
 
 class SampleStory(BaseModel):
@@ -152,12 +164,13 @@ async def list_topics(
         if ts >= recent_cut:
             recent[tid] = recent.get(tid, 0) + 1
     total_unread = sum(unread.values()) or 1
-    rules = {
-        r.source_topic_id: r
-        for r in (
-            await session.scalars(select(TopicRule).where(TopicRule.user_id == user.id))
-        ).all()
-    }
+    all_rules = (
+        await session.scalars(select(TopicRule).where(TopicRule.user_id == user.id))
+    ).all()
+    rules = {r.source_topic_id: r for r in all_rules if r.source_topic_id is not None}
+    manual_stars = await _manual_topics(
+        session, user, [r for r in all_rules if r.source_topic_id is None], recent_cut
+    )
 
     def out(t: Topic) -> TopicOut:
         rule = rules.get(t.id)
@@ -174,14 +187,19 @@ async def list_topics(
         )
 
     if all:
-        positions = topics_svc.layout_positions(
-            {t.id: topics_svc.decode(t.centroid) for t in topics.values()}
-        )
+        vectors = {t.id: topics_svc.decode(t.centroid) for t in topics.values()}
+        for star, rule in manual_stars:
+            vectors[star.id] = topics_svc.decode(rule.centroid)
+        every = topics_svc.layout_positions(vectors)
+        positions = {k: v for k, v in every.items() if k > 0}
+        manual_positions = {k: v for k, v in every.items() if k < 0}
         everything = sorted(topics.values(), key=lambda t: t.story_count, reverse=True)
         result = [out(t) for t in everything]
         for item in result:
             item.position = list(positions[item.id])
-        return result
+        for star, _rule in manual_stars:
+            star.position = list(manual_positions.get(star.id, (0.0, 0.0, 0.0)))
+        return [*result, *(star for star, _ in manual_stars)]
 
     trending = sorted(
         (
@@ -194,7 +212,103 @@ async def list_topics(
         reverse=True,
     )[: settings.topic_max_visible]
     ruled = [t for t in topics.values() if t.id in rules]
-    return [out(t) for t in [*trending, *ruled]]
+    return [out(t) for t in [*trending, *ruled]] + [star for star, _ in manual_stars]
+
+
+async def _manual_topics(
+    session: AsyncSession, user: User, rules: list[TopicRule], recent_cut: datetime
+) -> list[tuple[TopicOut, TopicRule]]:
+    """Typed topics as stars: their numbers come from the rule's materialized matches."""
+    if not rules:
+        return []
+    rows = (
+        await session.execute(
+            select(
+                StoryRuleMatch.rule_id,
+                func.coalesce(StoryState.is_read, False),
+                Story.last_updated_at,
+                _ignored_sql(user.id),
+            )
+            .join(Story, Story.id == StoryRuleMatch.story_id)
+            .outerjoin(
+                StoryState, and_(StoryState.story_id == Story.id, StoryState.user_id == user.id)
+            )
+            .where(StoryRuleMatch.rule_id.in_([r.id for r in rules]))
+        )
+    ).all()
+    stats: dict[int, dict[str, Any]] = {}
+    for rid, is_read, updated, hidden in rows:
+        st = stats.setdefault(rid, {"n": 0, "unread": 0, "recent": 0, "last": None})
+        ts = updated if updated.tzinfo else updated.replace(tzinfo=recent_cut.tzinfo)
+        st["n"] += 1
+        if not hidden and not is_read:
+            st["unread"] += 1
+        if not hidden and ts >= recent_cut:
+            st["recent"] += 1
+        if st["last"] is None or ts > st["last"]:
+            st["last"] = ts
+    result: list[tuple[TopicOut, TopicRule]] = []
+    for rule in rules:
+        st = stats.get(rule.id, {"n": 0, "unread": 0, "recent": 0, "last": rule.created_at})
+        last = st["last"] or rule.created_at
+        result.append(
+            (
+                TopicOut(
+                    id=-rule.id,
+                    label=rule.label,
+                    description="",
+                    story_count=st["n"],
+                    source_count=0,
+                    unread_count=st["unread"],
+                    recent_count=st["recent"],
+                    last_story_at=last.isoformat(),
+                    rule=TopicRuleBrief(id=rule.id, mode=rule.mode),
+                    manual=True,
+                ),
+                rule,
+            )
+        )
+    return result
+
+
+@router.post("/topic-rules/custom", status_code=status.HTTP_201_CREATED)
+async def create_manual_topic_rule(
+    body: ManualRuleCreate,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> TopicRuleOut:
+    """Follow or mute a topic the user typed (e.g. "GTA 6"); matched like detected topics."""
+    _require_enabled()
+    days = _DURATION_DAYS.get(body.duration)
+    try:
+        rule = await topics_svc.create_manual_rule(
+            session,
+            user.id,
+            body.query,
+            body.mode,
+            expires_at=utcnow() + timedelta(days=days) if days else None,
+        )
+    except topics_svc.ManualTopicError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, exc.code) from exc
+    except Exception as exc:  # embedding server down
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "embedding_failed") from exc
+    await session.commit()
+    return await _single_rule_out(session, rule, user)
+
+
+@router.patch("/topic-rules/{rule_id}")
+async def update_topic_rule(
+    rule_id: int,
+    body: RuleUpdate,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> TopicRuleOut:
+    """Switch a rule between mute and follow."""
+    _require_enabled()
+    rule = await _own_rule(session, user, rule_id)
+    await topics_svc.set_rule_mode(session, rule, body.mode)
+    await session.commit()
+    return await _single_rule_out(session, rule, user)
 
 
 @router.get("/topics/{topic_id}/preview")

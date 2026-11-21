@@ -259,3 +259,41 @@ async def test_new_story_is_hidden_by_existing_rule(client: AsyncClient, db_sess
         assigned = set((await s.scalars(select(StoryTopic.story_id))).all())
     assert late_id in assigned
     assert late_id not in {st["id"] for st in (await client.get("/api/stories")).json()}
+
+
+async def test_manual_topic_follow_filter_and_mode_switch(
+    client: AsyncClient, db_session, store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await setup_admin(client)
+    ids = await _seed(db_session, store)
+
+    async def fake_embed(texts: list[str], *, model: str | None = None) -> list[list[float]]:
+        return [_vec(0)]
+
+    monkeypatch.setattr(topics_svc.llm_client, "embed", fake_embed)
+    r = await client.post("/api/topic-rules/custom", json={"query": "  My   subject "})
+    assert r.status_code == 201, r.text
+    rule = r.json()
+    assert rule["mode"] == "follow" and rule["label"] == "My subject"
+    assert rule["topic_id"] is None and rule["matched_stories"] == 5
+
+    star = (await client.get("/api/topics", params={"all": "true"})).json()[0]
+    assert star["manual"] is True and star["id"] == -rule["id"] and len(star["position"]) == 3
+    assert star["story_count"] == 5 and star["unread_count"] == 5
+
+    followed = (await client.get("/api/stories", params={"followed": "true"})).json()
+    assert {s["id"] for s in followed} == set(ids[:5]) and all(s["followed"] for s in followed)
+    assert (await client.get("/api/stories/counts")).json()["followed"] == 5
+
+    r = await client.patch(f"/api/topic-rules/{rule['id']}", json={"mode": "mute"})
+    assert r.status_code == 200 and r.json()["mode"] == "mute"
+    assert len((await client.get("/api/stories")).json()) == 2
+    assert (await client.get("/api/stories/counts")).json()["followed"] == 0
+
+    # the same phrase again replaces the rule instead of duplicating it
+    await client.post("/api/topic-rules/custom", json={"query": "my subject", "mode": "follow"})
+    assert len((await client.get("/api/topic-rules")).json()) == 1
+    assert (await client.post("/api/topic-rules/custom", json={"query": "x"})).status_code == 422
+    new_id = (await client.get("/api/topic-rules")).json()[0]["id"]
+    assert (await client.delete(f"/api/topic-rules/{new_id}")).status_code == 204
+    assert (await client.get("/api/topics", params={"all": "true"})).json() == []

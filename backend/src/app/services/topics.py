@@ -18,7 +18,7 @@ from datetime import UTC, datetime, timedelta
 from urllib.parse import urlparse
 
 import numpy as np
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -257,6 +257,68 @@ async def create_rule(
         {"rule_id": rule.id, "topic_id": topic.id, "mode": mode, "matched": matched},
     )
     return rule
+
+
+class ManualTopicError(ValueError):
+    """Typed-topic validation failure; ``code`` is machine-readable."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+async def create_manual_rule(
+    session: AsyncSession,
+    user_id: int,
+    query: str,
+    mode: str,
+    *,
+    expires_at: datetime | None,
+) -> TopicRule:
+    """A topic the user typed: the phrase is embedded (``EMBED_MODEL``, any language) and
+    becomes a rule with no source topic. Same phrase again replaces the previous rule."""
+    label = " ".join(query.split())
+    if not 2 <= len(label) <= 80:
+        raise ManualTopicError("invalid_length")
+    rules = (
+        await session.scalars(select(TopicRule).where(TopicRule.user_id == user_id))
+    ).all()
+    manual = [r for r in rules if r.source_topic_id is None]
+    for old in manual:
+        if old.label.casefold() == label.casefold():
+            await delete_rule(session, old)
+            manual.remove(old)
+    if len(manual) >= settings.topic_manual_max:
+        raise ManualTopicError("too_many")
+    vectors = await llm_client.embed([label])
+    if not vectors or not vectors[0]:
+        raise ManualTopicError("embedding_failed")
+    rule = TopicRule(
+        user_id=user_id,
+        mode=mode,
+        label=label,
+        centroid=encode(vectors[0]),
+        embed_model=settings.embed_model,
+        threshold=settings.topic_match_threshold,
+        source_topic_id=None,
+        until_fade=False,
+        expires_at=expires_at,
+    )
+    session.add(rule)
+    await session.flush()
+    matched = await sync_rule_matches(session, rule)
+    await activity.emit(
+        session, "topics", "rule_created", {"rule_id": rule.id, "manual": True, "matched": matched}
+    )
+    return rule
+
+
+async def set_rule_mode(session: AsyncSession, rule: TopicRule, mode: str) -> None:
+    rule.mode = mode
+    await session.execute(
+        update(StoryRuleMatch).where(StoryRuleMatch.rule_id == rule.id).values(mode=mode)
+    )
+    await session.flush()
 
 
 async def delete_rule(session: AsyncSession, rule: TopicRule) -> None:

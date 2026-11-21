@@ -125,6 +125,7 @@ class Settings(BaseSettings):
     topic_fade_days: int = 7  # no new story for this long -> topic faded
     topic_max_visible: int = 8  # chips offered to a user at once
     topic_min_user_share: float = 0.03  # topic share of the user's unread to be offered
+    topic_manual_max: int = 30  # manual (typed) topics per user
     topic_rule_scan_days: int = 30  # stories re-evaluated when a rule is created
 
     # Readeck integration (optional — enabled only when both are set)

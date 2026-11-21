@@ -377,6 +377,15 @@ def _ignored_sql(user_id: int) -> ColumnElement[bool]:
     )
 
 
+def _followed_sql(user_id: int) -> ColumnElement[bool]:
+    """Stories matching a topic the user follows."""
+    return Story.id.in_(
+        select(StoryRuleMatch.story_id).where(
+            StoryRuleMatch.user_id == user_id, StoryRuleMatch.mode == topics_svc.MODE_FOLLOW
+        )
+    )
+
+
 def _flag_conditions(
     filter: str, saved: bool, user_id: int | None = None, ignored: str = "hide"
 ) -> list[ColumnElement[bool]]:
@@ -581,6 +590,8 @@ async def list_stories(
     # Topic Radar: stories muted by a topic rule are hidden by default;
     # `include` shows them with `ignored: true`, `only` lists just those
     ignored: str = Query(default="hide", pattern="^(hide|include|only)$"),
+    # Topic Radar: only stories matching one of the user's followed topics
+    followed: bool = False,
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[StoryListItem]:
@@ -618,6 +629,8 @@ async def list_stories(
         if conditions is None:
             return []
         extra.extend(conditions)
+    if followed:
+        extra.append(_followed_sql(user.id))
     if feed_ids:
         visible_requested = [f for f in feed_ids if f in user_feed_ids]
         if not visible_requested:
@@ -780,6 +793,7 @@ class StoryCountsOut(BaseModel):
     updated: int
     saved: int
     ignored: int = 0  # hidden by Topic Radar mute rules (not part of the other counts)
+    followed: int = 0  # unread stories of followed topics (badge of the Followed view)
 
 
 @router.get("/counts")
@@ -811,6 +825,7 @@ async def story_counts(
                 func.sum(case((and_(~hidden, StoryState.saved_at.is_not(None)), 1), else_=0)), 0
             ),
             func.coalesce(func.sum(case((hidden, 1), else_=0)), 0),
+            func.coalesce(func.sum(case((and_(unread, _followed_sql(user.id)), 1), else_=0)), 0),
         )
         .select_from(Story)
         .outerjoin(StoryState, and_(StoryState.story_id == Story.id, StoryState.user_id == user.id))
@@ -818,9 +833,16 @@ async def story_counts(
     )
     if category:
         query = query.where(Story.category == category)
-    total, n_unread, n_updated, n_saved, n_ignored = (await session.execute(query)).one()
+    total, n_unread, n_updated, n_saved, n_ignored, n_followed = (
+        await session.execute(query)
+    ).one()
     return StoryCountsOut(
-        all=total, unread=n_unread, updated=n_updated, saved=n_saved, ignored=n_ignored
+        all=total,
+        unread=n_unread,
+        updated=n_updated,
+        saved=n_saved,
+        ignored=n_ignored,
+        followed=n_followed,
     )
 
 
