@@ -141,12 +141,8 @@ def _host(url: str) -> str:
 
 async def _story_vectors(session: AsyncSession, story_ids: Iterable[int]) -> dict[int, np.ndarray]:
     store = get_vector_store(session)
-    out: dict[int, np.ndarray] = {}
-    for sid in story_ids:
-        vec = await store.get_story_centroid(sid)
-        if vec:
-            out[sid] = np.asarray(vec, dtype=np.float64)
-    return out
+    found = await store.get_story_centroids(list(story_ids))
+    return {sid: np.asarray(vec, dtype=np.float64) for sid, vec in found.items() if vec}
 
 
 def _rule_usable(rule: TopicRule) -> bool:

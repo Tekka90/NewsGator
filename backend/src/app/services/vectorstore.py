@@ -26,6 +26,10 @@ class VectorStore(Protocol):
         """Return the stored centroid vector, or None."""
         ...
 
+    async def get_story_centroids(self, story_ids: list[int]) -> dict[int, list[float]]:
+        """Batch ``get_story_centroid``; stories without a vector are omitted."""
+        ...
+
     async def get_article_vector(self, article_id: int) -> list[float] | None:
         """Return the stored article embedding, or None."""
         ...
@@ -113,6 +117,19 @@ class SqliteVecStore:
             return None
         return np.frombuffer(row[0], dtype=np.float32).tolist()
 
+    async def get_story_centroids(self, story_ids: list[int]) -> dict[int, list[float]]:
+        out: dict[int, list[float]] = {}
+        for i in range(0, len(story_ids), 500):
+            chunk = story_ids[i : i + 500]
+            marks = ",".join(f":i{n}" for n in range(len(chunk)))
+            rows = await self.session.execute(
+                text(f"SELECT rowid, embedding FROM vec_story WHERE rowid IN ({marks})"),
+                {f"i{n}": sid for n, sid in enumerate(chunk)},
+            )
+            for rowid, blob in rows:
+                out[int(rowid)] = np.frombuffer(blob, dtype=np.float32).tolist()
+        return out
+
     async def get_article_vector(self, article_id: int) -> list[float] | None:
         rows = await self.session.execute(
             text("SELECT embedding FROM vec_article WHERE rowid = :id"), {"id": article_id}
@@ -148,6 +165,9 @@ class InMemoryVectorStore:
     async def get_story_centroid(self, story_id: int) -> list[float] | None:
         vec = self.centroids.get(story_id)
         return None if vec is None else vec.tolist()
+
+    async def get_story_centroids(self, story_ids: list[int]) -> dict[int, list[float]]:
+        return {sid: self.centroids[sid].tolist() for sid in story_ids if sid in self.centroids}
 
     async def get_article_vector(self, article_id: int) -> list[float] | None:
         vec = self.articles.get(article_id)

@@ -57,6 +57,18 @@ class QdrantVectorStore:
     async def get_story_centroid(self, story_id: int) -> list[float] | None:
         return await self._retrieve_vector(STORIES, story_id)
 
+    async def get_story_centroids(self, story_ids: list[int]) -> dict[int, list[float]]:
+        out: dict[int, list[float]] = {}
+        for i in range(0, len(story_ids), 500):
+            points = await self.client.retrieve(
+                STORIES, ids=story_ids[i : i + 500], with_vectors=True
+            )
+            for point in points:
+                vec = point.vector
+                if isinstance(vec, list) and (not vec or isinstance(vec[0], (int, float))):
+                    out[int(point.id)] = [float(x) for x in vec]  # type: ignore[arg-type]
+        return out
+
     async def get_article_vector(self, article_id: int) -> list[float] | None:
         return await self._retrieve_vector(ARTICLES, article_id)
 
