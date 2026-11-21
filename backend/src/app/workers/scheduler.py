@@ -1,6 +1,6 @@
 """APScheduler worker: feed polling, freeze sweep, nightly retention."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import select
@@ -112,6 +112,8 @@ def start_scheduler() -> None:
         id="topic_refresh_sweep",
         max_instances=1,
         coalesce=True,
+        # Build topics from the existing archive right after startup instead of an hour later.
+        next_run_time=datetime.now(UTC) + timedelta(seconds=30),
     )
     scheduler.add_job(
         mail_poll_sweep,
