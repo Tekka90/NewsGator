@@ -240,6 +240,10 @@ export interface StoryListItem {
   video_embed_url: string | null;
   video_provider: VideoProvider | null;
   video_duration: number | null;
+  /** Topic Radar: hidden by a mute rule / matches a follow rule (absent on old servers). */
+  ignored?: boolean;
+  followed?: boolean;
+  topic_rule_id?: number | null;
 }
 
 /** Merge/move candidate from the proximity-ranked endpoints
@@ -345,4 +349,38 @@ export interface PresetsDoc {
 
 export interface PresetFacets {
   categories: { key: string; count: number }[];
+}
+
+// --- Topic Radar (GET /api/topics, /api/topic-rules) ---
+
+export type TopicMode = 'mute' | 'follow';
+export type TopicDuration = 'fade' | '7d' | '30d' | 'forever';
+
+export interface Topic {
+  id: number;
+  label: string;
+  description: string;
+  story_count: number;
+  source_count: number;
+  unread_count: number;
+  recent_count: number;
+  last_story_at: string;
+  rule: { id: number; mode: TopicMode } | null;
+}
+
+export interface TopicPreview {
+  would_hide_unread: number;
+  samples: { id: number; title: string }[];
+}
+
+export interface TopicRule {
+  id: number;
+  mode: TopicMode;
+  label: string;
+  topic_id: number | null;
+  until_fade: boolean;
+  expires_at: string | null;
+  created_at: string;
+  matched_stories: number;
+  hidden_unread: number;
 }

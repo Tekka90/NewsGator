@@ -8,6 +8,7 @@
   import ReadeckIcon from '$lib/components/ReadeckIcon.svelte';
   import ShareButton from '$lib/components/ShareButton.svelte';
   import PresetBar from '$lib/components/PresetBar.svelte';
+  import TopicRadar from '$lib/components/TopicRadar.svelte';
   import { t } from '$lib/i18n';
   import {
     adjustSavedCounts,
@@ -56,6 +57,9 @@
   let readeckSaving = $state<Record<number, boolean>>({});
   let saving = $state<Record<number, boolean>>({});
   let presetCounts = $state<Record<string, number>>({});
+  let hiddenCount = $state(0);
+  let showIgnored = $state(false);
+  let radar = $state<{ refresh: () => Promise<void> }>();
   // Sticky title + filter bar — its height is measured at click time so a
   // just-read story can be scrolled out exactly behind it.
   let pagehead = $state<HTMLElement>();
@@ -224,18 +228,21 @@
       loading = false;
       return;
     }
-    const [fetchedStories, counts] = await Promise.all([
+    const [fetchedStories, counts, plain] = await Promise.all([
       api.stories.listPreset({
         preset: activeId,
         sort: sortOverride ?? undefined,
         order: orderOverride ?? undefined,
         category: category || undefined,
-        feedId: feedId || undefined
+        feedId: feedId || undefined,
+        ignored: showIgnored ? 'only' : undefined
       }),
-      api.presets.counts().catch(() => null)
+      api.presets.counts().catch(() => null),
+      api.stories.counts().catch(() => null)
     ]);
     stories = fetchedStories;
     if (counts) presetCounts = counts.counts;
+    hiddenCount = plain?.ignored ?? 0;
     index = 0;
     anchorIndex = 0;
     historyDone = true;
@@ -544,6 +551,17 @@
       </span>
     {/if}
   </h1>
+
+  <TopicRadar
+    bind:this={radar}
+    {hiddenCount}
+    showingHidden={showIgnored}
+    onchange={load}
+    ontogglehidden={() => {
+      showIgnored = !showIgnored;
+      load();
+    }}
+  />
 
   {#if isMobile && (pullDist > 0 || refreshing)}
     <div class="pullhint" style:height="{refreshing ? 36 : pullDist}px">

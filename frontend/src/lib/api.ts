@@ -19,6 +19,11 @@ import type {
   StoryDetail,
   StoryListItem,
   StoryPreset,
+  Topic,
+  TopicDuration,
+  TopicMode,
+  TopicPreview,
+  TopicRule,
   UsageByFeed,
   UsageDailyRow,
   UsageSummary,
@@ -337,6 +342,22 @@ export const api = {
       )
   },
 
+  // Topic Radar: trending topics + per-user mute/follow rules (404 when disabled server-side)
+  topics: {
+    list: () => req<Topic[]>('/topics'),
+    preview: (id: number) => req<TopicPreview>(`/topics/${id}/preview`),
+    createRule: (id: number, mode: TopicMode, duration: TopicDuration) =>
+      req<TopicRule>(`/topics/${id}/rules`, { method: 'POST', body: { mode, duration } }),
+    rules: () => req<TopicRule[]>('/topic-rules'),
+    removeRule: (id: number) => req<void>(`/topic-rules/${id}`, { method: 'DELETE' }),
+    // "this story is not about the topic" — makes the rule stricter
+    feedback: (ruleId: number, storyId: number) =>
+      req<TopicRule>(`/topic-rules/${ruleId}/feedback`, {
+        method: 'POST',
+        body: { story_id: storyId }
+      })
+  },
+
   presets: {
     get: () => req<PresetsDoc>('/me/presets'),
     // replaces the whole list; the server validates, renumbers and returns it
@@ -377,7 +398,13 @@ export const api = {
       const params = new URLSearchParams();
       if (category) params.set('category', category);
       if (feedId) params.set('feed', String(feedId));
-      return req<{ all: number; unread: number; updated: number; saved: number }>(
+      return req<{
+        all: number;
+        unread: number;
+        updated: number;
+        saved: number;
+        ignored?: number;
+      }>(
         `/stories/counts?${params}`
       );
     },

@@ -5,6 +5,7 @@
   import { currentUser } from '$lib/stores';
   import { t, tNow, fmt, LOCALES, setLocale } from '$lib/i18n';
   import StoryViewsSettings from '$lib/components/StoryViewsSettings.svelte';
+  import TopicRulesSettings from '$lib/components/TopicRulesSettings.svelte';
   import type { Category, CategorySuggestion, MailAccount, ManagedUser, ReaderAccount } from '$lib/types';
 
   let language = $state('');
@@ -592,6 +593,8 @@
 </div>
 
 <StoryViewsSettings />
+
+<TopicRulesSettings />
 
 <div class="card">
   <h2>{$t('settings.session')}</h2>
