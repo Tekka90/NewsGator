@@ -4,12 +4,26 @@
   import { t } from '$lib/i18n';
   import TopicSheet from '$lib/components/TopicSheet.svelte';
   import type { Topic, TopicMode } from '$lib/types';
+  import {
+    declutterLabels,
+    distance3,
+    facingAngles,
+    hslToRgb,
+    hueFromPosition,
+    topNFlags,
+    type LabelBox
+  } from '$lib/constellation';
 
   type View = 'mix' | 'volume' | 'unread' | 'recent';
   const VIEWS: View[] = ['mix', 'volume', 'unread', 'recent'];
   const LONG_PRESS_MS = 500;
   const AUTO_ROTATE = 0.07; // rad/s
   const CAMERA = 3; // perspective distance (unit sphere radius = 1)
+  const TOP_STARS = 20;
+  const NEIGHBOURHOOD = 1.2; // scene units kept bright around the focused star
+  const DIM_ALPHA = 0.15;
+  const FOCUS_ZOOM = 1.5;
+  const DECLUTTER_MS = 200;
 
   type RGB = [number, number, number];
   interface Node {
@@ -20,6 +34,11 @@
     mute: number;
     follow: number;
     phase: number;
+    score: number;
+    full: boolean;
+    hue: number;
+    dim: number;
+    labelA: number;
     // projection cache (last frame)
     sx: number;
     sy: number;
@@ -38,6 +57,10 @@
   let loading = $state(true);
   let view = $state<View>('mix');
   let selected = $state<Topic | null>(null);
+  let focused = $state<Topic | null>(null);
+  let showAll = $state(false);
+  let ranked = $state<Topic[]>([]);
+  let listOpen = $state(false);
   let hiddenCount = $state(0);
   let toast = $state('');
   let addQuery = $state('');
@@ -97,10 +120,16 @@
   function applyView() {
     const sc = scores(topics, view);
     const top = Math.max(1e-6, ...sc);
+    const flags = topNFlags(sc, TOP_STARS);
     nodes.forEach((n, i) => {
+      n.score = sc[i];
+      n.full = showAll || flags[i];
       // normalised so the biggest topic of the current view is always the largest
-      n.rTarget = 5 + 21 * Math.sqrt(sc[i] / top);
+      n.rTarget = n.full ? 5 + 21 * Math.sqrt(sc[i] / top) : 2.5;
     });
+    ranked = [...nodes]
+      .sort((a, b) => b.score - a.score)
+      .map((n) => n.topic);
     needsDraw = true;
   }
 
@@ -112,6 +141,7 @@
       if (prev) {
         prev.topic = tp;
         prev.pos = p;
+        prev.hue = hueFromPosition(p);
         return prev;
       }
       return {
@@ -122,6 +152,11 @@
         mute: tp.rule?.mode === 'mute' ? 1 : 0,
         follow: tp.rule?.mode === 'follow' ? 1 : 0,
         phase: i * 1.7,
+        score: 0,
+        full: true,
+        hue: hueFromPosition(p),
+        dim: 1,
+        labelA: 0,
         sx: 0,
         sy: 0,
         sr: 0,
@@ -141,6 +176,7 @@
       topics = [];
     }
     syncNodes();
+    if (focused) focused = topics.find((x) => x.id === focused!.id) ?? null;
     loading = false;
   }
 
@@ -223,6 +259,9 @@
   let dpr = 1;
   let lastInteract = 0;
   let needsDraw = true;
+  let focusAnim: { yaw: number; pitch: number; zoom: number } | null = null;
+  let shownLabels = new Set<number>();
+  let lastDeclutter = -1e9;
   let stars: { x: number; y: number; s: number; p: number }[] = [];
 
   function project(n: Node, cy: number, sy_: number, cp: number, sp: number, unit: number) {
@@ -263,7 +302,7 @@
     const cp = Math.cos(pitch);
     const sp = Math.sin(pitch);
     const k = 1 - Math.exp(-dt * 6);
-    const maxR = Math.max(1, ...nodes.map((n) => n.rTarget));
+    const focusNode = focused ? nodes.find((x) => x.topic.id === focused!.id) : undefined;
 
     for (const n of nodes) {
       const mt = n.topic.rule?.mode === 'mute' ? 1 : 0;
@@ -271,6 +310,8 @@
       n.r += (n.rTarget - n.r) * k;
       n.mute += (mt - n.mute) * k;
       n.follow += (ft - n.follow) * k;
+      const dimT = focusNode && distance3(n.pos, focusNode.pos) > NEIGHBOURHOOD ? DIM_ALPHA : 1;
+      n.dim = reduced ? dimT : n.dim + (dimT - n.dim) * k;
       const pr = project(n, cy, sy_, cp, sp, unit);
       n.sx = pr.sx;
       n.sy = pr.sy;
@@ -279,15 +320,41 @@
     }
     const order = [...nodes].sort((a, b) => a.depth - b.depth);
 
+    const fontOf = (n: Node) =>
+      Math.round(Math.max(10, Math.min(18, 10 + (n.r - 5) * 0.28)) * Math.max(0.85, Math.min(1.25, scale)));
+    if (now - lastDeclutter > DECLUTTER_MS) {
+      lastDeclutter = now;
+      const boxes: LabelBox[] = [];
+      for (const n of nodes) {
+        if (!n.full) continue;
+        const isFocus = n === focusNode;
+        if (!isFocus && n.dim < 0.5) continue;
+        const fs = fontOf(n);
+        ctx.font = `600 ${fs}px ui-rounded, ui-sans-serif, system-ui, sans-serif`;
+        boxes.push({
+          id: n.topic.id,
+          score: n.score,
+          x: n.sx + n.sr * 1.5 + 4,
+          y: n.sy - fs / 2,
+          w: ctx.measureText(n.topic.label).width,
+          h: fs,
+          force: isFocus
+        });
+      }
+      shownLabels = declutterLabels(boxes);
+    }
+
     for (const n of order) {
       const pulse = reduced ? 1 : 1 + 0.05 * Math.sin(now / 700 + n.phase) * (1 - n.mute);
       const lit = 1 - n.mute;
       const R = n.sr * pulse;
-      const depthA = 0.45 + 0.55 * n.depth;
-      const glowR = R * (1.4 + 2.6 * lit);
+      const smallF = n.full ? 1 : 0.55; // unlabelled dots stay dim
+      const depthA = (0.45 + 0.55 * n.depth) * n.dim * smallF;
+      const glowR = R * (n.full ? 1.4 + 2.6 * lit : 1.6);
 
-      const core = mix(mix([255, 255, 255], p.leaf, 0.35), mix(p.forestDark, [90, 100, 94], 0.6), n.mute);
-      const halo = mix(p.leaf, p.gold, n.follow);
+      const hue = hslToRgb(n.hue, 0.62, 0.52);
+      const core = mix(mix([255, 255, 255], hue, 0.35), mix(p.forestDark, [90, 100, 94], 0.6), n.mute);
+      const halo = mix(hue, p.gold, n.follow);
       const coreC = mix(core, mix(p.gold, [255, 255, 255], 0.35), n.follow);
       const glowA = (0.15 + 0.7 * lit) * depthA;
 
@@ -319,11 +386,13 @@
         ctx.stroke();
       }
 
-      const big = n.rTarget / maxR > 0.55;
-      let la = big ? 0.95 : Math.max(0, (n.depth - 0.25) / 0.6) * 0.9;
-      la *= 1 - 0.55 * n.mute;
+      const isFocus = n === focusNode;
+      const wantLabel = n.full && shownLabels.has(n.topic.id);
+      n.labelA += ((wantLabel ? 1 : 0) - n.labelA) * (reduced ? 1 : k);
+      let la = n.labelA * (isFocus ? 1 : Math.max(0.35, Math.min(1, 0.45 + n.depth)) * 0.95);
+      la *= (1 - 0.55 * n.mute) * (isFocus ? 1 : n.dim);
       if (la > 0.03) {
-        const fs = Math.round(Math.max(10, Math.min(18, 10 + (n.r - 5) * 0.28)) * Math.max(0.85, Math.min(1.25, scale)));
+        const fs = fontOf(n);
         ctx.font = `600 ${fs}px ui-rounded, ui-sans-serif, system-ui, sans-serif`;
         ctx.textBaseline = 'middle';
         ctx.shadowColor = rgba([0, 0, 0], 0.7 * la);
@@ -338,10 +407,34 @@
   function hit(x: number, y: number): Node | null {
     let best: Node | null = null;
     for (const n of nodes) {
-      const rad = Math.max(n.sr * 1.3, 14);
+      const rad = Math.max(n.sr * 1.3, n.full ? 14 : 10);
       if (Math.hypot(n.sx - x, n.sy - y) <= rad && (!best || n.depth > best.depth)) best = n;
     }
     return best;
+  }
+
+  function focusTopic(tp: Topic) {
+    const n = nodes.find((x) => x.topic.id === tp.id);
+    focused = tp;
+    if (!n) return;
+    const a = facingAngles(n.pos, yaw);
+    vYaw = 0;
+    if (reduced) {
+      yaw = a.yaw;
+      pitch = a.pitch;
+      zoom = FOCUS_ZOOM;
+      focusAnim = null;
+    } else {
+      focusAnim = { ...a, zoom: FOCUS_ZOOM };
+    }
+    lastInteract = performance.now();
+    needsDraw = true;
+  }
+  function clearFocus() {
+    focused = null;
+    focusAnim = null;
+    lastInteract = performance.now();
+    needsDraw = true;
   }
 
   onMount(() => {
@@ -396,6 +489,7 @@
       const pt = local(e);
       pointers.set(e.pointerId, pt);
       touch();
+      focusAnim = null;
       if (pointers.size === 1) {
         downAt = pt;
         moved = false;
@@ -450,7 +544,11 @@
       clearTimeout(longTimer);
       touch();
       if (pointers.size === 0) {
-        if (!moved && !longFired && downNode) selected = downNode.topic;
+        if (!moved && !longFired) {
+          if (!downNode) clearFocus();
+          else if (focused?.id === downNode.topic.id) selected = downNode.topic;
+          else focusTopic(downNode.topic);
+        }
         downNode = null;
       }
       pinchDist = 0;
@@ -467,6 +565,7 @@
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       zoom = Math.max(0.5, Math.min(3, zoom * Math.exp(-e.deltaY * 0.0015)));
+      focusAnim = null;
       touch();
     };
 
@@ -484,8 +583,18 @@
       raf = requestAnimationFrame(frame);
       const dt = Math.min(0.1, (now - prevT) / 1000);
       prevT = now;
-      const interacting = pointers.size > 0 || selected !== null;
+      const interacting = pointers.size > 0 || selected !== null || focused !== null;
       let rotating = false;
+      if (focusAnim && pointers.size === 0) {
+        const f = 1 - Math.exp(-dt * 5);
+        yaw += (focusAnim.yaw - yaw) * f;
+        pitch += (focusAnim.pitch - pitch) * f;
+        zoom += (focusAnim.zoom - zoom) * f;
+        rotating = true;
+        if (Math.abs(focusAnim.yaw - yaw) + Math.abs(focusAnim.pitch - pitch) + Math.abs(focusAnim.zoom - zoom) < 0.002) {
+          focusAnim = null;
+        }
+      }
       if (!interacting) {
         if (Math.abs(vYaw) > 0.01) {
           yaw += vYaw * dt;
@@ -500,7 +609,9 @@
         (n) =>
           Math.abs(n.r - n.rTarget) > 0.02 ||
           Math.abs(n.mute - (n.topic.rule?.mode === 'mute' ? 1 : 0)) > 0.01 ||
-          Math.abs(n.follow - (n.topic.rule?.mode === 'follow' ? 1 : 0)) > 0.01
+          Math.abs(n.follow - (n.topic.rule?.mode === 'follow' ? 1 : 0)) > 0.01 ||
+          Math.abs(n.labelA - (n.full && shownLabels.has(n.topic.id) ? 1 : 0)) > 0.02 ||
+          Math.abs(n.dim - (focused ? n.dim : 1)) > 0.01
       );
       if (!reduced || needsDraw || rotating || settling || interacting) {
         draw(now, dt);
@@ -530,7 +641,10 @@
 
 <svelte:head><title>{$t('nav.ai')}</title></svelte:head>
 
-<div class="ai" bind:this={wrap}>
+<svelte:window onkeydown={(e) => e.key === 'Escape' && !selected && focused && clearFocus()} />
+
+<div class="ai">
+<div class="stage" bind:this={wrap}>
   <!-- svelte-ignore a11y_no_interactive_element_to_noninteractive_role -->
   <canvas
     bind:this={canvas}
@@ -558,6 +672,12 @@
         </button>
       {/each}
     </div>
+    <button type="button" class="pill" aria-pressed={showAll} class:on={showAll} onclick={() => { showAll = !showAll; applyView(); }}>
+      {$t('topics.showAll')}
+    </button>
+    <button type="button" class="pill listtoggle" aria-expanded={listOpen} onclick={() => (listOpen = !listOpen)}>
+      {$t('topics.listTitle')}
+    </button>
     {#if hiddenCount > 0}
       <a class="hiddenbtn" href="/?hidden=1" title={$t('topics.hiddenTitle')}>
         {$t('topics.hiddenButton', { count: hiddenCount })}
@@ -606,6 +726,17 @@
     {/each}
   </ul>
 
+  {#if focused}
+    <div class="focuscard" role="group" aria-label={focused.label}>
+      <div class="ftext">
+        <strong>{focused.label}</strong>
+        <span>{$t('topics.unreadCount', { count: focused.unread_count })}</span>
+      </div>
+      <button type="button" class="fdetails" onclick={() => (selected = focused)}>{$t('topics.details')}</button>
+      <button type="button" class="fclose" aria-label={$t('topics.clearFocus')} title={$t('topics.clearFocus')} onclick={clearFocus}>×</button>
+    </div>
+  {/if}
+
   {#if toast}<p class="toast" role="status">{toast}</p>{/if}
 
   <a class="fab" href="/chat" aria-label={$t('topics.chatButton')} title={$t('topics.chatButton')}>
@@ -614,6 +745,28 @@
       <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.6-.8L3 21l1.9-5.4A8.4 8.4 0 1 1 21 11.5z" />
     </svg>
   </a>
+</div>
+
+<aside class="panel" class:open={listOpen} aria-label={$t('topics.listTitle')}>
+  <h2>{$t('topics.listTitle')}</h2>
+  <ul>
+    {#each ranked as tp (tp.id)}
+      {@const st = stateOf(tp)}
+      <li class:isfocus={focused?.id === tp.id}>
+        <button type="button" class="rowmain" onclick={() => focusTopic(tp)}>
+          <span class="sd {st}" aria-hidden="true"></span>
+          <span class="rl">{tp.label}</span>
+          <span class="rc">{tp.unread_count}</span>
+          <span class="sr-only">{stateText(tp)}</span>
+        </button>
+        <button type="button" class="rowbtn" onclick={() => quickToggle(tp)}>
+          {$t(!tp.rule ? 'topics.mute' : tp.manual ? (tp.rule.mode === 'mute' ? 'topics.follow' : 'topics.mute') : tp.rule.mode === 'mute' ? 'topics.unmute' : 'topics.unfollow')}
+        </button>
+        <button type="button" class="rowbtn" onclick={() => (selected = tp)}>{$t('topics.details')}</button>
+      </li>
+    {/each}
+  </ul>
+</aside>
 </div>
 
 {#if selected}
@@ -629,6 +782,192 @@
     bottom: 0;
     overflow: hidden;
     background: var(--gator-forest-dark);
+    display: flex;
+  }
+  .stage {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .panel {
+    display: none;
+    flex-direction: column;
+    width: 21rem;
+    flex: none;
+    background: rgba(11, 61, 42, 0.96);
+    border-left: 1px solid rgba(248, 247, 241, 0.15);
+    color: var(--gator-paper);
+    overflow: hidden;
+  }
+  .panel h2 {
+    margin: 0;
+    padding: 0.7rem 0.9rem 0.4rem;
+    font-size: 0.9rem;
+    opacity: 0.85;
+  }
+  .panel ul {
+    list-style: none;
+    margin: 0;
+    padding: 0 0.4rem 0.6rem;
+    overflow-y: auto;
+    flex: 1;
+  }
+  .panel li {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.1rem 0.2rem;
+    border-radius: 0.5rem;
+  }
+  .panel li.isfocus {
+    background: rgba(248, 247, 241, 0.12);
+  }
+  .rowmain {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-align: left;
+    border: none;
+    background: transparent;
+    color: inherit;
+    padding: 0.35rem 0.3rem;
+    font-size: 0.85rem;
+  }
+  .rl {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rc {
+    font-variant-numeric: tabular-nums;
+    opacity: 0.75;
+    font-size: 0.78rem;
+  }
+  .sd {
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 50%;
+    flex: none;
+  }
+  .sd.active {
+    background: var(--gator-leaf);
+  }
+  .sd.followed {
+    background: var(--gator-gold);
+  }
+  .sd.muted {
+    background: var(--gator-muted);
+    opacity: 0.6;
+  }
+  .rowbtn {
+    border: 1px solid rgba(248, 247, 241, 0.3);
+    background: transparent;
+    color: inherit;
+    border-radius: var(--radius-pill);
+    font-size: 0.72rem;
+    padding: 0.18rem 0.55rem;
+    white-space: nowrap;
+  }
+  .rowbtn:hover,
+  .rowmain:hover {
+    background: rgba(248, 247, 241, 0.1);
+  }
+  .rowbtn:focus-visible,
+  .rowmain:focus-visible,
+  .pill:focus-visible,
+  .focuscard button:focus-visible {
+    outline: 2px solid var(--gator-gold);
+    outline-offset: 2px;
+  }
+  .pill {
+    color: var(--gator-paper);
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.32rem 0.85rem;
+    border-radius: var(--radius-pill);
+    border: 1px solid rgba(248, 247, 241, 0.3);
+    background: rgba(11, 61, 42, 0.6);
+  }
+  .pill.on {
+    background: var(--gator-forest);
+    border-color: var(--gator-gold);
+  }
+  .listtoggle {
+    display: inline-block;
+  }
+  .focuscard {
+    position: absolute;
+    left: 50%;
+    bottom: 3.2rem;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    max-width: min(92%, 26rem);
+    padding: 0.5rem 0.6rem 0.5rem 0.9rem;
+    border-radius: 1rem;
+    background: var(--gator-paper);
+    color: var(--gator-ink);
+    box-shadow: var(--gator-shadow);
+  }
+  .ftext {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    font-size: 0.85rem;
+  }
+  .ftext strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ftext span {
+    opacity: 0.7;
+    font-size: 0.78rem;
+  }
+  .fdetails {
+    border: none;
+    border-radius: var(--radius-pill);
+    background: var(--gator-forest);
+    color: var(--gator-paper);
+    font-weight: 600;
+    font-size: 0.82rem;
+    padding: 0.35rem 0.85rem;
+  }
+  .fclose {
+    border: none;
+    background: transparent;
+    color: inherit;
+    font-size: 1.3rem;
+    line-height: 1;
+    padding: 0.1rem 0.5rem;
+  }
+  @media (min-width: 900px) {
+    .panel {
+      display: flex;
+    }
+    .listtoggle {
+      display: none;
+    }
+  }
+  @media (max-width: 899px) {
+    .panel.open {
+      display: flex;
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: auto;
+      height: 50%;
+      border-left: none;
+      border-top: 1px solid rgba(248, 247, 241, 0.2);
+      z-index: 30;
+    }
   }
   canvas {
     position: absolute;
@@ -786,8 +1125,8 @@
     border-radius: 50%;
   }
   .dot.active {
-    background: radial-gradient(circle, var(--gator-paper), var(--gator-leaf));
-    box-shadow: 0 0 8px var(--gator-leaf);
+    background: linear-gradient(135deg, hsl(140 62% 52%), hsl(195 62% 52%), hsl(270 62% 58%));
+    box-shadow: 0 0 8px hsl(195 62% 52% / 0.6);
   }
   .dot.muted {
     background: var(--gator-muted);

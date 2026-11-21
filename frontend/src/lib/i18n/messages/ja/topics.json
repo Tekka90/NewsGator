@@ -52,5 +52,9 @@
   "nodeLabelManual": "{label}、手動トピック、未読{count}件、{state}",
   "removeTopic": "トピックを削除",
   "unreadCount": "未読{count}件",
-  "toastFollowed": "{label}をフォローしました"
+  "toastFollowed": "{label}をフォローしました",
+  "showAll": "すべて表示",
+  "listTitle": "サイズ順のトピック",
+  "details": "詳細",
+  "clearFocus": "フォーカスを解除"
 }

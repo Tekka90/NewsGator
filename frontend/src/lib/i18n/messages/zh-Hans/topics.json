@@ -52,5 +52,9 @@
   "nodeLabelManual": "{label}，手动话题，{count} 条未读，{state}",
   "removeTopic": "移除话题",
   "unreadCount": "{count} 条未读",
-  "toastFollowed": "已关注{label}"
+  "toastFollowed": "已关注{label}",
+  "showAll": "显示全部",
+  "listTitle": "按大小排序的话题",
+  "details": "详情",
+  "clearFocus": "取消聚焦"
 }

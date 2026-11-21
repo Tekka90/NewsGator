@@ -52,5 +52,9 @@
   "nodeLabelManual": "{label}, sujet manuel, {count} non lus, {state}",
   "removeTopic": "Supprimer le sujet",
   "unreadCount": "{count} non lus",
-  "toastFollowed": "{label} suivi"
+  "toastFollowed": "{label} suivi",
+  "showAll": "Tout afficher",
+  "listTitle": "Sujets par taille",
+  "details": "Détails",
+  "clearFocus": "Annuler la sélection"
 }

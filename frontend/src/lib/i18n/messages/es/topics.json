@@ -52,5 +52,9 @@
   "nodeLabelManual": "{label}, tema manual, {count} sin leer, {state}",
   "removeTopic": "Eliminar tema",
   "unreadCount": "{count} sin leer",
-  "toastFollowed": "{label} seguido"
+  "toastFollowed": "{label} seguido",
+  "showAll": "Mostrar todos",
+  "listTitle": "Temas por tamaño",
+  "details": "Detalles",
+  "clearFocus": "Quitar el foco"
 }
