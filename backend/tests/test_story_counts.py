@@ -33,7 +33,7 @@ async def test_counts_match_list_filters(client: AsyncClient, db_session) -> Non
     await client.put(f"/api/stories/{ids[1]}/saved")
 
     counts = (await client.get("/api/stories/counts")).json()
-    assert counts == {"all": 3, "unread": 2, "updated": 0, "saved": 1, "ignored": 0}
+    assert counts == {"all": 3, "unread": 2, "updated": 0, "saved": 1, "ignored": 0, "followed": 0}
     for name in ("all", "unread", "updated"):
         listed = (await client.get(f"/api/stories?filter={name}")).json()
         assert len(listed) == counts[name]
@@ -41,4 +41,4 @@ async def test_counts_match_list_filters(client: AsyncClient, db_session) -> Non
     assert len(saved) == counts["saved"]
 
     tech = (await client.get("/api/stories/counts?category=Tech")).json()
-    assert tech == {"all": 2, "unread": 1, "updated": 0, "saved": 1, "ignored": 0}
+    assert tech == {"all": 2, "unread": 1, "updated": 0, "saved": 1, "ignored": 0, "followed": 0}

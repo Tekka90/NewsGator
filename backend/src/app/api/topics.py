@@ -289,7 +289,7 @@ async def create_manual_topic_rule(
             expires_at=utcnow() + timedelta(days=days) if days else None,
         )
     except topics_svc.ManualTopicError as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, exc.code) from exc
+        raise HTTPException(422, exc.code) from exc
     except Exception as exc:  # embedding server down
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "embedding_failed") from exc
     await session.commit()

@@ -106,7 +106,7 @@ async def test_list_empty_for_user_without_subscriptions(
 
     assert (await client.get("/api/stories")).json() == []
     assert (await client.get("/api/stories/counts")).json() == {
-        "all": 0, "unread": 0, "updated": 0, "saved": 0, "ignored": 0,
+        "all": 0, "unread": 0, "updated": 0, "saved": 0, "ignored": 0, "followed": 0,
     }
     assert (await client.get("/api/stories/facets")).json() == {"categories": [], "feeds": []}
     snap = (
@@ -122,7 +122,7 @@ async def test_list_empty_for_user_without_subscriptions(
 async def test_counts_scope_by_feed_and_category(client: AsyncClient, db_session) -> None:
     await setup_admin(client)
     ids = await _seed(db_session)
-    zero = {"all": 0, "unread": 0, "updated": 0, "saved": 0, "ignored": 0}
+    zero = {"all": 0, "unread": 0, "updated": 0, "saved": 0, "ignored": 0, "followed": 0}
     assert (await client.get(f"/api/stories/counts?feed={ids['foreign']}")).json() == zero
     assert (await client.get("/api/stories/counts?category=sport")).json() == zero
     assert (await client.get("/api/stories/counts?category=tech")).json()["all"] == 2
