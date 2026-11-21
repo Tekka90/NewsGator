@@ -1,4 +1,5 @@
 {
   "label": "Vues des récits",
-  "itemCount": "{name}, {count}"
+  "itemCount": "{name}, {count}",
+  "followed": "Suivis"
 }

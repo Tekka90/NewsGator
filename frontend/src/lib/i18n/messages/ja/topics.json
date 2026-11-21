@@ -39,5 +39,18 @@
   "state_active": "アクティブ",
   "state_muted": "ミュート",
   "state_followed": "フォロー",
-  "nodeLabel": "{label}、未読{count}件、{state}"
+  "nodeLabel": "{label}、未読{count}件、{state}",
+  "addLabel": "トピックを追加",
+  "addPlaceholder": "フォローまたはミュートするトピックを追加…",
+  "addMode": "操作",
+  "addDuration": "期間",
+  "addButton": "追加",
+  "err_invalid_length": "トピックは3〜120文字で入力してください。",
+  "err_too_many": "手動トピックの上限に達しました。先に1つ削除してください。",
+  "err_embedding_failed": "現在このトピックを分析できません。後でもう一度お試しください。",
+  "legendManual": "手動",
+  "nodeLabelManual": "{label}、手動トピック、未読{count}件、{state}",
+  "removeTopic": "トピックを削除",
+  "unreadCount": "未読{count}件",
+  "toastFollowed": "{label}をフォローしました"
 }

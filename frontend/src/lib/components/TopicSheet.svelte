@@ -26,6 +26,7 @@
     preview = null;
     error = '';
     duration = 'fade';
+    if (topic.manual) return;
     api.topics
       .preview(id)
       .then((p) => {
@@ -52,6 +53,9 @@
   }
 
   const apply = (mode: TopicMode) => run(() => api.topics.createRule(topic.id, mode, duration));
+  const setMode = (mode: TopicMode) =>
+    topic.rule && topic.rule.mode !== mode ? run(() => api.topics.updateRule(topic.rule!.id, mode)) : undefined;
+  const removeManual = () => (topic.rule ? run(() => api.topics.removeRule(topic.rule!.id)) : undefined);
   const removeRule = (tp: Topic) => (tp.rule ? run(() => api.topics.removeRule(tp.rule!.id)) : undefined);
 </script>
 
@@ -60,6 +64,31 @@
 <button class="bg" aria-label={$t('topics.close')} onclick={onclose} tabindex="-1"></button>
 <div class="sheet" role="dialog" aria-label={topic.label}>
   <h3>{topic.label}</h3>
+  {#if topic.manual}
+    <p class="meta">
+      {$t('topics.storyCount', { count: topic.story_count })} ·
+      {$t('topics.unreadCount', { count: topic.unread_count })}
+    </p>
+    <div class="actions" role="radiogroup" aria-label={$t('topics.addMode')}>
+      <button
+        role="radio"
+        aria-checked={topic.rule?.mode === 'follow'}
+        class:primary={topic.rule?.mode === 'follow'}
+        disabled={busy}
+        onclick={() => setMode('follow')}>{$t('topics.follow')}</button>
+      <button
+        role="radio"
+        aria-checked={topic.rule?.mode === 'mute'}
+        class:primary={topic.rule?.mode === 'mute'}
+        disabled={busy}
+        onclick={() => setMode('mute')}>{$t('topics.mute')}</button>
+    </div>
+    <div class="actions manualactions">
+      <button disabled={busy} onclick={removeManual}>{$t('topics.removeTopic')}</button>
+      <button class="ghost" onclick={onclose}>{$t('topics.close')}</button>
+    </div>
+    {#if error}<p class="err">{error}</p>{/if}
+  {:else}
   {#if topic.description}<p class="desc">{topic.description}</p>{/if}
   <p class="meta">
     {$t('topics.storyCount', { count: topic.story_count })} ·
@@ -88,6 +117,7 @@
     <button class="ghost" onclick={onclose}>{$t('topics.close')}</button>
   </div>
   {#if error}<p class="err">{error}</p>{/if}
+  {/if}
 </div>
 
 <style>
@@ -149,6 +179,9 @@
     display: flex;
     gap: 0.5rem;
     flex-wrap: wrap;
+  }
+  .manualactions {
+    margin-top: 0.6rem;
   }
   .primary {
     background: var(--accent);

@@ -348,6 +348,10 @@ export const api = {
     preview: (id: number) => req<TopicPreview>(`/topics/${id}/preview`),
     createRule: (id: number, mode: TopicMode, duration: TopicDuration) =>
       req<TopicRule>(`/topics/${id}/rules`, { method: 'POST', body: { mode, duration } }),
+    createManual: (query: string, mode: TopicMode, duration: Exclude<TopicDuration, 'fade'>) =>
+      req<TopicRule>('/topic-rules/custom', { method: 'POST', body: { query, mode, duration } }),
+    updateRule: (ruleId: number, mode: TopicMode) =>
+      req<TopicRule>(`/topic-rules/${ruleId}`, { method: 'PATCH', body: { mode } }),
     rules: () => req<TopicRule[]>('/topic-rules'),
     removeRule: (id: number) => req<void>(`/topic-rules/${id}`, { method: 'DELETE' }),
     // "this story is not about the topic" — makes the rule stricter
@@ -404,6 +408,7 @@ export const api = {
         updated: number;
         saved: number;
         ignored?: number;
+        followed?: number;
       }>(
         `/stories/counts?${params}`
       );

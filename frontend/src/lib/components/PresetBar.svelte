@@ -11,7 +11,9 @@
     counts = {},
     compact = false,
     onselect,
-    label
+    label,
+    followed = null,
+    onfollowed
   }: {
     presets: StoryPreset[];
     activeId: string | null;
@@ -19,6 +21,9 @@
     compact?: boolean;
     onselect?: (p: StoryPreset) => void;
     label?: string;
+    /** Topic Radar chip; null hides it */
+    followed?: { active: boolean; count: number } | null;
+    onfollowed?: () => void;
   } = $props();
 
   let shown = $derived(enabledPresets(presets));
@@ -71,6 +76,23 @@
       {#if count !== undefined}<span class="pill-count">{count}</span>{/if}
     </button>
   {/each}
+  {#if followed}
+    <button
+      type="button"
+      class="followed"
+      class:active={followed.active}
+      aria-pressed={followed.active}
+      aria-label={followed.count > 0
+        ? $t('presetbar.itemCount', { name: $t('presetbar.followed'), count: followed.count })
+        : $t('presetbar.followed')}
+      onclick={() => onfollowed?.()}
+      {onkeydown}
+    >
+      <span class="star" aria-hidden="true">★</span>
+      <span class="name">{$t('presetbar.followed')}</span>
+      {#if followed.count > 0}<span class="pill-count">{followed.count}</span>{/if}
+    </button>
+  {/if}
 </div>
 
 <style>
@@ -119,6 +141,17 @@
     background: var(--accent);
     color: var(--gator-surface);
     box-shadow: 0 2px 6px rgba(20, 107, 58, 0.22);
+  }
+  button.followed .star {
+    color: var(--gator-gold);
+  }
+  button.followed.active {
+    background: var(--gator-gold);
+    color: var(--gator-forest-dark);
+    box-shadow: 0 2px 6px rgba(242, 184, 39, 0.35);
+  }
+  button.followed.active .star {
+    color: inherit;
   }
   .pill-count {
     font-size: 0.75em;

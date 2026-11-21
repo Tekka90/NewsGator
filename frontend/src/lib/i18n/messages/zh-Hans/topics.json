@@ -39,5 +39,18 @@
   "state_active": "活跃",
   "state_muted": "静音",
   "state_followed": "关注",
-  "nodeLabel": "{label}，{count} 条未读，{state}"
+  "nodeLabel": "{label}，{count} 条未读，{state}",
+  "addLabel": "添加话题",
+  "addPlaceholder": "添加要关注或静音的话题…",
+  "addMode": "操作",
+  "addDuration": "时长",
+  "addButton": "添加",
+  "err_invalid_length": "话题长度须在 3 到 120 个字符之间。",
+  "err_too_many": "已达到手动话题数量上限，请先移除一个。",
+  "err_embedding_failed": "暂时无法分析此话题，请稍后再试。",
+  "legendManual": "手动",
+  "nodeLabelManual": "{label}，手动话题，{count} 条未读，{state}",
+  "removeTopic": "移除话题",
+  "unreadCount": "{count} 条未读",
+  "toastFollowed": "已关注{label}"
 }

@@ -39,5 +39,18 @@
   "state_active": "active",
   "state_muted": "muted",
   "state_followed": "followed",
-  "nodeLabel": "{label}, {count} unread, {state}"
+  "nodeLabel": "{label}, {count} unread, {state}",
+  "addLabel": "Add a topic",
+  "addPlaceholder": "Add a topic to follow or mute…",
+  "addMode": "Action",
+  "addDuration": "Duration",
+  "addButton": "Add",
+  "err_invalid_length": "Topic must be between 3 and 120 characters.",
+  "err_too_many": "You have reached the limit of manual topics. Remove one first.",
+  "err_embedding_failed": "Could not analyse this topic right now. Try again later.",
+  "legendManual": "Manual",
+  "nodeLabelManual": "{label}, manual topic, {count} unread, {state}",
+  "removeTopic": "Remove topic",
+  "unreadCount": "{count} unread",
+  "toastFollowed": "{label} followed"
 }

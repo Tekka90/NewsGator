@@ -39,5 +39,18 @@
   "state_active": "attivo",
   "state_muted": "silenziato",
   "state_followed": "seguito",
-  "nodeLabel": "{label}, {count} non lette, {state}"
+  "nodeLabel": "{label}, {count} non lette, {state}",
+  "addLabel": "Aggiungi tema",
+  "addPlaceholder": "Aggiungi un tema da seguire o silenziare…",
+  "addMode": "Azione",
+  "addDuration": "Durata",
+  "addButton": "Aggiungi",
+  "err_invalid_length": "Il tema deve avere tra 3 e 120 caratteri.",
+  "err_too_many": "Hai raggiunto il limite di temi manuali. Rimuovine uno prima.",
+  "err_embedding_failed": "Impossibile analizzare questo tema al momento. Riprova più tardi.",
+  "legendManual": "Manuale",
+  "nodeLabelManual": "{label}, tema manuale, {count} non lette, {state}",
+  "removeTopic": "Rimuovi tema",
+  "unreadCount": "{count} non lette",
+  "toastFollowed": "{label} seguito"
 }

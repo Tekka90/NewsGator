@@ -57,6 +57,10 @@
   let saving = $state<Record<number, boolean>>({});
   let presetCounts = $state<Record<string, number>>({});
   let showIgnored = $state(false);
+  // Topic Radar "Followed" view: layered on the active preset, not a preset itself
+  let followedMode = $state(false);
+  let hasFollowRule = $state(false);
+  let followedCount = $state(0);
   // Sticky title + filter bar — its height is measured at click time so a
   // just-read story can be scrolled out exactly behind it.
   let pagehead = $state<HTMLElement>();
@@ -233,9 +237,11 @@
         order: orderOverride ?? undefined,
         category: category || undefined,
         feedId: feedId || undefined,
-        ignored: showIgnored ? 'only' : undefined
+        ignored: showIgnored ? 'only' : undefined,
+        followed: followedMode || undefined
       }),
-      api.presets.counts().catch(() => null)
+      api.presets.counts().catch(() => null),
+      loadFollowed()
     ]);
     stories = fetchedStories;
     if (counts) presetCounts = counts.counts;
@@ -248,6 +254,25 @@
     loading = false;
   }
 
+  async function loadFollowed() {
+    try {
+      followedCount = (await api.stories.counts()).followed ?? 0;
+      hasFollowRule = (await api.topics.rules()).some((r) => r.mode === 'follow');
+    } catch {
+      followedCount = 0;
+      hasFollowRule = false;
+    }
+  }
+
+  function toggleFollowed() {
+    followedMode = !followedMode;
+    sortOverride = null;
+    orderOverride = null;
+    category = '';
+    feedId = 0;
+    void load();
+  }
+
   function historyQuery(extra: Partial<ListQuery>): ListQuery {
     return {
       preset: activeId ?? 'all',
@@ -255,6 +280,7 @@
       order: orderOverride ?? undefined,
       category: category || undefined,
       feedId: feedId || undefined,
+      followed: followedMode || undefined,
       includeRead: true,
       limit: HISTORY_PAGE,
       ...extra
@@ -311,6 +337,7 @@
   /** Selecting a view applies its criteria + sort/order and drops every manual override. */
   function selectPreset(p: StoryPreset) {
     activeId = p.id;
+    followedMode = false;
     sortOverride = null;
     orderOverride = null;
     category = '';
@@ -562,7 +589,15 @@
 
   <div class="toolbar card">
     <div class="filters">
-      <PresetBar {presets} {activeId} counts={presetCounts} {compact} onselect={selectPreset} />
+      <PresetBar
+        {presets}
+        activeId={followedMode ? null : activeId}
+        counts={presetCounts}
+        {compact}
+        onselect={selectPreset}
+        followed={hasFollowRule ? { active: followedMode, count: followedCount } : null}
+        onfollowed={toggleFollowed}
+      />
     </div>
     {#if isMobile}
       <button
@@ -693,6 +728,7 @@
       <div class="row">
         <span class="chip">{current.category}</span>
         {#if !current.is_read}<span class="dot" title={$t('stories.unreadStory')}></span>{/if}
+        {#if current.followed}<span class="fstar" title={$t('stories.followedBadge')} aria-label={$t('stories.followedBadge')}>★</span>{/if}
         {#if current.updated_since_read}<span class="badge updated">{$t('stories.updatedBadge')}</span>{/if}
         {#if current.media_kind === 'video'}<span class="badge video">▶ {providerLabel(current.video_provider)}{#if current.video_duration} · {formatDuration(current.video_duration)}{/if}</span>{/if}
         {#if current.is_frozen}<span class="badge frozen">{$t('stories.archived')}</span>{/if}
@@ -777,6 +813,7 @@
       <div class="row">
         <span class="chip">{story.category}</span>
         {#if !story.is_read}<span class="dot" title={$t('stories.unreadStory')}></span>{/if}
+        {#if story.followed}<span class="fstar" title={$t('stories.followedBadge')} aria-label={$t('stories.followedBadge')}>★</span>{/if}
         {#if story.updated_since_read}<span class="badge updated">{$t('stories.updatedBadge')}</span>{/if}
         {#if story.media_kind === 'video'}<span class="badge video">▶ {providerLabel(story.video_provider)}{#if story.video_duration} · {formatDuration(story.video_duration)}{/if}</span>{/if}
         {#if story.is_frozen}<span class="badge frozen">{$t('stories.archived')}</span>{/if}
@@ -971,6 +1008,12 @@
   }
   .summary { margin: 0; color: var(--text-secondary); line-height: 1.45; }
   .row { display: flex; align-items: center; gap: 0.45rem; }
+  .fstar {
+    color: var(--gator-gold);
+    font-size: 0.85rem;
+    line-height: 1;
+    flex-shrink: 0;
+  }
   .dot {
     width: 8px;
     height: 8px;

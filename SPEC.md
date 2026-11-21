@@ -473,6 +473,8 @@ rule's threshold just above the story's similarity.
 Shared contract: `backend/tests/fixtures/topic_vectors.json` (rule matching, visibility, clustering) —
 the Swift twin must pass it. `/health` `features` includes `topics`.
 
+**Typed topics & Followed (follow-up):** `POST /api/topic-rules/custom {query, mode, duration}` embeds a user phrase into a rule with no source topic (max `TOPIC_MANUAL_MAX`=30, label 2–80 chars; errors `invalid_length`, `too_many`, `embedding_failed`); `PATCH /api/topic-rules/{id} {mode}` switches follow/mute. Typed rules appear in `GET /api/topics` as stars with `manual: true`, `id = -rule_id`. `GET /api/stories?followed=true` lists followed stories; `/api/stories/counts` has `followed` (unread). Apple clients notify locally; no web push.
+
 ### Story presets ("Smart Views") — 2026-10-21, Alembic `0024`
 
 A preset = filter + presentation. Stored per user as one JSON document on `user.story_presets`

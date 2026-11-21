@@ -39,5 +39,18 @@
   "state_active": "活躍",
   "state_muted": "靜音",
   "state_followed": "追蹤",
-  "nodeLabel": "{label}，{count} 則未讀，{state}"
+  "nodeLabel": "{label}，{count} 則未讀，{state}",
+  "addLabel": "新增話題",
+  "addPlaceholder": "新增要追蹤或靜音的話題…",
+  "addMode": "操作",
+  "addDuration": "時長",
+  "addButton": "新增",
+  "err_invalid_length": "話題長度須介於 3 到 120 個字元之間。",
+  "err_too_many": "已達手動話題數量上限，請先移除一個。",
+  "err_embedding_failed": "目前無法分析此話題，請稍後再試。",
+  "legendManual": "手動",
+  "nodeLabelManual": "{label}，手動話題，{count} 則未讀，{state}",
+  "removeTopic": "移除話題",
+  "unreadCount": "{count} 則未讀",
+  "toastFollowed": "已追蹤{label}"
 }

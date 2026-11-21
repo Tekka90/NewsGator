@@ -39,5 +39,18 @@
   "state_active": "actif",
   "state_muted": "ignoré",
   "state_followed": "suivi",
-  "nodeLabel": "{label}, {count} non lus, {state}"
+  "nodeLabel": "{label}, {count} non lus, {state}",
+  "addLabel": "Ajouter un sujet",
+  "addPlaceholder": "Ajouter un sujet à suivre ou ignorer…",
+  "addMode": "Action",
+  "addDuration": "Durée",
+  "addButton": "Ajouter",
+  "err_invalid_length": "Le sujet doit contenir entre 3 et 120 caractères.",
+  "err_too_many": "Limite de sujets manuels atteinte. Supprimez-en un d’abord.",
+  "err_embedding_failed": "Impossible d’analyser ce sujet pour le moment. Réessayez plus tard.",
+  "legendManual": "Manuel",
+  "nodeLabelManual": "{label}, sujet manuel, {count} non lus, {state}",
+  "removeTopic": "Supprimer le sujet",
+  "unreadCount": "{count} non lus",
+  "toastFollowed": "{label} suivi"
 }

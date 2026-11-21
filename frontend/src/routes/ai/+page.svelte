@@ -3,7 +3,7 @@
   import { api } from '$lib/api';
   import { t } from '$lib/i18n';
   import TopicSheet from '$lib/components/TopicSheet.svelte';
-  import type { Topic } from '$lib/types';
+  import type { Topic, TopicMode } from '$lib/types';
 
   type View = 'mix' | 'volume' | 'unread' | 'recent';
   const VIEWS: View[] = ['mix', 'volume', 'unread', 'recent'];
@@ -40,6 +40,13 @@
   let selected = $state<Topic | null>(null);
   let hiddenCount = $state(0);
   let toast = $state('');
+  let addQuery = $state('');
+  let addMode = $state<TopicMode>('follow');
+  let addDuration = $state<'7d' | '30d' | 'forever'>('forever');
+  let adding = $state(false);
+  let addError = $state('');
+  const ADD_DURATIONS = ['7d', '30d', 'forever'] as const;
+  const ADD_ERRORS = ['invalid_length', 'too_many', 'embedding_failed'];
   let wrap: HTMLDivElement;
   let canvas: HTMLCanvasElement;
 
@@ -155,9 +162,31 @@
     toastTimer = setTimeout(() => (toast = ''), 2600);
   }
 
+  async function addTopic(e: Event) {
+    e.preventDefault();
+    const q = addQuery.trim();
+    if (!q || adding) return;
+    adding = true;
+    addError = '';
+    try {
+      await api.topics.createManual(q, addMode, addDuration);
+      addQuery = '';
+      await changed();
+    } catch (err) {
+      const m = err instanceof Error ? err.message : '';
+      addError = ADD_ERRORS.includes(m) ? $t('topics.err_' + m) : m || $t('topics.error');
+    } finally {
+      adding = false;
+    }
+  }
+
   async function quickToggle(tp: Topic) {
     try {
-      if (tp.rule) {
+      if (tp.manual && tp.rule) {
+        const next: TopicMode = tp.rule.mode === 'mute' ? 'follow' : 'mute';
+        await api.topics.updateRule(tp.rule.id, next);
+        say($t(next === 'mute' ? 'topics.toastMuted' : 'topics.toastFollowed', { label: tp.label }));
+      } else if (tp.rule) {
         await api.topics.removeRule(tp.rule.id);
         say($t('topics.toastReset', { label: tp.label }));
       } else {
@@ -270,6 +299,17 @@
       ctx.beginPath();
       ctx.arc(n.sx, n.sy, glowR, 0, Math.PI * 2);
       ctx.fill();
+
+      if (n.topic.manual) {
+        ctx.save();
+        ctx.setLineDash([Math.max(2, R * 0.28), Math.max(2, R * 0.2)]);
+        ctx.strokeStyle = rgba(p.paper, 0.85 * depthA * (1 - 0.5 * n.mute));
+        ctx.lineWidth = Math.max(1.2, R * 0.1);
+        ctx.beginPath();
+        ctx.arc(n.sx, n.sy, R * (n.follow > 0.02 ? 1.9 : 1.55), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
 
       if (n.follow > 0.02) {
         ctx.strokeStyle = rgba(p.gold, 0.9 * n.follow * depthA);
@@ -525,17 +565,42 @@
     {/if}
   </div>
 
+  <form class="add" onsubmit={addTopic}>
+    <input
+      type="text"
+      bind:value={addQuery}
+      maxlength="120"
+      placeholder={$t('topics.addPlaceholder')}
+      aria-label={$t('topics.addLabel')}
+      disabled={adding}
+    />
+    <select bind:value={addMode} aria-label={$t('topics.addMode')}>
+      <option value="follow">{$t('topics.follow')}</option>
+      <option value="mute">{$t('topics.mute')}</option>
+    </select>
+    <select bind:value={addDuration} aria-label={$t('topics.addDuration')}>
+      {#each ADD_DURATIONS as d (d)}<option value={d}>{$t('topics.duration_' + d)}</option>{/each}
+    </select>
+    <button type="submit" disabled={adding || !addQuery.trim()}>{$t('topics.addButton')}</button>
+    {#if addError}<p class="adderr" role="alert">{addError}</p>{/if}
+  </form>
+
   <ul class="legend" aria-hidden="true">
     <li><span class="dot active"></span>{$t('topics.legendActive')}</li>
     <li><span class="dot muted"></span>{$t('topics.legendMuted')}</li>
     <li><span class="dot followed"></span>{$t('topics.legendFollowed')}</li>
+    <li><span class="dot manual"></span>{$t('topics.legendManual')}</li>
   </ul>
 
   <ul class="sr-only">
     {#each topics as tp (tp.id)}
       <li>
         <button type="button" onclick={() => (selected = tp)}>
-          {$t('topics.nodeLabel', { label: tp.label, count: tp.unread_count, state: stateText(tp) })}
+          {$t(tp.manual ? 'topics.nodeLabelManual' : 'topics.nodeLabel', {
+            label: tp.label,
+            count: tp.unread_count,
+            state: stateText(tp)
+          })}
         </button>
       </li>
     {/each}
@@ -633,6 +698,68 @@
     border-radius: var(--radius-pill);
     border: 1px dashed rgba(248, 247, 241, 0.4);
     background: rgba(11, 61, 42, 0.6);
+  }
+  .add {
+    position: absolute;
+    top: 3.4rem;
+    left: 0.7rem;
+    right: 0.7rem;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    pointer-events: none;
+  }
+  .add > * {
+    pointer-events: auto;
+  }
+  .add input,
+  .add select {
+    font-size: 0.85rem;
+    padding: 0.3rem 0.7rem;
+    border-radius: var(--radius-pill);
+    border: 1px solid rgba(248, 247, 241, 0.25);
+    background: rgba(11, 61, 42, 0.75);
+    color: var(--gator-paper);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .add input {
+    width: min(15rem, 100%);
+  }
+  .add input::placeholder {
+    color: rgba(248, 247, 241, 0.6);
+  }
+  .add button {
+    font-size: 0.85rem;
+    font-weight: 600;
+    border: none;
+    border-radius: var(--radius-pill);
+    padding: 0.3rem 0.9rem;
+    background: var(--gator-gold);
+    color: var(--gator-forest-dark);
+  }
+  .add button:disabled {
+    opacity: 0.5;
+  }
+  .add input:focus-visible,
+  .add select:focus-visible,
+  .add button:focus-visible {
+    outline: 2px solid var(--gator-gold);
+    outline-offset: 2px;
+  }
+  .adderr {
+    flex-basis: 100%;
+    margin: 0;
+    text-align: center;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--gator-paper);
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+  }
+  .dot.manual {
+    border: 1.5px dashed var(--gator-paper);
+    box-sizing: border-box;
   }
   .legend {
     position: absolute;

@@ -39,5 +39,18 @@
   "state_active": "ativo",
   "state_muted": "silenciado",
   "state_followed": "seguido",
-  "nodeLabel": "{label}, {count} não lidas, {state}"
+  "nodeLabel": "{label}, {count} não lidas, {state}",
+  "addLabel": "Adicionar tópico",
+  "addPlaceholder": "Adicionar um tópico para seguir ou silenciar…",
+  "addMode": "Ação",
+  "addDuration": "Duração",
+  "addButton": "Adicionar",
+  "err_invalid_length": "O tópico deve ter entre 3 e 120 caracteres.",
+  "err_too_many": "Você atingiu o limite de tópicos manuais. Remova um primeiro.",
+  "err_embedding_failed": "Não foi possível analisar este tópico agora. Tente novamente mais tarde.",
+  "legendManual": "Manual",
+  "nodeLabelManual": "{label}, tópico manual, {count} não lidas, {state}",
+  "removeTopic": "Remover tópico",
+  "unreadCount": "{count} não lidas",
+  "toastFollowed": "{label} seguido"
 }

@@ -39,5 +39,18 @@
   "state_active": "aktiv",
   "state_muted": "stummgeschaltet",
   "state_followed": "gefolgt",
-  "nodeLabel": "{label}, {count} ungelesen, {state}"
+  "nodeLabel": "{label}, {count} ungelesen, {state}",
+  "addLabel": "Thema hinzufügen",
+  "addPlaceholder": "Thema zum Folgen oder Stummschalten hinzufügen…",
+  "addMode": "Aktion",
+  "addDuration": "Dauer",
+  "addButton": "Hinzufügen",
+  "err_invalid_length": "Das Thema muss zwischen 3 und 120 Zeichen lang sein.",
+  "err_too_many": "Limit für manuelle Themen erreicht. Entferne zuerst eines.",
+  "err_embedding_failed": "Dieses Thema kann gerade nicht analysiert werden. Versuche es später erneut.",
+  "legendManual": "Manuell",
+  "nodeLabelManual": "{label}, manuelles Thema, {count} ungelesen, {state}",
+  "removeTopic": "Thema entfernen",
+  "unreadCount": "{count} ungelesen",
+  "toastFollowed": "{label} wird gefolgt"
 }

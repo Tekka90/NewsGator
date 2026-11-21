@@ -39,5 +39,18 @@
   "state_active": "활성",
   "state_muted": "음소거",
   "state_followed": "팔로우",
-  "nodeLabel": "{label}, 읽지 않음 {count}개, {state}"
+  "nodeLabel": "{label}, 읽지 않음 {count}개, {state}",
+  "addLabel": "주제 추가",
+  "addPlaceholder": "팔로우하거나 음소거할 주제 추가…",
+  "addMode": "동작",
+  "addDuration": "기간",
+  "addButton": "추가",
+  "err_invalid_length": "주제는 3~120자여야 합니다.",
+  "err_too_many": "직접 추가한 주제 한도에 도달했습니다. 먼저 하나를 삭제하세요.",
+  "err_embedding_failed": "지금은 이 주제를 분석할 수 없습니다. 나중에 다시 시도하세요.",
+  "legendManual": "직접 추가",
+  "nodeLabelManual": "{label}, 직접 추가한 주제, 읽지 않음 {count}개, {state}",
+  "removeTopic": "주제 삭제",
+  "unreadCount": "읽지 않음 {count}개",
+  "toastFollowed": "{label} 팔로우함"
 }

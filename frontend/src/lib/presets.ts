@@ -133,6 +133,8 @@ export interface ListQuery {
   includeRead?: boolean;
   /** Topic Radar: `only` lists just the stories hidden by mute rules. */
   ignored?: 'only';
+  /** Topic Radar: only stories of followed topics. */
+  followed?: boolean;
   /** Cursor paging: the `limit` stories right before this story id (needs `limit`). */
   before?: number;
   limit?: number;
@@ -152,6 +154,7 @@ export function storiesQuery(q: ListQuery): URLSearchParams {
   if (q.feedId) params.set('feed', String(q.feedId));
   if (q.includeRead) params.set('include_read', 'true');
   if (q.ignored) params.set('ignored', q.ignored);
+  if (q.followed) params.set('followed', 'true');
   if (q.before) params.set('before', String(q.before));
   if (q.limit) params.set('limit', String(q.limit));
   return params;
