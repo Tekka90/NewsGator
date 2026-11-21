@@ -12,6 +12,7 @@ the topic fading and re-matches when the subject comes back.
   the Apple standalone pipeline and covered by ``tests/fixtures/topic_vectors.json``.
 """
 
+import asyncio
 from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlparse
@@ -290,14 +291,24 @@ async def _label_topic(
         label = str(result.get("label") or "").strip()[:256]
         return (label or fallback), str(result.get("description") or "").strip()
     except llm_client.LLMError as exc:
-        await activity.emit(
-            session, "topics", "label_error", {"error": str(exc)}, level="error"
-        )
+        await activity.emit(session, "topics", "label_error", {"error": str(exc)}, level="error")
         return fallback, ""
 
 
+_refresh_lock = asyncio.Lock()
+
+
 async def refresh_topics(session: AsyncSession) -> dict[str, int]:
-    """Discover new topics, refresh counts, fade stale topics, expire rules. Commits."""
+    """Discover new topics, refresh counts, fade stale topics, expire rules. Commits.
+
+    Serialized: a first sweep labels every topic with the LLM and can take minutes, and two
+    overlapping runs would each create the same topics.
+    """
+    async with _refresh_lock:
+        return await _refresh_topics(session)
+
+
+async def _refresh_topics(session: AsyncSession) -> dict[str, int]:
     report = {"created": 0, "faded": 0, "rules_expired": 0, "assigned": 0}
     if not settings.topics_enabled:
         return report
@@ -399,9 +410,7 @@ async def refresh_topics(session: AsyncSession) -> dict[str, int]:
     await session.flush()
 
     # rule expiry: explicit date, or "until the source topic fades"
-    faded_ids = set(
-        (await session.scalars(select(Topic.id).where(Topic.status == "faded"))).all()
-    )
+    faded_ids = set((await session.scalars(select(Topic.id).where(Topic.status == "faded"))).all())
     for rule in (await session.scalars(select(TopicRule))).all():
         expires = rule.expires_at
         if expires is not None and expires.tzinfo is None:
