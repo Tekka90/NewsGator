@@ -25,6 +25,7 @@ from app.models import (
     Story,
     StoryRevision,
     StoryRuleMatch,
+    StorySetAside,
     StoryState,
     StoryTranslation,
     User,
@@ -132,6 +133,7 @@ class StoryDetail(BaseModel):
     video_embed_url: str | None = None
     video_provider: str | None = None
     video_duration: int | None = None
+    ignored: bool = False
 
 
 def _article_out(a: Article) -> ArticleOut:
@@ -369,11 +371,14 @@ def _ignored_sql(user_id: int) -> ColumnElement[bool]:
     muted = select(StoryRuleMatch.story_id).where(
         StoryRuleMatch.user_id == user_id, StoryRuleMatch.mode == topics_svc.MODE_MUTE
     )
+    set_aside = select(StorySetAside.story_id).where(StorySetAside.user_id == user_id)
     followed = select(StoryRuleMatch.story_id).where(
         StoryRuleMatch.user_id == user_id, StoryRuleMatch.mode == topics_svc.MODE_FOLLOW
     )
     return and_(
-        Story.id.in_(muted), Story.id.not_in(followed), StoryState.saved_at.is_(None)
+        or_(Story.id.in_(muted), Story.id.in_(set_aside)),
+        Story.id.not_in(followed),
+        StoryState.saved_at.is_(None),
     )
 
 
@@ -1124,7 +1129,11 @@ async def story_detail(
         detail_title, detail_summary = await get_or_translate_story(session, story, user_lang)
 
     detail_video = next((_video_fields(a) for a in articles if a.media_kind == "video"), {})
+    detail_vis = (await topics_svc.story_visibility_map(session, user.id, [story.id])).get(
+        story.id, (topics_svc.VISIBLE, None)
+    )[0]
     return StoryDetail(
+        ignored=detail_vis == topics_svc.IGNORED,
         id=story.id,
         title=detail_title,
         summary=detail_summary,
@@ -1470,6 +1479,63 @@ async def mark_unread(
     from app.services.readers.sync import sync_story_read_state_outbound
 
     await sync_story_read_state_outbound(session, user.id, story_id, is_read=False)
+
+
+@router.post("/{story_id}/unhide", status_code=status.HTTP_204_NO_CONTENT)
+async def unhide_story(
+    story_id: int,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    """Show a hidden (muted / set-aside) story again. A later story update may re-match."""
+    await session.execute(
+        delete(StorySetAside).where(
+            StorySetAside.user_id == user.id, StorySetAside.story_id == story_id
+        )
+    )
+    await session.execute(
+        delete(StoryRuleMatch).where(
+            StoryRuleMatch.user_id == user.id,
+            StoryRuleMatch.story_id == story_id,
+            StoryRuleMatch.mode == topics_svc.MODE_MUTE,
+        )
+    )
+    await session.commit()
+
+
+class ReleasedOut(BaseModel):
+    released: int
+
+
+@router.post("/unhide-all")
+async def unhide_all(
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> ReleasedOut:
+    """Release every story currently hidden for the user; rules keep applying to new stories."""
+    released = (
+        await session.scalar(
+            select(func.count())
+            .select_from(Story)
+            .outerjoin(
+                StoryState, and_(StoryState.story_id == Story.id, StoryState.user_id == user.id)
+            )
+            .where(_ignored_sql(user.id))
+        )
+    ) or 0
+    followed = select(StoryRuleMatch.story_id).where(
+        StoryRuleMatch.user_id == user.id, StoryRuleMatch.mode == topics_svc.MODE_FOLLOW
+    )
+    await session.execute(delete(StorySetAside).where(StorySetAside.user_id == user.id))
+    await session.execute(
+        delete(StoryRuleMatch).where(
+            StoryRuleMatch.user_id == user.id,
+            StoryRuleMatch.mode == topics_svc.MODE_MUTE,
+            StoryRuleMatch.story_id.not_in(followed),
+        )
+    )
+    await session.commit()
+    return ReleasedOut(released=released)
 
 
 @router.get("/{story_id}/diff")

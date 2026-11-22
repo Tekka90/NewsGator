@@ -69,5 +69,10 @@
   "canvasLabelGroups": "Topic groups, {count} groups. Drag to rotate, scroll or pinch to zoom, tap a group to focus it, double-tap to zoom in.",
   "nodeLabelGroup": "{label}, group, {count} unread, {state}",
   "manualEmpty": "You have no typed topics yet.",
-  "groupEmpty": "This group has no topics anymore."
+  "groupEmpty": "This group has no topics anymore.",
+  "removeAskTitle": "Also bring back the {count} hidden stories?",
+  "showAgain": "Show again",
+  "keepHidden": "Keep hidden",
+  "showAllHidden": "Show all",
+  "confirmShowAll": "Show all {count} hidden stories again? Your rules keep applying to new stories."
 }

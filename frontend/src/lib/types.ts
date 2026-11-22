@@ -391,6 +391,8 @@ export interface TopicRule {
   created_at: string;
   matched_stories: number;
   hidden_unread: number;
+  /** stories this (mute) rule currently hides; absent on older servers */
+  hidden_count?: number;
 }
 
 /** GET /api/topic-groups: one "galaxy" of related topics. */

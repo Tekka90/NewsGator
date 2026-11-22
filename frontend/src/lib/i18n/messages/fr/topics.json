@@ -69,5 +69,10 @@
   "canvasLabelGroups": "Groupes de sujets, {count} groupes. Glissez pour pivoter, faites défiler ou pincez pour zoomer, touchez un groupe pour le sélectionner, touchez deux fois pour zoomer.",
   "nodeLabelGroup": "{label}, groupe, {count} non lus, {state}",
   "manualEmpty": "Vous n'avez pas encore de sujets saisis.",
-  "groupEmpty": "Ce groupe ne contient plus de sujets."
+  "groupEmpty": "Ce groupe ne contient plus de sujets.",
+  "removeAskTitle": "Réafficher aussi les {count} articles masqués ?",
+  "showAgain": "Réafficher",
+  "keepHidden": "Garder masqués",
+  "showAllHidden": "Tout réafficher",
+  "confirmShowAll": "Réafficher les {count} articles masqués ? Vos règles continuent de s'appliquer aux nouveaux articles."
 }

@@ -5,6 +5,7 @@
   import { api, streamUrl } from '$lib/api';
   import { currentUser } from '$lib/stores';
   import { initLocale, setLocale, t } from '$lib/i18n';
+  import RuleRemovalPrompt from '$lib/components/RuleRemovalPrompt.svelte';
   import '$lib/theme.css';
 
   let { children } = $props();
@@ -72,6 +73,8 @@
 </script>
 
 <svelte:head><title>NewsGator</title></svelte:head>
+
+<RuleRemovalPrompt />
 
 {#if !ready}
   <main class="center"><p>{$t('nav.loading')}</p></main>

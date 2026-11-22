@@ -69,5 +69,10 @@
   "canvasLabelGroups": "话题分组，共 {count} 个分组。拖动旋转，滚动或捏合缩放，点按分组聚焦，双击放大查看。",
   "nodeLabelGroup": "{label}，分组，{count} 条未读，{state}",
   "manualEmpty": "你还没有手动输入的话题。",
-  "groupEmpty": "此分组已没有话题。"
+  "groupEmpty": "此分组已没有话题。",
+  "removeAskTitle": "是否同时恢复已隐藏的 {count} 条报道？",
+  "showAgain": "重新显示",
+  "keepHidden": "保持隐藏",
+  "showAllHidden": "全部显示",
+  "confirmShowAll": "重新显示全部 {count} 条已隐藏的报道？规则仍会应用于新报道。"
 }

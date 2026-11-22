@@ -360,7 +360,11 @@ export const api = {
     updateRule: (ruleId: number, mode: TopicMode) =>
       req<TopicRule>(`/topic-rules/${ruleId}`, { method: 'PATCH', body: { mode } }),
     rules: () => req<TopicRule[]>('/topic-rules'),
-    removeRule: (id: number) => req<void>(`/topic-rules/${id}`, { method: 'DELETE' }),
+    // keepHidden: a mute rule's stories stay hidden (set aside) instead of coming back
+    removeRule: (id: number, keepHidden?: boolean) =>
+      keepHidden === undefined
+        ? req<void>(`/topic-rules/${id}`, { method: 'DELETE' })
+        : req<void>(`/topic-rules/${id}/remove`, { method: 'POST', body: { keep_hidden: keepHidden } }),
     // "this story is not about the topic" — makes the rule stricter
     feedback: (ruleId: number, storyId: number) =>
       req<TopicRule>(`/topic-rules/${ruleId}/feedback`, {
@@ -436,6 +440,9 @@ export const api = {
       req<SimilarStory[]>(`/stories/articles/${articleId}/similar-stories`),
     read: (id: number) => req<void>(`/stories/${id}/read`, { method: 'POST' }),
     unread: (id: number) => req<void>(`/stories/${id}/unread`, { method: 'POST' }),
+    // Topic Radar: show a hidden story again / release every hidden story
+    unhide: (id: number) => req<void>(`/stories/${id}/unhide`, { method: 'POST' }),
+    unhideAll: () => req<{ released: number }>('/stories/unhide-all', { method: 'POST' }),
     setSaved: (id: number, saved: boolean) =>
       req<{ saved: boolean; saved_at: string | null }>(`/stories/${id}/saved`, {
         method: saved ? 'PUT' : 'DELETE'

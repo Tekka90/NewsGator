@@ -574,6 +574,19 @@ class StoryRuleMatch(Base):
     mode: Mapped[str] = mapped_column(String(8))
 
 
+class StorySetAside(Base):
+    """Stories that stay hidden for a user after their mute rule ended (no "burst" of
+    suddenly unread stories). Released explicitly through ``/stories/*/unhide``."""
+
+    __tablename__ = "story_set_aside"
+
+    user_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    story_id: Mapped[int] = mapped_column(
+        ForeignKey("story.id", ondelete="CASCADE"), primary_key=True, index=True
+    )
+    set_aside_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class TopicFeedback(Base):
     """"This story is not about the topic" — labeled pairs (invariant 9). No FKs."""
 

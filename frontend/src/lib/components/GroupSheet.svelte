@@ -1,6 +1,7 @@
 <script lang="ts">
   import { api } from '$lib/api';
   import { t } from '$lib/i18n';
+  import { removeRuleAsking } from '$lib/ruleRemoval';
   import { groupCss } from '$lib/constellation';
   import type { TopicDuration, TopicGroup, TopicMode, TopicPreview } from '$lib/types';
 
@@ -55,7 +56,7 @@
   }
 
   const apply = (mode: TopicMode) => run(() => api.topicGroups.createRule(group.id, mode, duration));
-  const removeRule = () => (group.rule ? run(() => api.topics.removeRule(group.rule!.id)) : undefined);
+  const removeRule = () => (group.rule ? run(() => removeRuleAsking(group.rule!.id)) : undefined);
 </script>
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && onclose()} />

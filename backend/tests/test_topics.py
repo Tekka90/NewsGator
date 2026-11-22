@@ -13,7 +13,16 @@ from tests.conftest import setup_admin
 from app.api import stories as stories_api
 from app.api import topics as topics_api
 from app.core.config import settings
-from app.models import Article, Feed, Story, StoryTopic, Topic, UserFeed, utcnow
+from app.models import (
+    Article,
+    Feed,
+    Story,
+    StorySetAside,
+    StoryTopic,
+    Topic,
+    UserFeed,
+    utcnow,
+)
 from app.services import topics as topics_svc
 from app.services.vectorstore import InMemoryVectorStore
 
@@ -201,7 +210,8 @@ async def test_rule_ends_when_topic_fades(
         await s.commit()
     report = await _discover(db_session)
     assert report["faded"] == 1 and report["rules_expired"] == 1
-    assert len((await client.get("/api/stories")).json()) == 7
+    # the muted stories are set aside, not released
+    assert len((await client.get("/api/stories")).json()) == 2
 
 
 async def test_feedback_tightens_rule(client: AsyncClient, db_session, store) -> None:
@@ -443,3 +453,135 @@ async def test_group_rule_ends_when_group_disappears(
     assert report["groups_deleted"] == 1
     assert (await client.get("/api/topic-groups")).json() == []
     assert (await client.get("/api/topic-rules")).json() == []
+
+
+async def _muted(client: AsyncClient, db_session, store) -> tuple[list[int], int]:
+    await setup_admin(client)
+    ids = await _seed(db_session, store)
+    await _discover(db_session)
+    topic_id = (await client.get("/api/topics")).json()[0]["id"]
+    r = await client.post(f"/api/topics/{topic_id}/rules", json={"mode": "mute", "duration": "7d"})
+    return ids, r.json()["id"]
+
+
+async def _expire_rules(db_session) -> None:
+    from app.models import TopicRule
+
+    async with db_session() as s:
+        for rule in (await s.scalars(select(TopicRule))).all():
+            rule.expires_at = utcnow() - timedelta(hours=1)
+        await s.commit()
+    assert (await _discover(db_session))["rules_expired"] == 1
+
+
+async def test_rule_expiry_sets_stories_aside(client: AsyncClient, db_session, store) -> None:
+    ids, _ = await _muted(client, db_session, store)
+    rules = (await client.get("/api/topic-rules")).json()
+    assert rules[0]["hidden_count"] == 5 and rules[0]["hidden_unread"] == 5
+    await _expire_rules(db_session)
+    assert (await client.get("/api/topic-rules")).json() == []
+    assert {s["id"] for s in (await client.get("/api/stories")).json()} == {ids[5], ids[6]}
+    counts = (await client.get("/api/stories/counts")).json()
+    assert counts["all"] == 2 and counts["unread"] == 2 and counts["ignored"] == 5
+    only = (await client.get("/api/stories?ignored=only")).json()
+    assert {s["id"] for s in only} == set(ids[:5]) and all(s["ignored"] for s in only)
+    assert (await client.get(f"/api/stories/{ids[0]}")).json()["ignored"] is True
+    assert (await client.get(f"/api/stories/{ids[5]}")).json()["ignored"] is False
+    # a second sweep is idempotent
+    await _discover(db_session)
+    async with db_session() as s:
+        assert len((await s.scalars(select(StorySetAside))).all()) == 5
+
+
+async def test_expired_follow_rule_sets_nothing_aside(
+    client: AsyncClient, db_session, store
+) -> None:
+    await setup_admin(client)
+    await _seed(db_session, store)
+    await _discover(db_session)
+    topic_id = (await client.get("/api/topics")).json()[0]["id"]
+    await client.post(f"/api/topics/{topic_id}/rules", json={"mode": "follow", "duration": "7d"})
+    await _expire_rules(db_session)
+    async with db_session() as s:
+        assert (await s.scalars(select(StorySetAside))).all() == []
+    assert len((await client.get("/api/stories")).json()) == 7
+
+
+async def test_delete_rule_keep_hidden(client: AsyncClient, db_session, store) -> None:
+    ids, rule_id = await _muted(client, db_session, store)
+    assert (
+        await client.delete(f"/api/topic-rules/{rule_id}", params={"keep_hidden": "true"})
+    ).status_code == 204
+    assert {s["id"] for s in (await client.get("/api/stories")).json()} == {ids[5], ids[6]}
+    assert (await client.get("/api/stories/counts")).json()["ignored"] == 5
+
+    # POST /remove with a JSON body behaves the same
+    topic_id = (await client.get("/api/topics")).json()[0]["id"]
+    await client.post("/api/stories/unhide-all")
+    r = await client.post(f"/api/topics/{topic_id}/rules", json={"mode": "mute"})
+    rid = r.json()["id"]
+    gone = await client.post(f"/api/topic-rules/{rid}/remove", json={"keep_hidden": True})
+    assert gone.status_code == 204 and len((await client.get("/api/stories")).json()) == 2
+    await client.post("/api/stories/unhide-all")
+    r = await client.post(f"/api/topics/{topic_id}/rules", json={"mode": "mute"})
+    rid = r.json()["id"]
+    assert (await client.post(f"/api/topic-rules/{rid}/remove", json={})).status_code == 204
+    assert len((await client.get("/api/stories")).json()) == 7
+
+    # default: everything comes back (fresh mute, then plain delete)
+    topic_id = (await client.get("/api/topics")).json()[0]["id"]
+    r = await client.post(f"/api/topics/{topic_id}/rules", json={"mode": "mute"})
+    await client.post("/api/stories/unhide-all")
+    r = await client.post(f"/api/topics/{topic_id}/rules", json={"mode": "mute"})
+    assert (await client.delete(f"/api/topic-rules/{r.json()['id']}")).status_code == 204
+    assert len((await client.get("/api/stories")).json()) == 7
+
+
+async def test_unhide_one_and_all(client: AsyncClient, db_session, store) -> None:
+    ids, rule_id = await _muted(client, db_session, store)
+    # still under a live rule: unhide drops the mute match for that story only
+    assert (await client.post(f"/api/stories/{ids[0]}/unhide")).status_code == 204
+    assert ids[0] in {s["id"] for s in (await client.get("/api/stories")).json()}
+    assert len((await client.get("/api/stories?ignored=only")).json()) == 4
+
+    await client.delete(f"/api/topic-rules/{rule_id}", params={"keep_hidden": "true"})
+    assert len((await client.get("/api/stories?ignored=only")).json()) == 4
+    assert (await client.post(f"/api/stories/{ids[1]}/unhide")).status_code == 204
+    assert len((await client.get("/api/stories?ignored=only")).json()) == 3
+
+    out = await client.post("/api/stories/unhide-all")
+    assert out.status_code == 200 and out.json() == {"released": 3}
+    assert len((await client.get("/api/stories")).json()) == 7
+    assert (await client.post("/api/stories/unhide-all")).json() == {"released": 0}
+
+
+async def test_unhide_all_keeps_rules_for_future_stories(
+    client: AsyncClient, db_session, store
+) -> None:
+    ids, _ = await _muted(client, db_session, store)
+    assert (await client.post("/api/stories/unhide-all")).json() == {"released": 5}
+    assert len((await client.get("/api/topic-rules")).json()) == 1
+    async with db_session() as s:
+        story = Story(title="Fresh", summary="x", version=1, category="Tech")
+        s.add(story)
+        await s.flush()
+        await store.upsert_story_centroid(story.id, _vec(0, jitter=0.1))
+        await topics_svc.evaluate_story(s, story.id)
+        await s.commit()
+        fresh = story.id
+    assert fresh not in {s["id"] for s in (await client.get("/api/stories")).json()}
+    assert ids
+
+
+async def test_set_aside_follow_and_saved_override(
+    client: AsyncClient, db_session, store
+) -> None:
+    ids, rule_id = await _muted(client, db_session, store)
+    await client.delete(f"/api/topic-rules/{rule_id}", params={"keep_hidden": "true"})
+    assert len((await client.get("/api/stories")).json()) == 2
+    await client.put(f"/api/stories/{ids[0]}/saved")
+    assert ids[0] in {s["id"] for s in (await client.get("/api/stories")).json()}
+    topic_id = (await client.get("/api/topics")).json()[0]["id"]
+    await client.post(f"/api/topics/{topic_id}/rules", json={"mode": "follow"})
+    assert len((await client.get("/api/stories")).json()) == 7
+    assert (await client.get("/api/stories/counts")).json()["ignored"] == 0

@@ -69,5 +69,10 @@
   "canvasLabelGroups": "トピックグループ、{count}グループ。ドラッグで回転、スクロールまたはピンチでズーム、グループをタップでフォーカス、ダブルタップでズームイン。",
   "nodeLabelGroup": "{label}、グループ、未読{count}件、{state}",
   "manualEmpty": "入力したトピックはまだありません。",
-  "groupEmpty": "このグループにはトピックがありません。"
+  "groupEmpty": "このグループにはトピックがありません。",
+  "removeAskTitle": "非表示の{count}件のストーリーも元に戻しますか？",
+  "showAgain": "再表示",
+  "keepHidden": "非表示のまま",
+  "showAllHidden": "すべて表示",
+  "confirmShowAll": "非表示の{count}件のストーリーをすべて再表示しますか？ルールは新しいストーリーに引き続き適用されます。"
 }

@@ -69,5 +69,10 @@
   "canvasLabelGroups": "Grupos de temas, {count} grupos. Arrastra para girar, desplaza o pellizca para hacer zoom, toca un grupo para enfocarlo, toca dos veces para acercar.",
   "nodeLabelGroup": "{label}, grupo, {count} sin leer, {state}",
   "manualEmpty": "Aún no tienes temas escritos.",
-  "groupEmpty": "Este grupo ya no tiene temas."
+  "groupEmpty": "Este grupo ya no tiene temas.",
+  "removeAskTitle": "¿Recuperar también las {count} historias ocultas?",
+  "showAgain": "Mostrar de nuevo",
+  "keepHidden": "Mantener ocultas",
+  "showAllHidden": "Mostrar todas",
+  "confirmShowAll": "¿Mostrar de nuevo las {count} historias ocultas? Tus reglas siguen aplicándose a las nuevas historias."
 }

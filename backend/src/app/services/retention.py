@@ -20,6 +20,7 @@ from app.models import (
     Story,
     StoryRevision,
     StoryRuleMatch,
+    StorySetAside,
     StoryState,
     StoryTopic,
     StoryTranslation,
@@ -83,6 +84,9 @@ async def purge_old_data(session: AsyncSession) -> dict[str, int]:
         await session.execute(delete(StoryTopic).where(StoryTopic.story_id.in_(story_ids)))
         await session.execute(
             delete(StoryRuleMatch).where(StoryRuleMatch.story_id.in_(story_ids))
+        )
+        await session.execute(
+            delete(StorySetAside).where(StorySetAside.story_id.in_(story_ids))
         )
         await session.execute(delete(Story).where(Story.id.in_(story_ids)))
     report["stories"] = len(story_ids)

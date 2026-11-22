@@ -8,7 +8,7 @@
   import ReadeckIcon from '$lib/components/ReadeckIcon.svelte';
   import ShareButton from '$lib/components/ShareButton.svelte';
   import PresetBar from '$lib/components/PresetBar.svelte';
-  import { t } from '$lib/i18n';
+  import { t, tNow } from '$lib/i18n';
   import {
     adjustSavedCounts,
     defaultPresets,
@@ -428,6 +428,19 @@
     }
   }
 
+  async function showAgainStory(story: StoryListItem, e?: Event) {
+    e?.stopPropagation();
+    await api.stories.unhide(story.id).catch(() => {});
+    stories = stories.filter((s) => s.id !== story.id);
+  }
+
+  async function showAllHidden() {
+    if (!confirm(tNow('topics.confirmShowAll', { count: stories.length }))) return;
+    await api.stories.unhideAll().catch(() => {});
+    showIgnored = false;
+    await load();
+  }
+
   async function toggleSaved(story: StoryListItem, e?: Event) {
     e?.preventDefault();
     e?.stopPropagation();
@@ -578,6 +591,9 @@
   {#if showIgnored}
     <a class="hiddenback" href="/ai">{$t('topics.backToAi')}</a>
     <button class="hiddenback" onclick={() => { showIgnored = false; load(); }}>{$t('stories.backToStories')}</button>
+    {#if stories.length}
+      <button class="hiddenback" onclick={showAllHidden}>{$t('topics.showAllHidden')}</button>
+    {/if}
   {/if}
 
   {#if isMobile && (pullDist > 0 || refreshing)}
@@ -728,6 +744,7 @@
       <div class="row">
         <span class="chip">{current.category}</span>
         {#if !current.is_read}<span class="dot" title={$t('stories.unreadStory')}></span>{/if}
+        {#if showIgnored || current.ignored}<button class="linkbtn" onclick={(e) => showAgainStory(current!, e)}>{$t('topics.showAgain')}</button>{/if}
         {#if current.followed}<span class="fstar" title={$t('stories.followedBadge')} aria-label={$t('stories.followedBadge')}>★</span>{/if}
         {#if current.updated_since_read}<span class="badge updated">{$t('stories.updatedBadge')}</span>{/if}
         {#if current.media_kind === 'video'}<span class="badge video">▶ {providerLabel(current.video_provider)}{#if current.video_duration} · {formatDuration(current.video_duration)}{/if}</span>{/if}
@@ -813,6 +830,7 @@
       <div class="row">
         <span class="chip">{story.category}</span>
         {#if !story.is_read}<span class="dot" title={$t('stories.unreadStory')}></span>{/if}
+        {#if showIgnored || story.ignored}<button class="linkbtn" onclick={(e) => showAgainStory(story, e)}>{$t('topics.showAgain')}</button>{/if}
         {#if story.followed}<span class="fstar" title={$t('stories.followedBadge')} aria-label={$t('stories.followedBadge')}>★</span>{/if}
         {#if story.updated_since_read}<span class="badge updated">{$t('stories.updatedBadge')}</span>{/if}
         {#if story.media_kind === 'video'}<span class="badge video">▶ {providerLabel(story.video_provider)}{#if story.video_duration} · {formatDuration(story.video_duration)}{/if}</span>{/if}

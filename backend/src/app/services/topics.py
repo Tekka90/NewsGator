@@ -26,6 +26,7 @@ from app.models import (
     Article,
     Story,
     StoryRuleMatch,
+    StorySetAside,
     StoryState,
     StoryTopic,
     Topic,
@@ -60,12 +61,13 @@ def rule_matches(story_vec: np.ndarray, rule_vec: np.ndarray, threshold: float) 
     return cosine_similarity(story_vec, rule_vec) >= threshold
 
 
-def visibility(modes: Iterable[str], *, saved: bool) -> str:
-    """Follow beats mute; saved stories are never ignored."""
+def visibility(modes: Iterable[str], *, saved: bool, set_aside: bool = False) -> str:
+    """Follow beats mute; saved stories are never ignored. A set-aside story (its mute rule
+    ended) counts as muted."""
     found = set(modes)
     if MODE_FOLLOW in found:
         return FOLLOWED
-    if MODE_MUTE in found and not saved:
+    if (MODE_MUTE in found or set_aside) and not saved:
         return IGNORED
     return VISIBLE
 
@@ -421,6 +423,45 @@ async def set_rule_mode(session: AsyncSession, rule: TopicRule, mode: str) -> No
     await session.flush()
 
 
+async def set_aside_rule_matches(session: AsyncSession, rule: TopicRule) -> int:
+    """Keep the stories a mute rule hides hidden once the rule is gone. Returns how many
+    were newly set aside."""
+    if rule.mode != MODE_MUTE:
+        return 0
+    story_ids = (
+        await session.scalars(
+            select(StoryRuleMatch.story_id).where(
+                StoryRuleMatch.rule_id == rule.id, StoryRuleMatch.user_id == rule.user_id
+            )
+        )
+    ).all()
+    if not story_ids:
+        return 0
+    existing = set(
+        (
+            await session.scalars(
+                select(StorySetAside.story_id).where(
+                    StorySetAside.user_id == rule.user_id,
+                    StorySetAside.story_id.in_(story_ids),
+                )
+            )
+        ).all()
+    )
+    now = utcnow()
+    fresh = [sid for sid in story_ids if sid not in existing]
+    for sid in fresh:
+        session.add(StorySetAside(user_id=rule.user_id, story_id=sid, set_aside_at=now))
+    await session.flush()
+    return len(fresh)
+
+
+async def expire_rule(session: AsyncSession, rule: TopicRule) -> None:
+    """End of life of a rule (date or "until the topic fades"): muted stories are set aside
+    instead of reappearing as unread."""
+    await set_aside_rule_matches(session, rule)
+    await delete_rule(session, rule)
+
+
 async def delete_rule(session: AsyncSession, rule: TopicRule) -> None:
     await session.execute(delete(StoryRuleMatch).where(StoryRuleMatch.rule_id == rule.id))
     await session.delete(rule)
@@ -626,7 +667,7 @@ async def _refresh_topics(session: AsyncSession) -> dict[str, int]:
         if (expires is not None and expires <= now) or (
             rule.until_fade and rule.source_topic_id in faded_ids
         ):
-            await delete_rule(session, rule)
+            await expire_rule(session, rule)
             report["rules_expired"] += 1
             await activity.emit(session, "topics", "rule_expired", {"rule_id": rule.id})
     await session.commit()
@@ -774,7 +815,7 @@ async def _refresh_groups(session: AsyncSession) -> dict[str, int]:
                 )
             )
         ).all():
-            await delete_rule(session, rule)
+            await expire_rule(session, rule)
             await activity.emit(session, "topics", "rule_expired", {"rule_id": rule.id})
         await session.commit()
 
@@ -811,12 +852,21 @@ async def story_visibility_map(
             )
         ).all()
     )
-    grouped: dict[int, list[tuple[str, int]]] = {}
+    aside = set(
+        (
+            await session.scalars(
+                select(StorySetAside.story_id).where(
+                    StorySetAside.user_id == user_id, StorySetAside.story_id.in_(story_ids)
+                )
+            )
+        ).all()
+    )
+    grouped: dict[int, list[tuple[str, int]]] = {sid: [] for sid in aside}
     for sid, mode, rid in rows:
         grouped.setdefault(sid, []).append((mode, rid))
     out: dict[int, tuple[str, int | None]] = {}
     for sid, items in grouped.items():
-        state = visibility([m for m, _ in items], saved=sid in saved)
+        state = visibility([m for m, _ in items], saved=sid in saved, set_aside=sid in aside)
         wanted = {IGNORED: MODE_MUTE, FOLLOWED: MODE_FOLLOW}.get(state)
         rule_id = next((rid for m, rid in items if m == wanted), None)
         out[sid] = (state, rule_id)

@@ -91,8 +91,10 @@ async def test_legacy_create_all_db_stamped_and_upgraded(
     # 0029 (listen position) later again, 0030 (validity stamps) with it
     # 0031 (user.ui_language) after that
     # 0032 (Topic Radar tables) after that, 0033 (topic groups) with it
+    # 0034 (story_set_aside) last
     for table in (
-        "topic_group", "topic_feedback", "story_rule_match", "topic_rule", "story_topic", "topic",
+        "story_set_aside", "topic_group", "topic_feedback", "story_rule_match",
+        "topic_rule", "story_topic", "topic",
     ):
         sync_conn.execute(f"DROP TABLE {table}")
     sync_conn.execute("ALTER TABLE user DROP COLUMN ui_language")

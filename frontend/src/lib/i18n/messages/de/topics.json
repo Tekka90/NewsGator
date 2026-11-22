@@ -69,5 +69,10 @@
   "canvasLabelGroups": "Themengruppen, {count} Gruppen. Zum Drehen ziehen, zum Zoomen scrollen oder zusammenziehen, Gruppe antippen zum Fokussieren, doppelt tippen zum Hineinzoomen.",
   "nodeLabelGroup": "{label}, Gruppe, {count} ungelesen, {state}",
   "manualEmpty": "Du hast noch keine eigenen Themen.",
-  "groupEmpty": "Diese Gruppe enthält keine Themen mehr."
+  "groupEmpty": "Diese Gruppe enthält keine Themen mehr.",
+  "removeAskTitle": "Auch die {count} ausgeblendeten Storys wieder anzeigen?",
+  "showAgain": "Wieder anzeigen",
+  "keepHidden": "Ausgeblendet lassen",
+  "showAllHidden": "Alle anzeigen",
+  "confirmShowAll": "Alle {count} ausgeblendeten Storys wieder anzeigen? Deine Regeln gelten weiterhin für neue Storys."
 }

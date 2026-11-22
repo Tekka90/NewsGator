@@ -320,5 +320,11 @@ Topic groups (galaxies, Alembic 0033):
 - `GET /api/topics` items gain `group_id` (null for typed topics); `?all=true&group=<id>` → only that group's topics, laid out among themselves; `?all=true&manual_only=true` → only typed topics (not in any group). `?all=true` without those params is unchanged. `GET /api/topic-rules` items gain `group_id`.
 - Settings `TOPIC_GROUP_THRESHOLD` (0.70), `TOPIC_GROUP_MAX` (12). 404 when topics are disabled.
 
+Set aside (Alembic 0034): a mute rule that ends (expiry, until-fade, group gone) keeps its stories hidden; they stay `ignored: true` (hidden from lists/counts, listed by `ignored=only`) until released.
+- `DELETE /api/topic-rules/<id>?keep_hidden=true|false` (default false: hidden stories come back) and, for clients that cannot send query strings, `POST /api/topic-rules/<id>/remove` with JSON body `{"keep_hidden": bool}` (default false, `{}` ok). Both return 204 and behave identically; `keep_hidden` only matters for mute rules.
+- `POST /api/stories/<id>/unhide` → 204: show a hidden story again (removes its set-aside row and the user's mute matches for it; a later story update may re-match).
+- `POST /api/stories/unhide-all` → `{"released": n}`: releases every hidden story; rules keep applying to future stories.
+- `GET /api/topic-rules` items gain `hidden_count: int` (stories that rule currently hides, 0 for follow rules; `hidden_unread` is the unread subset). Use it to ask "Also bring back the N hidden stories?" before removing a mute rule. `GET /api/stories/<id>` gains `ignored: bool`.
+
 All additions are optional for old clients. The Apple client treats 404 as "topics unavailable". Apple standalone mode
 implements the same shapes locally.

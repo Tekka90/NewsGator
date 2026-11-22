@@ -185,3 +185,16 @@ async def test_threshold_report_endpoint(client: AsyncClient, db_session) -> Non
     r = await client.get("/api/settings/threshold-report")
     assert r.status_code == 200
     assert "candidates" in r.json()
+
+
+async def test_retention_purges_set_aside(db_session, store) -> None:
+    from app.models import StorySetAside
+
+    old_id, fresh_id = await _seed_old_and_fresh(db_session)
+    async with db_session() as s:
+        s.add(StorySetAside(user_id=1, story_id=old_id))
+        s.add(StorySetAside(user_id=1, story_id=fresh_id))
+        await s.commit()
+        await retention.purge_old_data(s)
+        rows = (await s.scalars(select(StorySetAside.story_id))).all()
+    assert rows == [fresh_id]

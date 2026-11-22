@@ -69,5 +69,10 @@
   "canvasLabelGroups": "話題群組，共 {count} 個群組。拖曳旋轉，捲動或捏合縮放，點按群組聚焦，連按兩下放大檢視。",
   "nodeLabelGroup": "{label}，群組，{count} 則未讀，{state}",
   "manualEmpty": "你還沒有手動輸入的話題。",
-  "groupEmpty": "此群組已沒有話題。"
+  "groupEmpty": "此群組已沒有話題。",
+  "removeAskTitle": "是否同時恢復已隱藏的 {count} 則報導？",
+  "showAgain": "重新顯示",
+  "keepHidden": "保持隱藏",
+  "showAllHidden": "全部顯示",
+  "confirmShowAll": "重新顯示全部 {count} 則已隱藏的報導？規則仍會套用於新報導。"
 }

@@ -69,5 +69,10 @@
   "canvasLabelGroups": "Gruppi di argomenti, {count} gruppi. Trascina per ruotare, scorri o pizzica per zoomare, tocca un gruppo per metterlo a fuoco, tocca due volte per ingrandire.",
   "nodeLabelGroup": "{label}, gruppo, {count} non letti, {state}",
   "manualEmpty": "Non hai ancora argomenti digitati.",
-  "groupEmpty": "Questo gruppo non ha più argomenti."
+  "groupEmpty": "Questo gruppo non ha più argomenti.",
+  "removeAskTitle": "Ripristinare anche le {count} storie nascoste?",
+  "showAgain": "Mostra di nuovo",
+  "keepHidden": "Mantieni nascoste",
+  "showAllHidden": "Mostra tutte",
+  "confirmShowAll": "Mostrare di nuovo le {count} storie nascoste? Le tue regole continuano ad applicarsi alle nuove storie."
 }

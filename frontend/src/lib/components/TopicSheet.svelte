@@ -1,6 +1,7 @@
 <script lang="ts">
   import { api } from '$lib/api';
   import { t } from '$lib/i18n';
+  import { removeRuleAsking } from '$lib/ruleRemoval';
   import type { Topic, TopicDuration, TopicMode, TopicPreview } from '$lib/types';
 
   let {
@@ -55,8 +56,8 @@
   const apply = (mode: TopicMode) => run(() => api.topics.createRule(topic.id, mode, duration));
   const setMode = (mode: TopicMode) =>
     topic.rule && topic.rule.mode !== mode ? run(() => api.topics.updateRule(topic.rule!.id, mode)) : undefined;
-  const removeManual = () => (topic.rule ? run(() => api.topics.removeRule(topic.rule!.id)) : undefined);
-  const removeRule = (tp: Topic) => (tp.rule ? run(() => api.topics.removeRule(tp.rule!.id)) : undefined);
+  const removeManual = () => (topic.rule ? run(() => removeRuleAsking(topic.rule!.id)) : undefined);
+  const removeRule = (tp: Topic) => (tp.rule ? run(() => removeRuleAsking(tp.rule!.id)) : undefined);
 </script>
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && onclose()} />

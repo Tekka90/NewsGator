@@ -69,5 +69,10 @@
   "canvasLabelGroups": "주제 그룹, 그룹 {count}개. 드래그하여 회전, 스크롤하거나 핀치하여 확대/축소, 그룹을 탭하여 선택, 두 번 탭하여 확대합니다.",
   "nodeLabelGroup": "{label}, 그룹, 읽지 않음 {count}개, {state}",
   "manualEmpty": "직접 입력한 주제가 아직 없습니다.",
-  "groupEmpty": "이 그룹에는 더 이상 주제가 없습니다."
+  "groupEmpty": "이 그룹에는 더 이상 주제가 없습니다.",
+  "removeAskTitle": "숨겨진 스토리 {count}개도 다시 표시할까요?",
+  "showAgain": "다시 표시",
+  "keepHidden": "숨김 유지",
+  "showAllHidden": "모두 표시",
+  "confirmShowAll": "숨겨진 스토리 {count}개를 모두 다시 표시할까요? 규칙은 새 스토리에 계속 적용됩니다."
 }

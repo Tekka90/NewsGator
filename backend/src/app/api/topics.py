@@ -117,9 +117,12 @@ class TopicRuleOut(BaseModel):
     created_at: str
     matched_stories: int
     hidden_unread: int
+    hidden_count: int = 0
 
 
-def _rule_out(rule: TopicRule, matched: int, hidden_unread: int) -> TopicRuleOut:
+def _rule_out(
+    rule: TopicRule, matched: int, hidden_unread: int, hidden_count: int = 0
+) -> TopicRuleOut:
     return TopicRuleOut(
         id=rule.id,
         mode=rule.mode,
@@ -131,6 +134,7 @@ def _rule_out(rule: TopicRule, matched: int, hidden_unread: int) -> TopicRuleOut
         created_at=rule.created_at.isoformat(),
         matched_stories=matched,
         hidden_unread=hidden_unread,
+        hidden_count=hidden_count,
     )
 
 
@@ -511,32 +515,37 @@ async def create_topic_rule(
 
 async def _rule_stats(
     session: AsyncSession, user: User, rule_ids: list[int]
-) -> dict[int, tuple[int, int]]:
-    """rule id -> (matched stories, unread among them)."""
+) -> dict[int, tuple[int, int, int]]:
+    """rule id -> (matched stories, unread among them, currently hidden among them)."""
     if not rule_ids:
         return {}
     rows = (
         await session.execute(
-            select(StoryRuleMatch.rule_id, func.coalesce(StoryState.is_read, False))
+            select(
+                StoryRuleMatch.rule_id,
+                func.coalesce(StoryState.is_read, False),
+                _ignored_sql(user.id),
+            )
+            .join(Story, Story.id == StoryRuleMatch.story_id)
             .outerjoin(
-                StoryState,
-                and_(
-                    StoryState.story_id == StoryRuleMatch.story_id, StoryState.user_id == user.id
-                ),
+                StoryState, and_(StoryState.story_id == Story.id, StoryState.user_id == user.id)
             )
             .where(StoryRuleMatch.rule_id.in_(rule_ids))
         )
     ).all()
-    stats: dict[int, tuple[int, int]] = {}
-    for rid, is_read in rows:
-        matched, unread = stats.get(rid, (0, 0))
-        stats[rid] = (matched + 1, unread + (0 if is_read else 1))
+    stats: dict[int, tuple[int, int, int]] = {}
+    for rid, is_read, hidden in rows:
+        matched, unread, hid = stats.get(rid, (0, 0, 0))
+        stats[rid] = (matched + 1, unread + (0 if is_read else 1), hid + (1 if hidden else 0))
     return stats
 
 
 async def _single_rule_out(session: AsyncSession, rule: TopicRule, user: User) -> TopicRuleOut:
-    matched, unread = (await _rule_stats(session, user, [rule.id])).get(rule.id, (0, 0))
-    return _rule_out(rule, matched, unread if rule.mode == "mute" else 0)
+    matched, unread, hidden = (await _rule_stats(session, user, [rule.id])).get(
+        rule.id, (0, 0, 0)
+    )
+    mute = rule.mode == "mute"
+    return _rule_out(rule, matched, unread if mute else 0, hidden if mute else 0)
 
 
 @router.get("/topic-rules")
@@ -553,8 +562,9 @@ async def list_topic_rules(
     stats = await _rule_stats(session, user, [r.id for r in rules])
     out: list[TopicRuleOut] = []
     for r in rules:
-        matched, unread = stats.get(r.id, (0, 0))
-        out.append(_rule_out(r, matched, unread if r.mode == "mute" else 0))
+        matched, unread, hidden = stats.get(r.id, (0, 0, 0))
+        mute = r.mode == "mute"
+        out.append(_rule_out(r, matched, unread if mute else 0, hidden if mute else 0))
     return out
 
 
@@ -568,13 +578,37 @@ async def _own_rule(session: AsyncSession, user: User, rule_id: int) -> TopicRul
 @router.delete("/topic-rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_topic_rule(
     rule_id: int,
+    keep_hidden: bool = False,
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ) -> None:
+    await _remove_rule(session, user, rule_id, keep_hidden)
+
+
+async def _remove_rule(
+    session: AsyncSession, user: User, rule_id: int, keep_hidden: bool
+) -> None:
     rule = await _own_rule(session, user, rule_id)
+    if keep_hidden:
+        await topics_svc.set_aside_rule_matches(session, rule)
     await topics_svc.delete_rule(session, rule)
     await activity.emit(session, "topics", "rule_deleted", {"rule_id": rule_id})
     await session.commit()
+
+
+class RemoveRuleIn(BaseModel):
+    keep_hidden: bool = False
+
+
+@router.post("/topic-rules/{rule_id}/remove", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_topic_rule(
+    rule_id: int,
+    body: RemoveRuleIn,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    """``DELETE /topic-rules/{id}?keep_hidden=`` for clients that cannot send query strings."""
+    await _remove_rule(session, user, rule_id, body.keep_hidden)
 
 
 class FeedbackIn(BaseModel):

@@ -3,6 +3,7 @@
   import { api } from '$lib/api';
   import { t } from '$lib/i18n';
   import TopicSheet from '$lib/components/TopicSheet.svelte';
+  import { removeRuleAsking } from '$lib/ruleRemoval';
   import GroupSheet from '$lib/components/GroupSheet.svelte';
   import type { Topic, TopicGroup, TopicMode } from '$lib/types';
   import {
@@ -302,8 +303,7 @@
     try {
       if (tp.group) {
         if (tp.rule) {
-          await api.topics.removeRule(tp.rule.id);
-          say($t('topics.toastReset', { label: tp.label }));
+          if (await removeRuleAsking(tp.rule.id)) say($t('topics.toastReset', { label: tp.label }));
         } else {
           await api.topicGroups.createRule(tp.group.id, 'mute', 'fade');
           say($t('topics.toastMuted', { label: tp.label }));
@@ -313,8 +313,7 @@
         await api.topics.updateRule(tp.rule.id, next);
         say($t(next === 'mute' ? 'topics.toastMuted' : 'topics.toastFollowed', { label: tp.label }));
       } else if (tp.rule) {
-        await api.topics.removeRule(tp.rule.id);
-        say($t('topics.toastReset', { label: tp.label }));
+        if (await removeRuleAsking(tp.rule.id)) say($t('topics.toastReset', { label: tp.label }));
       } else {
         await api.topics.createRule(tp.id, 'mute', 'fade');
         say($t('topics.toastMuted', { label: tp.label }));

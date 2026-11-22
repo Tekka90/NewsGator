@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { api } from '$lib/api';
   import { t } from '$lib/i18n';
+  import { removeRuleAsking } from '$lib/ruleRemoval';
   import type { TopicRule } from '$lib/types';
 
   let rules = $state<TopicRule[]>([]);
@@ -17,8 +18,7 @@
   }
 
   async function remove(rule: TopicRule) {
-    await api.topics.removeRule(rule.id);
-    rules = rules.filter((r) => r.id !== rule.id);
+    if (await removeRuleAsking(rule.id)) rules = rules.filter((r) => r.id !== rule.id);
   }
 
   onMount(load);

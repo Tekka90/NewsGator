@@ -44,6 +44,11 @@
     await load();
   }
 
+  async function showAgain() {
+    await api.stories.unhide(id);
+    await load();
+  }
+
   async function toggleSaved() {
     if (!story) return;
     const next = !story.saved;
@@ -155,6 +160,9 @@
       </button>
     {/if}
     <ShareButton storyId={id} />
+    {#if story.ignored}
+      <button onclick={showAgain}>{$t('topics.showAgain')}</button>
+    {/if}
     <button onclick={toggleRead}>{story.is_read ? $t('story.markUnread') : $t('story.markRead')}</button>
   </div>
   {#if readeckMsg}<p class="ok">{readeckMsg}</p>{/if}
