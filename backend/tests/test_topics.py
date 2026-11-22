@@ -297,3 +297,149 @@ async def test_manual_topic_follow_filter_and_mode_switch(
     new_id = (await client.get("/api/topic-rules")).json()[0]["id"]
     assert (await client.delete(f"/api/topic-rules/{new_id}")).status_code == 204
     assert (await client.get("/api/topics", params={"all": "true"})).json() == []
+
+
+# --- topic groups (galaxies) ---
+
+
+def _unit(*pairs: tuple[int, float], dim: int = 8) -> np.ndarray:
+    v = np.zeros(dim)
+    for axis, value in pairs:
+        v[axis] = value
+    return v
+
+
+def test_group_topics_separates_caps_and_is_deterministic(monkeypatch) -> None:
+    near = {
+        1: _unit((0, 1)),
+        2: _unit((0, 1), (1, 0.3)),
+        3: _unit((4, 1)),
+        4: _unit((4, 1), (5, 0.2)),
+    }
+    assert topics_svc.group_topics(near) == [[1, 2], [3, 4]]
+    assert topics_svc.group_topics({k: near[k] for k in (4, 3, 2, 1)}) == [[1, 2], [3, 4]]
+    assert topics_svc.group_topics({}) == []
+    assert topics_svc.group_topics({9: near[1]}) == [[9]]
+    monkeypatch.setattr(settings, "topic_group_max", 3)
+    assert topics_svc.group_topics(near) == [[1, 2], [3, 4]]
+    spread = {i: _unit((i, 1)) for i in range(6)}  # orthogonal: nothing merges by threshold
+    monkeypatch.setattr(settings, "topic_group_max", 12)
+    assert len(topics_svc.group_topics(spread)) == 6
+    monkeypatch.setattr(settings, "topic_group_max", 2)
+    capped = topics_svc.group_topics(spread)
+    assert len(capped) == 2 and sorted(m for g in capped for m in g) == list(range(6))
+    assert capped == topics_svc.group_topics(spread)
+
+
+async def _seed_topic(db_session, store: InMemoryVectorStore, axis: int, first: int) -> list[int]:
+    async with db_session() as s:
+        feed = (await s.scalars(select(Feed))).first()
+        assert feed is not None
+        ids: list[int] = []
+        for i in range(first, first + 5):
+            story = Story(title=f"Extra {i}", summary="x", version=1, category="Tech")
+            s.add(story)
+            await s.flush()
+            ids.append(story.id)
+            s.add(
+                Article(
+                    feed_id=feed.id,
+                    guid=f"x-{i}",
+                    url=f"https://extra{i}.example.com/{i}",
+                    title=f"E{i}",
+                    story_id=story.id,
+                    processing_state="clustered",
+                )
+            )
+            await store.upsert_story_centroid(story.id, _vec(axis, jitter=0.02 * i))
+        await s.commit()
+    return ids
+
+
+async def test_groups_api_scoping_and_identity(client: AsyncClient, db_session, store) -> None:
+    await setup_admin(client)
+    await _seed(db_session, store)
+    await _seed_topic(db_session, store, 3, 10)
+    report = await _discover(db_session)
+    assert report["created"] == 2 and report["groups_created"] == 2
+    groups = (await client.get("/api/topic-groups")).json()
+    assert len(groups) == 2
+    first = groups[0]
+    assert first["topic_count"] == 1 and first["story_count"] == 5 and first["unread_count"] == 5
+    assert first["hue"] == (first["id"] * 137) % 360 and len(first["position"]) == 3
+    assert first["rule"] is None and first["label"]
+
+    topics = (await client.get("/api/topics", params={"all": "true"})).json()
+    assert {t["group_id"] for t in topics} == {g["id"] for g in groups}
+    only = (
+        await client.get("/api/topics", params={"all": "true", "group": first["id"]})
+    ).json()
+    assert len(only) == 1 and only[0]["group_id"] == first["id"] and len(only[0]["position"]) == 3
+
+    # ids and labels survive a second sweep
+    assert (await _discover(db_session))["groups_created"] == 0
+    again = (await client.get("/api/topic-groups")).json()
+    assert [(g["id"], g["label"]) for g in again] == [(g["id"], g["label"]) for g in groups]
+
+
+async def test_group_rule_mutes_live_and_replaces(client: AsyncClient, db_session, store) -> None:
+    await setup_admin(client)
+    ids = await _seed(db_session, store)
+    await _seed_topic(db_session, store, 3, 10)
+    await _discover(db_session)
+    listed = (await client.get("/api/topics", params={"all": "true"})).json()
+    topic = next(t for t in listed if t["label"].startswith("Story"))
+    gid = topic["group_id"]
+    preview = (await client.get(f"/api/topic-groups/{gid}/preview")).json()
+    assert preview["would_hide_unread"] == 5 and len(preview["samples"]) == 5
+
+    r = await client.post(f"/api/topic-groups/{gid}/rules", json={"mode": "mute"})
+    assert r.status_code == 201, r.text
+    rule = r.json()
+    assert rule["group_id"] == gid and rule["topic_id"] is None and rule["until_fade"] is True
+    visible = {s["id"] for s in (await client.get("/api/stories")).json()}
+    assert not visible & set(ids[:5]) and len(visible) == 7  # 2 plain + 5 of the other topic
+    group = next(g for g in (await client.get("/api/topic-groups")).json() if g["id"] == gid)
+    assert group["rule"]["id"] == rule["id"] and group["rule"]["mode"] == "mute"
+    assert (await client.get("/api/topic-rules")).json()[0]["group_id"] == gid
+    # a typed-topic list is not polluted by the group rule
+    manual = await client.get("/api/topics", params={"all": "true", "manual_only": "true"})
+    assert manual.json() == []
+
+    # a new story close to the group is hidden at once (live membership, no sweep)
+    async with db_session() as s:
+        story = Story(title="Fresh", summary="x", version=1, category="Tech")
+        s.add(story)
+        await s.flush()
+        await store.upsert_story_centroid(story.id, _vec(0, jitter=0.1))
+        await topics_svc.evaluate_story(s, story.id)
+        await s.commit()
+        fresh = story.id
+    assert fresh not in {s["id"] for s in (await client.get("/api/stories")).json()}
+
+    again = await client.post(f"/api/topic-groups/{gid}/rules", json={"mode": "follow"})
+    assert again.json()["mode"] == "follow"
+    listed = (await client.get("/api/topic-rules")).json()
+    assert len(listed) == 1 and listed[0]["mode"] == "follow"
+    missing = await client.post("/api/topic-groups/999/rules", json={"mode": "mute"})
+    assert missing.status_code == 404
+
+
+async def test_group_rule_ends_when_group_disappears(
+    client: AsyncClient, db_session, store
+) -> None:
+    await setup_admin(client)
+    await _seed(db_session, store)
+    await _discover(db_session)
+    gid = (await client.get("/api/topic-groups")).json()[0]["id"]
+    await client.post(f"/api/topic-groups/{gid}/rules", json={"mode": "mute"})
+    async with db_session() as s:
+        for t in (await s.scalars(select(Topic))).all():
+            t.status = "faded"
+        for story in (await s.scalars(select(Story))).all():
+            story.last_updated_at = utcnow() - timedelta(days=90)
+        await s.commit()
+    report = await _discover(db_session)
+    assert report["groups_deleted"] == 1
+    assert (await client.get("/api/topic-groups")).json() == []
+    assert (await client.get("/api/topic-rules")).json() == []

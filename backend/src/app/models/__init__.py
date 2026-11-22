@@ -507,6 +507,23 @@ class Topic(Base):
     first_seen_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
     last_story_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
     status: Mapped[str] = mapped_column(String(16), default="active", index=True)  # active|faded
+    # semantic group ("galaxy") of related topics; no FK, groups are recomputed each sweep
+    group_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+
+
+class TopicGroup(Base):
+    """Named group of semantically close topics (the top level of the constellation)."""
+
+    __tablename__ = "topic_group"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    label: Mapped[str] = mapped_column(String(256), default="")
+    description: Mapped[str] = mapped_column(Text, default="")
+    label_language: Mapped[str] = mapped_column(String(8), default="")
+    centroid: Mapped[bytes] = mapped_column(LargeBinary)
+    topic_count: Mapped[int] = mapped_column(Integer, default=0)
+    story_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
 class StoryTopic(Base):
@@ -534,6 +551,8 @@ class TopicRule(Base):
     embed_model: Mapped[str] = mapped_column(String(128), default="")
     threshold: Mapped[float] = mapped_column(Float)
     source_topic_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # group rule: matches against the live member-topic centroids of this group
+    source_group_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Rule ends when the source topic fades (the default for mutes)
     until_fade: Mapped[bool] = mapped_column(Boolean, default=False)
     expires_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)

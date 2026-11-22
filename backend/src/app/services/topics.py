@@ -29,6 +29,7 @@ from app.models import (
     StoryState,
     StoryTopic,
     Topic,
+    TopicGroup,
     TopicRule,
     utcnow,
 )
@@ -132,6 +133,40 @@ def cluster_vectors(
     ]
 
 
+def group_topics(vectors: dict[int, np.ndarray]) -> list[list[int]]:
+    """Average-linkage agglomerative clustering of topic centroids on cosine similarity.
+
+    Merges the closest pair while its similarity is ``>= TOPIC_GROUP_THRESHOLD``, then keeps
+    merging while more than ``TOPIC_GROUP_MAX`` groups remain. Deterministic: ties break on the
+    smallest member ids; groups are returned ordered by their smallest id, members ascending.
+    """
+    ids = sorted(vectors)
+    n = len(ids)
+    if n == 0:
+        return []
+    unit = np.stack([vectors[i] for i in ids]).astype(np.float64)
+    norms = np.linalg.norm(unit, axis=1, keepdims=True)
+    unit = unit / np.where(norms == 0, 1.0, norms)
+    sums = unit @ unit.T  # sum of pairwise similarities between clusters
+    members: dict[int, list[int]] = {k: [ids[k]] for k in range(n)}
+    while len(members) > 1:
+        keys = sorted(members)
+        best: tuple[float, int, int] | None = None
+        for x, a in enumerate(keys):
+            for b in keys[x + 1 :]:
+                sim = float(sums[a, b]) / (len(members[a]) * len(members[b]))
+                if best is None or sim > best[0] + 1e-12:
+                    best = (sim, a, b)
+        assert best is not None
+        sim, a, b = best
+        if sim < settings.topic_group_threshold and len(members) <= settings.topic_group_max:
+            break
+        members[a].extend(members.pop(b))
+        sums[a, :] += sums[b, :]
+        sums[:, a] += sums[:, b]
+    return sorted((sorted(m) for m in members.values()), key=lambda m: m[0])
+
+
 # --- persistence helpers ---
 
 
@@ -184,11 +219,39 @@ async def evaluate_story(session: AsyncSession, story_id: int) -> None:
     await _match_story_rules(session, story_id, vec)
 
 
+async def _group_centroids(session: AsyncSession) -> dict[int, list[np.ndarray]]:
+    """group id -> centroids of its current (active) member topics."""
+    rows = (
+        await session.execute(
+            select(Topic.group_id, Topic.centroid).where(
+                Topic.status == "active", Topic.group_id.is_not(None)
+            )
+        )
+    ).all()
+    found: dict[int, list[np.ndarray]] = {}
+    for gid, blob in rows:
+        found.setdefault(gid, []).append(decode(blob))
+    return found
+
+
+def _rule_centroids(rule: TopicRule, groups: dict[int, list[np.ndarray]]) -> list[np.ndarray]:
+    """Centroids a rule matches against: the live members of its group (membership evolves
+    with the groups), else its own snapshot (also when the group vanished)."""
+    if rule.source_group_id is not None and groups.get(rule.source_group_id):
+        return groups[rule.source_group_id]
+    return [decode(rule.centroid)]
+
+
+def _any_match(vec: np.ndarray, centroids: list[np.ndarray], threshold: float) -> bool:
+    return any(rule_matches(vec, c, threshold) for c in centroids)
+
+
 async def _match_story_rules(session: AsyncSession, story_id: int, vec: np.ndarray) -> None:
     await session.execute(delete(StoryRuleMatch).where(StoryRuleMatch.story_id == story_id))
     rules = (await session.scalars(select(TopicRule))).all()
+    groups = await _group_centroids(session)
     for rule in rules:
-        if _rule_usable(rule) and rule_matches(vec, decode(rule.centroid), rule.threshold):
+        if _rule_usable(rule) and _any_match(vec, _rule_centroids(rule, groups), rule.threshold):
             session.add(
                 StoryRuleMatch(
                     rule_id=rule.id, story_id=story_id, user_id=rule.user_id, mode=rule.mode
@@ -203,10 +266,10 @@ async def sync_rule_matches(session: AsyncSession, rule: TopicRule) -> int:
         return 0
     since = utcnow() - timedelta(days=settings.topic_rule_scan_days)
     ids = (await session.scalars(select(Story.id).where(Story.last_updated_at >= since))).all()
-    centroid = decode(rule.centroid)
+    centroids = _rule_centroids(rule, await _group_centroids(session))
     count = 0
     for sid, vec in (await _story_vectors(session, ids)).items():
-        if rule_matches(vec, centroid, rule.threshold):
+        if _any_match(vec, centroids, rule.threshold):
             session.add(
                 StoryRuleMatch(rule_id=rule.id, story_id=sid, user_id=rule.user_id, mode=rule.mode)
             )
@@ -255,6 +318,47 @@ async def create_rule(
     return rule
 
 
+async def create_group_rule(
+    session: AsyncSession,
+    user_id: int,
+    group: TopicGroup,
+    mode: str,
+    *,
+    until_fade: bool,
+    expires_at: datetime | None,
+) -> TopicRule:
+    existing = (
+        await session.scalars(
+            select(TopicRule).where(
+                TopicRule.user_id == user_id, TopicRule.source_group_id == group.id
+            )
+        )
+    ).all()
+    for old in existing:  # one rule per user+group
+        await delete_rule(session, old)
+    rule = TopicRule(
+        user_id=user_id,
+        mode=mode,
+        label=group.label,
+        centroid=group.centroid,
+        embed_model=settings.embed_model,
+        threshold=settings.topic_match_threshold,
+        source_group_id=group.id,
+        until_fade=until_fade,
+        expires_at=expires_at,
+    )
+    session.add(rule)
+    await session.flush()
+    matched = await sync_rule_matches(session, rule)
+    await activity.emit(
+        session,
+        "topics",
+        "rule_created",
+        {"rule_id": rule.id, "group_id": group.id, "mode": mode, "matched": matched},
+    )
+    return rule
+
+
 class ManualTopicError(ValueError):
     """Typed-topic validation failure; ``code`` is machine-readable."""
 
@@ -279,7 +383,7 @@ async def create_manual_rule(
     rules = (
         await session.scalars(select(TopicRule).where(TopicRule.user_id == user_id))
     ).all()
-    manual = [r for r in rules if r.source_topic_id is None]
+    manual = [r for r in rules if r.source_topic_id is None and r.source_group_id is None]
     for old in manual:
         if old.label.casefold() == label.casefold():
             await delete_rule(session, old)
@@ -327,6 +431,20 @@ async def preview_mute(
     session: AsyncSession, topic: Topic, user_feed_ids: set[int], user_id: int
 ) -> tuple[int, list[tuple[int, str]]]:
     """Unread stories (of this user) a rule built from ``topic`` would hide + sample titles."""
+    return await _preview_hidden(session, [decode(topic.centroid)], user_feed_ids, user_id)
+
+
+async def preview_group_mute(
+    session: AsyncSession, group: TopicGroup, user_feed_ids: set[int], user_id: int
+) -> tuple[int, list[tuple[int, str]]]:
+    """Same as ``preview_mute`` for a group rule (any member topic centroid matches)."""
+    centroids = (await _group_centroids(session)).get(group.id) or [decode(group.centroid)]
+    return await _preview_hidden(session, centroids, user_feed_ids, user_id)
+
+
+async def _preview_hidden(
+    session: AsyncSession, centroids: list[np.ndarray], user_feed_ids: set[int], user_id: int
+) -> tuple[int, list[tuple[int, str]]]:
     since = utcnow() - timedelta(days=settings.topic_rule_scan_days)
     visible = select(Article.story_id).where(
         Article.feed_id.in_(user_feed_ids), Article.story_id.is_not(None)
@@ -346,13 +464,11 @@ async def preview_mute(
             .order_by(Story.last_updated_at.desc())
         )
     ).all()
-    centroid = decode(topic.centroid)
     vecs = await _story_vectors(session, [r[0] for r in rows])
     hidden = [
         (sid, title)
         for sid, title, _is_read, _saved_at in rows
-        if sid in vecs
-        and rule_matches(vecs[sid], centroid, settings.topic_match_threshold)
+        if sid in vecs and _any_match(vecs[sid], centroids, settings.topic_match_threshold)
     ]
     return len(hidden), hidden[:5]
 
@@ -394,7 +510,10 @@ async def refresh_topics(session: AsyncSession) -> dict[str, int]:
     overlapping runs would each create the same topics.
     """
     async with _refresh_lock:
-        return await _refresh_topics(session)
+        report = await _refresh_topics(session)
+        if settings.topics_enabled:
+            report.update(await _refresh_groups(session))
+        return report
 
 
 async def _refresh_topics(session: AsyncSession) -> dict[str, int]:
@@ -511,6 +630,160 @@ async def _refresh_topics(session: AsyncSession) -> dict[str, int]:
             report["rules_expired"] += 1
             await activity.emit(session, "topics", "rule_expired", {"rule_id": rule.id})
     await session.commit()
+    return report
+
+
+async def _label_group(
+    session: AsyncSession, topic_labels: list[str], fallback: str
+) -> tuple[str, str]:
+    if not llm_client.is_configured():
+        return fallback, ""
+    try:
+        system, user = prompts.topic_group_label(topic_labels[:12])
+        with llmtrace.context("topic_label", label=fallback):
+            result, latency_ms = await llm_client.chat_json(system, user)
+        usage.record(
+            session,
+            "topic_label",
+            endpoint="chat",
+            model=settings.llm_model,
+            latency_ms=latency_ms,
+            prompt_chars=len(system) + len(user),
+        )
+        label = str(result.get("label") or "").strip()[:256]
+        return (label or fallback), str(result.get("description") or "").strip()
+    except llm_client.LLMError as exc:
+        await activity.emit(session, "topics", "label_error", {"error": str(exc)}, level="error")
+        return fallback, ""
+
+
+GROUP_IDENTITY_SIMILARITY = 0.8
+
+
+async def _refresh_groups(session: AsyncSession) -> dict[str, int]:
+    """Regroup the active topics into galaxies, keeping ids/labels of groups that persist.
+
+    Each step commits on its own so the SQLite write lock stays short (LLM labelling in
+    between runs with no transaction open)."""
+    report = {"groups_created": 0, "groups_deleted": 0, "groups_relabeled": 0}
+    topics = list((await session.scalars(select(Topic).where(Topic.status == "active"))).all())
+    dim = len(decode(topics[0].centroid)) if topics else 0
+    by_id = {t.id: t for t in topics if len(decode(t.centroid)) == dim}
+    vectors = {tid: decode(t.centroid) for tid, t in by_id.items()}
+    plan = group_topics(vectors)
+    group_vectors: list[np.ndarray] = []
+    for members in plan:
+        weights = np.array([max(by_id[m].story_count, 1) for m in members], dtype=np.float64)
+        group_vectors.append(np.average([vectors[m] for m in members], axis=0, weights=weights))
+    existing = {g.id: g for g in (await session.scalars(select(TopicGroup))).all()}
+    old_members: dict[int, set[int]] = {}
+    for t in topics:
+        if t.group_id is not None:
+            old_members.setdefault(t.group_id, set()).add(t.id)
+    await session.commit()
+
+    # greedy best-first identity matching on centroid cosine
+    pairs = sorted(
+        (
+            (cosine_similarity(vec, decode(g.centroid)), i, old_id)
+            for i, vec in enumerate(group_vectors)
+            for old_id, g in existing.items()
+            if decode(g.centroid).shape == vec.shape
+        ),
+        key=lambda p: (-p[0], p[1], p[2]),
+    )
+    matched: dict[int, int] = {}  # plan index -> existing group id
+    taken: set[int] = set()
+    for sim, i, old_id in pairs:
+        if sim < GROUP_IDENTITY_SIMILARITY:
+            break
+        if i in matched or old_id in taken:
+            continue
+        matched[i] = old_id
+        taken.add(old_id)
+
+    assigned: dict[int, int] = {}  # topic id -> group id
+    for i, members in enumerate(plan):
+        member_topics = sorted((by_id[m] for m in members), key=lambda t: -t.story_count)
+        labels = [t.label for t in member_topics]
+        stories = sum(t.story_count for t in member_topics)
+        found = matched.get(i)
+        gid: int
+        if found is None:
+            label, description = await _label_group(session, labels, labels[0])
+            group = TopicGroup(
+                label=label,
+                description=description,
+                label_language=settings.summary_language,
+                centroid=encode(group_vectors[i]),
+                topic_count=len(members),
+                story_count=stories,
+            )
+            session.add(group)
+            await session.flush()
+            gid = group.id
+            report["groups_created"] += 1
+            await activity.emit(
+                session,
+                "topics",
+                "group_created",
+                {"group_id": gid, "label": label, "topics": len(members)},
+            )
+        else:
+            gid = found
+            group = existing[gid]
+            before = old_members.get(gid, set())
+            union = before | set(members)
+            changed = len(before ^ set(members)) / len(union) if union else 0.0
+            if changed > 0.5:
+                label, description = await _label_group(session, labels, labels[0])
+                group.label, group.description = label, description
+                group.label_language = settings.summary_language
+                report["groups_relabeled"] += 1
+                await activity.emit(
+                    session, "topics", "group_relabeled", {"group_id": gid, "label": label}
+                )
+            group.centroid = encode(group_vectors[i])
+            group.topic_count = len(members)
+            group.story_count = stories
+        for m in members:
+            assigned[m] = gid
+        await session.commit()
+
+    for t in (await session.scalars(select(Topic).where(Topic.group_id.is_not(None)))).all():
+        if assigned.get(t.id) != t.group_id:
+            t.group_id = assigned.get(t.id)
+    for tid, new_gid in assigned.items():
+        topic = by_id[tid]
+        if topic.group_id != new_gid:
+            topic.group_id = new_gid
+    await session.commit()
+
+    keep = set(assigned.values())
+    gone = [old_id for old_id in existing if old_id not in keep]
+    if gone:
+        await session.execute(delete(TopicGroup).where(TopicGroup.id.in_(gone)))
+        report["groups_deleted"] = len(gone)
+        for old_id in gone:
+            await activity.emit(session, "topics", "group_deleted", {"group_id": old_id})
+        # "until the topic fades" for a group rule = the group disappears
+        for rule in (
+            await session.scalars(
+                select(TopicRule).where(
+                    TopicRule.source_group_id.in_(gone), TopicRule.until_fade.is_(True)
+                )
+            )
+        ).all():
+            await delete_rule(session, rule)
+            await activity.emit(session, "topics", "rule_expired", {"rule_id": rule.id})
+        await session.commit()
+
+    # membership moved: refresh the matches of every remaining group rule
+    for rule in (
+        await session.scalars(select(TopicRule).where(TopicRule.source_group_id.is_not(None)))
+    ).all():
+        await sync_rule_matches(session, rule)
+        await session.commit()
     return report
 
 

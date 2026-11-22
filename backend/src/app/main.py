@@ -144,6 +144,12 @@ ALEMBIC_DIR = BACKEND_DIR / "alembic"
 _LEGACY_STAMPS: list[tuple[list[tuple[str, str]], str]] = [
     (
         [
+            ("topic_rule", "source_group_id"),
+        ],
+        "0033_topic_groups",
+    ),
+    (
+        [
             ("topic_rule", "until_fade"),
         ],
         "0032_topic_radar",

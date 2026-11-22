@@ -21,6 +21,7 @@ from app.models import (
     StoryTopic,
     Topic,
     TopicFeedback,
+    TopicGroup,
     TopicRule,
     User,
     utcnow,
@@ -52,11 +53,32 @@ class TopicOut(BaseModel):
     # stories updated in the last 48 h — how fast the topic is growing
     recent_count: int
     last_story_at: str
+    group_id: int | None = None
     rule: TopicRuleBrief | None = None
     # typed by the user: ``id`` is the negated rule id and ``rule`` is always set
     manual: bool = False
     # constellation coordinates in [-1, 1]; only sent with ``?all=true``
     position: list[float] | None = None
+
+
+class GroupRuleBrief(BaseModel):
+    id: int
+    mode: str
+    until_fade: bool
+    expires_at: str | None
+
+
+class TopicGroupOut(BaseModel):
+    id: int
+    label: str
+    description: str
+    topic_count: int
+    story_count: int
+    unread_count: int
+    # (id * 137) % 360: stable colour per group on every client
+    hue: int
+    position: list[float]
+    rule: GroupRuleBrief | None = None
 
 
 class ManualRuleCreate(BaseModel):
@@ -89,6 +111,7 @@ class TopicRuleOut(BaseModel):
     mode: str
     label: str
     topic_id: int | None
+    group_id: int | None = None
     until_fade: bool
     expires_at: str | None
     created_at: str
@@ -102,6 +125,7 @@ def _rule_out(rule: TopicRule, matched: int, hidden_unread: int) -> TopicRuleOut
         mode=rule.mode,
         label=rule.label,
         topic_id=rule.source_topic_id,
+        group_id=rule.source_group_id,
         until_fade=rule.until_fade,
         expires_at=rule.expires_at.isoformat() if rule.expires_at else None,
         created_at=rule.created_at.isoformat(),
@@ -118,13 +142,17 @@ def _require_enabled() -> None:
 @router.get("/topics")
 async def list_topics(
     all: bool = False,
+    group: int | None = None,
+    manual_only: bool = False,
     user: User = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[TopicOut]:
     """Topics worth the user's attention: those with a rule of theirs, plus the largest
     shares of their unread stories (at most ``TOPIC_MAX_VISIBLE`` trending ones).
 
-    ``all=true`` returns every active topic with constellation positions instead."""
+    ``all=true`` returns every active topic with constellation positions instead.
+    With ``all=true``: ``group=<id>`` returns only that group's topics, laid out among
+    themselves (no manual topics); ``manual_only=true`` returns only the typed topics."""
     _require_enabled()
     feed_ids = await _user_feed_ids(session, user)
     if not feed_ids:
@@ -132,10 +160,14 @@ async def list_topics(
     visible = select(Article.story_id).where(
         Article.feed_id.in_(feed_ids), Article.story_id.is_not(None)
     )
-    topics = {
-        t.id: t
-        for t in (await session.scalars(select(Topic).where(Topic.status == "active"))).all()
-    }
+    topic_query = select(Topic).where(Topic.status == "active")
+    if all and group is not None:
+        topic_query = topic_query.where(Topic.group_id == group)
+    topics = (
+        {}
+        if all and manual_only
+        else {t.id: t for t in (await session.scalars(topic_query)).all()}
+    )
     recent_cut = utcnow() - timedelta(hours=RECENT_HOURS)
     rows = (
         await session.execute(
@@ -168,8 +200,15 @@ async def list_topics(
         await session.scalars(select(TopicRule).where(TopicRule.user_id == user.id))
     ).all()
     rules = {r.source_topic_id: r for r in all_rules if r.source_topic_id is not None}
-    manual_stars = await _manual_topics(
-        session, user, [r for r in all_rules if r.source_topic_id is None], recent_cut
+    manual_stars = (
+        []
+        if all and group is not None and not manual_only
+        else await _manual_topics(
+            session,
+            user,
+            [r for r in all_rules if r.source_topic_id is None and r.source_group_id is None],
+            recent_cut,
+        )
     )
 
     def out(t: Topic) -> TopicOut:
@@ -183,6 +222,7 @@ async def list_topics(
             unread_count=unread.get(t.id, 0),
             recent_count=recent.get(t.id, 0),
             last_story_at=t.last_story_at.isoformat(),
+            group_id=t.group_id,
             rule=TopicRuleBrief(id=rule.id, mode=rule.mode) if rule else None,
         )
 
@@ -269,6 +309,123 @@ async def _manual_topics(
             )
         )
     return result
+
+
+@router.get("/topic-groups")
+async def list_topic_groups(
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[TopicGroupOut]:
+    """Every topic group (galaxy) with the user's unread count, constellation position and
+    the user's rule on it. Typed (manual) topics belong to no group."""
+    _require_enabled()
+    groups = (await session.scalars(select(TopicGroup).order_by(TopicGroup.id))).all()
+    if not groups:
+        return []
+    unread: dict[int, int] = {}
+    feed_ids = await _user_feed_ids(session, user)
+    if feed_ids:
+        visible = select(Article.story_id).where(
+            Article.feed_id.in_(feed_ids), Article.story_id.is_not(None)
+        )
+        rows = (
+            await session.execute(
+                select(Topic.group_id, StoryTopic.story_id, _ignored_sql(user.id))
+                .join(Topic, Topic.id == StoryTopic.topic_id)
+                .join(Story, Story.id == StoryTopic.story_id)
+                .outerjoin(
+                    StoryState,
+                    and_(StoryState.story_id == Story.id, StoryState.user_id == user.id),
+                )
+                .where(
+                    StoryTopic.story_id.in_(visible),
+                    Topic.status == "active",
+                    Topic.group_id.is_not(None),
+                    func.coalesce(StoryState.is_read, False).is_(False),
+                )
+            )
+        ).all()
+        for gid, _sid, hidden in rows:
+            if not hidden:
+                unread[gid] = unread.get(gid, 0) + 1
+    rules = {
+        r.source_group_id: r
+        for r in (
+            await session.scalars(
+                select(TopicRule).where(
+                    TopicRule.user_id == user.id, TopicRule.source_group_id.is_not(None)
+                )
+            )
+        ).all()
+    }
+    positions = topics_svc.layout_positions(
+        {g.id: topics_svc.decode(g.centroid) for g in groups}
+    )
+    out: list[TopicGroupOut] = []
+    for g in groups:
+        rule = rules.get(g.id)
+        out.append(
+            TopicGroupOut(
+                id=g.id,
+                label=g.label,
+                description=g.description,
+                topic_count=g.topic_count,
+                story_count=g.story_count,
+                unread_count=unread.get(g.id, 0),
+                hue=(g.id * 137) % 360,
+                position=list(positions[g.id]),
+                rule=GroupRuleBrief(
+                    id=rule.id,
+                    mode=rule.mode,
+                    until_fade=rule.until_fade,
+                    expires_at=rule.expires_at.isoformat() if rule.expires_at else None,
+                )
+                if rule
+                else None,
+            )
+        )
+    return out
+
+
+@router.get("/topic-groups/{group_id}/preview")
+async def preview_topic_group(
+    group_id: int,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> TopicPreviewOut:
+    _require_enabled()
+    group = await session.get(TopicGroup, group_id)
+    if group is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Topic group not found")
+    feed_ids = await _user_feed_ids(session, user)
+    count, samples = await topics_svc.preview_group_mute(session, group, feed_ids, user.id)
+    return TopicPreviewOut(
+        would_hide_unread=count, samples=[SampleStory(id=i, title=t) for i, t in samples]
+    )
+
+
+@router.post("/topic-groups/{group_id}/rules", status_code=status.HTTP_201_CREATED)
+async def create_topic_group_rule(
+    group_id: int,
+    body: RuleCreate,
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> TopicRuleOut:
+    _require_enabled()
+    group = await session.get(TopicGroup, group_id)
+    if group is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Topic group not found")
+    days = _DURATION_DAYS.get(body.duration)
+    rule = await topics_svc.create_group_rule(
+        session,
+        user.id,
+        group,
+        body.mode,
+        until_fade=body.duration == "fade",
+        expires_at=utcnow() + timedelta(days=days) if days else None,
+    )
+    await session.commit()
+    return await _single_rule_out(session, rule, user)
 
 
 @router.post("/topic-rules/custom", status_code=status.HTTP_201_CREATED)

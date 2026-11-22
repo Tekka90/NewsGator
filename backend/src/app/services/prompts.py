@@ -245,6 +245,24 @@ Reply with JSON: {{"label": "...", "description": "..."}}"""
     return system, user
 
 
+def topic_group_label(topic_labels: list[str]) -> tuple[str, str]:
+    """Name a group of related topics (Topic Radar galaxy). Written in SUMMARY_LANGUAGE."""
+    lang = summary_language_name()
+    system = (
+        "You name broad news categories for a personal news reader. "
+        f"Always write in {lang}. Reply with ONLY a valid JSON object."
+    )
+    listing = "\n".join(f"- {t}" for t in topic_labels)
+    user = f"""These news topics belong together in one group:
+{listing}
+
+Name the group in {lang}: a very short label (1-3 words, no quotes, no trailing punctuation)
+that covers all of them, and a one-sentence description of what the group is about.
+
+Reply with JSON: {{"label": "...", "description": "..."}}"""
+    return system, user
+
+
 def newsletter_clean(subject: str, body: str) -> tuple[str, str]:
     """Pass 1 of newsletter processing: delete everything that is not news.
 
