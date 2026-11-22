@@ -18,7 +18,7 @@ from datetime import UTC, datetime, timedelta
 from urllib.parse import urlparse
 
 import numpy as np
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -337,7 +337,12 @@ async def preview_mute(
             .outerjoin(
                 StoryState, (StoryState.story_id == Story.id) & (StoryState.user_id == user_id)
             )
-            .where(Story.id.in_(visible), Story.last_updated_at >= since)
+            .where(
+                Story.id.in_(visible),
+                Story.last_updated_at >= since,
+                func.coalesce(StoryState.is_read, False).is_(False),
+                StoryState.saved_at.is_(None),
+            )
             .order_by(Story.last_updated_at.desc())
         )
     ).all()
@@ -345,10 +350,8 @@ async def preview_mute(
     vecs = await _story_vectors(session, [r[0] for r in rows])
     hidden = [
         (sid, title)
-        for sid, title, is_read, saved_at in rows
+        for sid, title, _is_read, _saved_at in rows
         if sid in vecs
-        and not is_read
-        and saved_at is None
         and rule_matches(vecs[sid], centroid, settings.topic_match_threshold)
     ]
     return len(hidden), hidden[:5]
