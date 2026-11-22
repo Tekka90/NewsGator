@@ -440,7 +440,7 @@
       const R = n.sr * pulse;
       const smallF = n.full ? 1 : 0.55; // unlabelled dots stay dim
       const depthA = (0.45 + 0.55 * n.depth) * n.dim * smallF;
-      const glowR = R * (n.full ? 1.4 + 2.6 * lit : 1.6);
+      const glowR = R * (n.full ? 1.3 + 0.35 * lit : 1.2);
 
       const hue = n.topic.group ? hslToRgb(n.hue, GROUP_SAT, GROUP_LIGHT) : hslToRgb(n.hue, 0.62, 0.52);
       const core = mix(mix([255, 255, 255], hue, 0.35), mix(p.forestDark, [90, 100, 94], 0.6), n.mute);
@@ -448,13 +448,22 @@
       const coreC = mix(core, mix(p.gold, [255, 255, 255], 0.35), n.follow);
       const glowA = (0.15 + 0.7 * lit) * depthA;
 
-      const g = ctx.createRadialGradient(n.sx, n.sy, 0, n.sx, n.sy, glowR);
-      g.addColorStop(0, rgba(coreC, depthA));
-      g.addColorStop(Math.min(0.9, R / glowR), rgba(mix(halo, coreC, 0.25), glowA));
+      // short, faint halo first, then a solid disc with a crisp edge
+      const g = ctx.createRadialGradient(n.sx, n.sy, R * 0.9, n.sx, n.sy, glowR);
+      g.addColorStop(0, rgba(halo, glowA * 0.45));
       g.addColorStop(1, rgba(halo, 0));
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.arc(n.sx, n.sy, glowR, 0, Math.PI * 2);
+      ctx.fill();
+
+      const body = mix(halo, coreC, 0.2);
+      const d = ctx.createRadialGradient(n.sx - R * 0.3, n.sy - R * 0.3, 0, n.sx, n.sy, R);
+      d.addColorStop(0, rgba(coreC, depthA));
+      d.addColorStop(1, rgba(body, depthA * (0.55 + 0.45 * lit)));
+      ctx.fillStyle = d;
+      ctx.beginPath();
+      ctx.arc(n.sx, n.sy, R, 0, Math.PI * 2);
       ctx.fill();
 
       if (n.topic.manual) {
