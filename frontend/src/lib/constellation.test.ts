@@ -1,7 +1,17 @@
 // @ts-nocheck — runs under node:test (no @types/node in this project)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { declutterLabels, facingAngles, hslToRgb, hueFromPosition, topNFlags, HUE_MAX, HUE_MIN } from './constellation.ts';
+import {
+  declutterLabels,
+  facingAngles,
+  groupCss,
+  hslToRgb,
+  hueFromPosition,
+  tintHue,
+  topNFlags,
+  HUE_MAX,
+  HUE_MIN
+} from './constellation.ts';
 
 test('hue follows azimuth and stays in the green→violet range', () => {
   const back = hueFromPosition([0, 0, -1]);
@@ -41,4 +51,14 @@ test('facingAngles centres the point on the view axis', () => {
   const y2 = y * Math.cos(pitch) - z1 * Math.sin(pitch);
   assert.ok(Math.abs(x1) < 1e-9 && Math.abs(y2) < 1e-9 && z1 > 0);
   assert.ok(Math.abs(yaw - 10) <= Math.PI);
+});
+
+test('group colours and in-group tint stay near the group hue', () => {
+  assert.equal(groupCss(137), 'hsl(137, 65%, 55%)');
+  assert.equal(groupCss(-10), 'hsl(350, 65%, 55%)');
+  for (const pos of [[0, 0, 1], [1, 0, 0], [0, 0, -1], [-1, 0, 0]]) {
+    const h = tintHue(200, pos);
+    assert.ok(Math.abs(h - 200) <= 18 + 1e-9, String(h));
+  }
+  assert.ok(tintHue(5, [1, 0, 0]) >= 0 && tintHue(355, [-1, 0, -0.1]) < 360);
 });

@@ -365,6 +365,8 @@ export interface Topic {
   unread_count: number;
   recent_count: number;
   last_story_at: string;
+  /** topic group (galaxy) it belongs to; null for typed topics (absent on old servers) */
+  group_id?: number | null;
   rule: { id: number; mode: TopicMode } | null;
   /** user-typed topic (negated rule id as `id`; remove it via its rule) */
   manual?: boolean;
@@ -382,9 +384,25 @@ export interface TopicRule {
   mode: TopicMode;
   label: string;
   topic_id: number | null;
+  /** set for a rule on a whole topic group */
+  group_id?: number | null;
   until_fade: boolean;
   expires_at: string | null;
   created_at: string;
   matched_stories: number;
   hidden_unread: number;
+}
+
+/** GET /api/topic-groups: one "galaxy" of related topics. */
+export interface TopicGroup {
+  id: number;
+  label: string;
+  description: string;
+  topic_count: number;
+  story_count: number;
+  unread_count: number;
+  /** 0-359, (id * 137) % 360 */
+  hue: number;
+  position: [number, number, number];
+  rule: { id: number; mode: TopicMode; until_fade: boolean; expires_at: string | null } | null;
 }

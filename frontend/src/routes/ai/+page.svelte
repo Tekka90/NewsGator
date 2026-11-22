@@ -3,13 +3,18 @@
   import { api } from '$lib/api';
   import { t } from '$lib/i18n';
   import TopicSheet from '$lib/components/TopicSheet.svelte';
-  import type { Topic, TopicMode } from '$lib/types';
+  import GroupSheet from '$lib/components/GroupSheet.svelte';
+  import type { Topic, TopicGroup, TopicMode } from '$lib/types';
   import {
+    GROUP_LIGHT,
+    GROUP_SAT,
     declutterLabels,
     distance3,
     facingAngles,
+    groupCss,
     hslToRgb,
     hueFromPosition,
+    tintHue,
     topNFlags,
     type LabelBox
   } from '$lib/constellation';
@@ -25,9 +30,15 @@
   const FOCUS_ZOOM = 1.5;
   const DECLUTTER_MS = 200;
 
+  const DOUBLE_TAP_MS = 350;
+
+  // A star is a topic, or a topic group (galaxy) dressed as one so both levels share the canvas.
+  type Star = Topic & { group?: TopicGroup };
+  type Level = 'groups' | 'flat' | 'manual' | number; // flat = server without topic groups
+
   type RGB = [number, number, number];
   interface Node {
-    topic: Topic;
+    topic: Star;
     pos: [number, number, number];
     r: number;
     rTarget: number;
@@ -53,13 +64,16 @@
     paper: RGB;
   }
 
-  let topics = $state<Topic[]>([]);
+  let topics = $state<Star[]>([]);
+  let level = $state<Level>('groups');
+  let groups = $state<TopicGroup[]>([]);
+  let selectedGroup = $state<TopicGroup | null>(null);
   let loading = $state(true);
   let view = $state<View>('mix');
   let selected = $state<Topic | null>(null);
-  let focused = $state<Topic | null>(null);
+  let focused = $state<Star | null>(null);
   let showAll = $state(false);
-  let ranked = $state<Topic[]>([]);
+  let ranked = $state<Star[]>([]);
   let listOpen = $state(false);
   let hiddenCount = $state(0);
   let toast = $state('');
@@ -70,6 +84,8 @@
   let addError = $state('');
   const ADD_DURATIONS = ['7d', '30d', 'forever'] as const;
   const ADD_ERRORS = ['invalid_length', 'too_many', 'embedding_failed'];
+  const currentGroup = $derived(typeof level === 'number' ? groups.find((g) => g.id === level) : undefined);
+  const atGroups = () => level === 'groups';
   let wrap: HTMLDivElement;
   let canvas: HTMLCanvasElement;
 
@@ -104,7 +120,11 @@
   }
 
   // --- scoring ---
-  function scores(list: Topic[], v: View): number[] {
+  function scores(list: Star[], v: View): number[] {
+    if (atGroups()) {
+      const top = Math.max(1, ...list.map((x) => x.story_count));
+      return list.map((x) => x.story_count / top);
+    }
     const max = (f: (x: Topic) => number) => Math.max(1, ...list.map(f));
     const mS = max((x) => x.story_count);
     const mU = max((x) => x.unread_count);
@@ -123,7 +143,7 @@
     const flags = topNFlags(sc, TOP_STARS);
     nodes.forEach((n, i) => {
       n.score = sc[i];
-      n.full = showAll || flags[i];
+      n.full = showAll || atGroups() || flags[i];
       // normalised so the biggest topic of the current view is always the largest
       n.rTarget = n.full ? 5 + 21 * Math.sqrt(sc[i] / top) : 2.5;
     });
@@ -131,6 +151,25 @@
       .sort((a, b) => b.score - a.score)
       .map((n) => n.topic);
     needsDraw = true;
+  }
+
+  const groupStar = (g: TopicGroup): Star => ({
+    id: g.id,
+    label: g.label,
+    description: g.description,
+    story_count: g.story_count,
+    source_count: g.topic_count,
+    unread_count: g.unread_count,
+    recent_count: 0,
+    last_story_at: '',
+    rule: g.rule ? { id: g.rule.id, mode: g.rule.mode } : null,
+    position: g.position,
+    group: g
+  });
+
+  function hueOf(tp: Star, p: [number, number, number]): number {
+    if (tp.group) return tp.group.hue;
+    return currentGroup ? tintHue(currentGroup.hue, p) : hueFromPosition(p);
   }
 
   function syncNodes() {
@@ -141,7 +180,7 @@
       if (prev) {
         prev.topic = tp;
         prev.pos = p;
-        prev.hue = hueFromPosition(p);
+        prev.hue = hueOf(tp, p);
         return prev;
       }
       return {
@@ -154,7 +193,7 @@
         phase: i * 1.7,
         score: 0,
         full: true,
-        hue: hueFromPosition(p),
+        hue: hueOf(tp, p),
         dim: 1,
         labelA: 0,
         sx: 0,
@@ -166,15 +205,34 @@
     applyView();
   }
 
-  const stateOf = (tp: Topic) => (tp.rule?.mode === 'mute' ? 'muted' : tp.rule?.mode === 'follow' ? 'followed' : 'active');
-  const stateText = (tp: Topic) => $t('topics.state_' + stateOf(tp));
+  const stateOf = (tp: Star) => (tp.rule?.mode === 'mute' ? 'muted' : tp.rule?.mode === 'follow' ? 'followed' : 'active');
+  const stateText = (tp: Star) => $t('topics.state_' + stateOf(tp));
+
+  async function fetchLevel(lv: Level): Promise<{ stars: Star[]; level: Level }> {
+    if (lv === 'groups') {
+      groups = await api.topicGroups.list().catch(() => []);
+      if (groups.length) return { stars: groups.map(groupStar), level: lv };
+      return { stars: await api.topics.list(true), level: 'flat' }; // server without groups
+    }
+    if (lv === 'manual') return { stars: await api.topics.list(true, { manualOnly: true }), level: lv };
+    if (lv === 'flat') return { stars: await api.topics.list(true), level: lv };
+    return { stars: await api.topics.list(true, { group: lv }), level: lv };
+  }
 
   async function load() {
+    const asked = level;
+    let found: Star[] = [];
+    let landed: Level = asked;
     try {
-      topics = (await api.topics.list(true)).filter((x) => x.position);
+      const r = await fetchLevel(asked);
+      found = r.stars.filter((x) => x.position);
+      landed = r.level;
     } catch {
-      topics = [];
+      found = [];
     }
+    if (level !== asked) return; // the user moved on while this was loading
+    level = landed;
+    topics = found;
     syncNodes();
     if (focused) focused = topics.find((x) => x.id === focused!.id) ?? null;
     loading = false;
@@ -187,6 +245,30 @@
       hiddenCount = 0;
     }
   }
+
+  function enterLevel(next: Level) {
+    level = next;
+    focused = null;
+    selected = null;
+    selectedGroup = null;
+    focusAnim = null;
+    nodes = [];
+    topics = [];
+    ranked = [];
+    loading = true;
+    showAll = false;
+    zoom = 1;
+    shownLabels = new Set();
+    lastDeclutter = -1e9;
+    needsDraw = true;
+    void load();
+  }
+
+  const zoomIntoGroup = (g: TopicGroup) => enterLevel(g.id);
+  const openDetails = (s: Star) => {
+    if (s.group) selectedGroup = s.group;
+    else selected = s;
+  };
 
   async function changed() {
     await Promise.all([load(), loadHidden()]);
@@ -216,9 +298,17 @@
     }
   }
 
-  async function quickToggle(tp: Topic) {
+  async function quickToggle(tp: Star) {
     try {
-      if (tp.manual && tp.rule) {
+      if (tp.group) {
+        if (tp.rule) {
+          await api.topics.removeRule(tp.rule.id);
+          say($t('topics.toastReset', { label: tp.label }));
+        } else {
+          await api.topicGroups.createRule(tp.group.id, 'mute', 'fade');
+          say($t('topics.toastMuted', { label: tp.label }));
+        }
+      } else if (tp.manual && tp.rule) {
         const next: TopicMode = tp.rule.mode === 'mute' ? 'follow' : 'mute';
         await api.topics.updateRule(tp.rule.id, next);
         say($t(next === 'mute' ? 'topics.toastMuted' : 'topics.toastFollowed', { label: tp.label }));
@@ -338,7 +428,7 @@
           y: n.sy - fs / 2,
           w: ctx.measureText(n.topic.label).width,
           h: fs,
-          force: isFocus
+          force: isFocus || !!n.topic.group
         });
       }
       shownLabels = declutterLabels(boxes);
@@ -352,7 +442,7 @@
       const depthA = (0.45 + 0.55 * n.depth) * n.dim * smallF;
       const glowR = R * (n.full ? 1.4 + 2.6 * lit : 1.6);
 
-      const hue = hslToRgb(n.hue, 0.62, 0.52);
+      const hue = n.topic.group ? hslToRgb(n.hue, GROUP_SAT, GROUP_LIGHT) : hslToRgb(n.hue, 0.62, 0.52);
       const core = mix(mix([255, 255, 255], hue, 0.35), mix(p.forestDark, [90, 100, 94], 0.6), n.mute);
       const halo = mix(hue, p.gold, n.follow);
       const coreC = mix(core, mix(p.gold, [255, 255, 255], 0.35), n.follow);
@@ -413,7 +503,7 @@
     return best;
   }
 
-  function focusTopic(tp: Topic) {
+  function focusTopic(tp: Star) {
     const n = nodes.find((x) => x.topic.id === tp.id);
     focused = tp;
     if (!n) return;
@@ -473,6 +563,7 @@
     let longFired = false;
     let longTimer: ReturnType<typeof setTimeout> | undefined;
     let lastCtx = 0;
+    let lastTap = { id: Number.NaN, at: 0 };
 
     const local = (e: PointerEvent | MouseEvent) => {
       const r = canvas.getBoundingClientRect();
@@ -545,9 +636,17 @@
       touch();
       if (pointers.size === 0) {
         if (!moved && !longFired) {
+          const now = performance.now();
           if (!downNode) clearFocus();
-          else if (focused?.id === downNode.topic.id) selected = downNode.topic;
-          else focusTopic(downNode.topic);
+          else if (downNode.topic.group && lastTap.id === downNode.topic.id && now - lastTap.at < DOUBLE_TAP_MS) {
+            lastTap = { id: Number.NaN, at: 0 };
+            zoomIntoGroup(downNode.topic.group);
+          } else {
+            const tapped = downNode.topic;
+            lastTap = { id: tapped.id, at: now };
+            if (focused?.id === tapped.id) openDetails(tapped);
+            else focusTopic(tapped);
+          }
         }
         downNode = null;
       }
@@ -649,14 +748,28 @@
   <canvas
     bind:this={canvas}
     role="img"
-    aria-label={$t('topics.canvasLabel', { count: topics.length })}
+    aria-label={$t(atGroups() ? 'topics.canvasLabelGroups' : 'topics.canvasLabel', { count: topics.length })}
   ></canvas>
 
   {#if !loading && topics.length === 0}
-    <p class="empty">{$t('topics.empty')}</p>
+    <p class="empty">
+      {$t(level === 'manual' ? 'topics.manualEmpty' : typeof level === 'number' ? 'topics.groupEmpty' : 'topics.empty')}
+    </p>
   {/if}
 
   <div class="top">
+    {#if level === 'manual' || typeof level === 'number'}
+      <nav class="crumbs" aria-label={$t('topics.breadcrumbLabel')}>
+        <button type="button" class="pill" onclick={() => enterLevel('groups')}>
+          ‹ {$t('topics.breadcrumbRoot')}
+        </button>
+        <span class="crumb" aria-current="page">
+          {#if currentGroup}<span class="swatch" style:background={groupCss(currentGroup.hue)}></span>{/if}
+          {level === 'manual' ? $t('topics.myTopics') : (currentGroup?.label ?? '')}
+        </span>
+      </nav>
+    {/if}
+    {#if !atGroups()}
     <div class="seg" role="radiogroup" aria-label={$t('topics.viewLabel')} tabindex="-1" onkeydown={onSegKey}>
       {#each VIEWS as v (v)}
         <button
@@ -672,11 +785,16 @@
         </button>
       {/each}
     </div>
-    <button type="button" class="pill" aria-pressed={showAll} class:on={showAll} onclick={() => { showAll = !showAll; applyView(); }}>
-      {$t('topics.showAll')}
-    </button>
+    {#if level !== 'manual'}
+      <button type="button" class="pill" aria-pressed={showAll} class:on={showAll} onclick={() => { showAll = !showAll; applyView(); }}>
+        {$t('topics.showAll')}
+      </button>
+    {/if}
+    {:else}
+      <button type="button" class="pill" onclick={() => enterLevel('manual')}>{$t('topics.myTopics')}</button>
+    {/if}
     <button type="button" class="pill listtoggle" aria-expanded={listOpen} onclick={() => (listOpen = !listOpen)}>
-      {$t('topics.listTitle')}
+      {$t(atGroups() ? 'topics.groupsTitle' : 'topics.listTitle')}
     </button>
     {#if hiddenCount > 0}
       <a class="hiddenbtn" href="/?hidden=1" title={$t('topics.hiddenTitle')}>
@@ -685,6 +803,7 @@
     {/if}
   </div>
 
+  {#if level === 'manual' || level === 'flat'}
   <form class="add" onsubmit={addTopic}>
     <input
       type="text"
@@ -704,6 +823,7 @@
     <button type="submit" disabled={adding || !addQuery.trim()}>{$t('topics.addButton')}</button>
     {#if addError}<p class="adderr" role="alert">{addError}</p>{/if}
   </form>
+  {/if}
 
   <ul class="legend" aria-hidden="true">
     <li><span class="dot active"></span>{$t('topics.legendActive')}</li>
@@ -715,8 +835,8 @@
   <ul class="sr-only">
     {#each topics as tp (tp.id)}
       <li>
-        <button type="button" onclick={() => (selected = tp)}>
-          {$t(tp.manual ? 'topics.nodeLabelManual' : 'topics.nodeLabel', {
+        <button type="button" onclick={() => openDetails(tp)}>
+          {$t(tp.group ? 'topics.nodeLabelGroup' : tp.manual ? 'topics.nodeLabelManual' : 'topics.nodeLabel', {
             label: tp.label,
             count: tp.unread_count,
             state: stateText(tp)
@@ -730,9 +850,25 @@
     <div class="focuscard" role="group" aria-label={focused.label}>
       <div class="ftext">
         <strong>{focused.label}</strong>
-        <span>{$t('topics.unreadCount', { count: focused.unread_count })}</span>
+        {#if focused.group}
+          {#if focused.description}<span class="fdesc">{focused.description}</span>{/if}
+          <span>
+            {$t('topics.topicCount', { count: focused.group.topic_count })} ·
+            {$t('topics.storyCount', { count: focused.story_count })} ·
+            {$t('topics.unreadCount', { count: focused.unread_count })}
+          </span>
+        {:else}
+          <span>{$t('topics.unreadCount', { count: focused.unread_count })}</span>
+        {/if}
       </div>
-      <button type="button" class="fdetails" onclick={() => (selected = focused)}>{$t('topics.details')}</button>
+      {#if focused.group}
+        {@const fg = focused.group}
+        <button type="button" class="fdetails" onclick={() => zoomIntoGroup(fg)}>{$t('topics.zoomIn')}</button>
+      {/if}
+      <button
+        type="button"
+        class={focused.group ? 'fsecondary' : 'fdetails'}
+        onclick={() => openDetails(focused!)}>{$t('topics.details')}</button>
       <button type="button" class="fclose" aria-label={$t('topics.clearFocus')} title={$t('topics.clearFocus')} onclick={clearFocus}>×</button>
     </div>
   {/if}
@@ -747,8 +883,8 @@
   </a>
 </div>
 
-<aside class="panel" class:open={listOpen} aria-label={$t('topics.listTitle')}>
-  <h2>{$t('topics.listTitle')}</h2>
+<aside class="panel" class:open={listOpen} aria-label={$t(atGroups() ? 'topics.groupsTitle' : 'topics.listTitle')}>
+  <h2>{$t(atGroups() ? 'topics.groupsTitle' : 'topics.listTitle')}</h2>
   <ul>
     {#each ranked as tp (tp.id)}
       {@const st = stateOf(tp)}
@@ -762,7 +898,11 @@
         <button type="button" class="rowbtn" onclick={() => quickToggle(tp)}>
           {$t(!tp.rule ? 'topics.mute' : tp.manual ? (tp.rule.mode === 'mute' ? 'topics.follow' : 'topics.mute') : tp.rule.mode === 'mute' ? 'topics.unmute' : 'topics.unfollow')}
         </button>
-        <button type="button" class="rowbtn" onclick={() => (selected = tp)}>{$t('topics.details')}</button>
+        {#if tp.group}
+          {@const g = tp.group}
+          <button type="button" class="rowbtn" onclick={() => zoomIntoGroup(g)}>{$t('topics.zoomIn')}</button>
+        {/if}
+        <button type="button" class="rowbtn" onclick={() => openDetails(tp)}>{$t('topics.details')}</button>
       </li>
     {/each}
   </ul>
@@ -771,6 +911,14 @@
 
 {#if selected}
   <TopicSheet topic={selected} onclose={() => (selected = null)} onchange={changed} />
+{/if}
+{#if selectedGroup}
+  {@const sg = selectedGroup}
+  <GroupSheet
+    group={sg}
+    onclose={() => (selectedGroup = null)}
+    onchange={changed}
+    onzoom={() => zoomIntoGroup(sg)} />
 {/if}
 
 <style>
@@ -938,6 +1086,43 @@
     font-weight: 600;
     font-size: 0.82rem;
     padding: 0.35rem 0.85rem;
+  }
+  .fsecondary {
+    border: 1px solid var(--gator-forest);
+    border-radius: var(--radius-pill);
+    background: transparent;
+    color: var(--gator-forest);
+    font-weight: 600;
+    font-size: 0.82rem;
+    padding: 0.35rem 0.85rem;
+  }
+  .ftext .fdesc {
+    white-space: normal;
+    opacity: 0.85;
+  }
+  .crumbs {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+  .crumb {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--gator-paper);
+    font-weight: 700;
+    font-size: 0.9rem;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .swatch {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 50%;
+    flex: none;
   }
   .fclose {
     border: none;

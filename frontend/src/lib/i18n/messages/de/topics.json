@@ -56,5 +56,18 @@
   "showAll": "Alle anzeigen",
   "listTitle": "Themen nach Größe",
   "details": "Details",
-  "clearFocus": "Fokus aufheben"
+  "clearFocus": "Fokus aufheben",
+  "topicCount": "{count} Themen",
+  "muteGroup": "Diese Gruppe stummschalten",
+  "followGroup": "Dieser Gruppe folgen",
+  "durationFadeGroup": "Bis die Gruppe verschwindet",
+  "zoomIn": "Hineinzoomen",
+  "groupsTitle": "Themengruppen",
+  "breadcrumbRoot": "Alle Themen",
+  "breadcrumbLabel": "Ebene der Konstellation",
+  "myTopics": "Meine Themen",
+  "canvasLabelGroups": "Themengruppen, {count} Gruppen. Zum Drehen ziehen, zum Zoomen scrollen oder zusammenziehen, Gruppe antippen zum Fokussieren, doppelt tippen zum Hineinzoomen.",
+  "nodeLabelGroup": "{label}, Gruppe, {count} ungelesen, {state}",
+  "manualEmpty": "Du hast noch keine eigenen Themen.",
+  "groupEmpty": "Diese Gruppe enthält keine Themen mehr."
 }

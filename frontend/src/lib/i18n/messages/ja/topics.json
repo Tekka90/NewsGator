@@ -56,5 +56,18 @@
   "showAll": "すべて表示",
   "listTitle": "サイズ順のトピック",
   "details": "詳細",
-  "clearFocus": "フォーカスを解除"
+  "clearFocus": "フォーカスを解除",
+  "topicCount": "{count}件のトピック",
+  "muteGroup": "このグループをミュート",
+  "followGroup": "このグループをフォロー",
+  "durationFadeGroup": "グループが消えるまで",
+  "zoomIn": "ズームイン",
+  "groupsTitle": "トピックグループ",
+  "breadcrumbRoot": "すべてのトピック",
+  "breadcrumbLabel": "星座の階層",
+  "myTopics": "マイトピック",
+  "canvasLabelGroups": "トピックグループ、{count}グループ。ドラッグで回転、スクロールまたはピンチでズーム、グループをタップでフォーカス、ダブルタップでズームイン。",
+  "nodeLabelGroup": "{label}、グループ、未読{count}件、{state}",
+  "manualEmpty": "入力したトピックはまだありません。",
+  "groupEmpty": "このグループにはトピックがありません。"
 }

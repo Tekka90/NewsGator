@@ -475,6 +475,13 @@ the Swift twin must pass it. `/health` `features` includes `topics`.
 
 **Typed topics & Followed (follow-up):** `POST /api/topic-rules/custom {query, mode, duration}` embeds a user phrase into a rule with no source topic (max `TOPIC_MANUAL_MAX`=30, label 2–80 chars; errors `invalid_length`, `too_many`, `embedding_failed`); `PATCH /api/topic-rules/{id} {mode}` switches follow/mute. Typed rules appear in `GET /api/topics` as stars with `manual: true`, `id = -rule_id`. `GET /api/stories?followed=true` lists followed stories; `/api/stories/counts` has `followed` (unread). Apple clients notify locally; no web push.
 
+**Topic groups / galaxies (Alembic `0033`):** the refresh sweep clusters active topic centroids (`group_topics`: average-linkage cosine, cutoff `TOPIC_GROUP_THRESHOLD`=0.62, then merges closest pairs until ≤ `TOPIC_GROUP_MAX`=12 groups) into `topic_group` rows (`label`, `description`, `centroid`, `topic_count`, `story_count`); `Topic.group_id`. Group identity survives by greedy centroid matching (cosine ≥ 0.8); new groups get an LLM label (1–3 words + one sentence, `SUMMARY_LANGUAGE`; fallback = label of the largest member topic); an existing group is relabelled only when its member set changed by more than half. Empty groups are deleted. Each step commits separately.
+- `GET /api/topic-groups` → `[{id,label,description,topic_count,story_count,unread_count,hue,position:[x,y,z],rule:{id,mode,until_fade,expires_at}|null}]` (`hue = (id*137)%360`; positions = PCA over group centroids; unread scoped to the user's feeds).
+- `GET /api/topic-groups/{id}/preview` → `{would_hide_unread, samples:[{id,title}]}`.
+- `POST /api/topic-groups/{id}/rules` body `{mode: mute|follow, duration: fade|7d|30d|forever}` → rule (201, same shape as topic rules, `topic_id: null`, `group_id` set); one rule per user+group (replaced). Matching is live: a story matches if its cosine to ANY current member-topic centroid ≥ `TOPIC_MATCH_THRESHOLD` (falls back to the rule's own centroid when the group vanished). `until_fade` = the group disappears.
+- `GET /api/topics` items gain `group_id` (null for typed topics); `?all=true&group=<id>` returns only that group's topics, PCA-laid-out among themselves; `?all=true&manual_only=true` returns only typed topics (they belong to no group). `?all=true` alone is unchanged (all topics + typed). `GET /api/topic-rules` items gain `group_id`. DELETE/PATCH rules work unchanged.
+- Web: `/ai` shows groups first (hue-coloured, sized by story count); tap focuses, double-click/"Zoom in" opens the group's topic constellation; "My topics" lists typed topics.
+
 ### Story presets ("Smart Views") — 2026-10-21, Alembic `0024`
 
 A preset = filter + presentation. Stored per user as one JSON document on `user.story_presets`

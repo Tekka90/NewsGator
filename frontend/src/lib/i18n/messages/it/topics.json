@@ -56,5 +56,18 @@
   "showAll": "Mostra tutti",
   "listTitle": "Temi per dimensione",
   "details": "Dettagli",
-  "clearFocus": "Rimuovi il focus"
+  "clearFocus": "Rimuovi il focus",
+  "topicCount": "{count} argomenti",
+  "muteGroup": "Silenzia questo gruppo",
+  "followGroup": "Segui questo gruppo",
+  "durationFadeGroup": "Finché il gruppo non scompare",
+  "zoomIn": "Ingrandisci",
+  "groupsTitle": "Gruppi di argomenti",
+  "breadcrumbRoot": "Tutti gli argomenti",
+  "breadcrumbLabel": "Livello della costellazione",
+  "myTopics": "I miei argomenti",
+  "canvasLabelGroups": "Gruppi di argomenti, {count} gruppi. Trascina per ruotare, scorri o pizzica per zoomare, tocca un gruppo per metterlo a fuoco, tocca due volte per ingrandire.",
+  "nodeLabelGroup": "{label}, gruppo, {count} non letti, {state}",
+  "manualEmpty": "Non hai ancora argomenti digitati.",
+  "groupEmpty": "Questo gruppo non ha più argomenti."
 }

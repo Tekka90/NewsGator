@@ -56,5 +56,18 @@
   "showAll": "Show all",
   "listTitle": "Topics by size",
   "details": "Details",
-  "clearFocus": "Clear focus"
+  "clearFocus": "Clear focus",
+  "topicCount": "{count} topics",
+  "muteGroup": "Mute this group",
+  "followGroup": "Follow this group",
+  "durationFadeGroup": "Until the group disappears",
+  "zoomIn": "Zoom in",
+  "groupsTitle": "Topic groups",
+  "breadcrumbRoot": "All topics",
+  "breadcrumbLabel": "Constellation level",
+  "myTopics": "My topics",
+  "canvasLabelGroups": "Topic groups, {count} groups. Drag to rotate, scroll or pinch to zoom, tap a group to focus it, double-tap to zoom in.",
+  "nodeLabelGroup": "{label}, group, {count} unread, {state}",
+  "manualEmpty": "You have no typed topics yet.",
+  "groupEmpty": "This group has no topics anymore."
 }

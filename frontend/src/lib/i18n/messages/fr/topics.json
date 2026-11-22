@@ -56,5 +56,18 @@
   "showAll": "Tout afficher",
   "listTitle": "Sujets par taille",
   "details": "Détails",
-  "clearFocus": "Annuler la sélection"
+  "clearFocus": "Annuler la sélection",
+  "topicCount": "{count} sujets",
+  "muteGroup": "Mettre ce groupe en sourdine",
+  "followGroup": "Suivre ce groupe",
+  "durationFadeGroup": "Jusqu'à la disparition du groupe",
+  "zoomIn": "Zoomer",
+  "groupsTitle": "Groupes de sujets",
+  "breadcrumbRoot": "Tous les sujets",
+  "breadcrumbLabel": "Niveau de la constellation",
+  "myTopics": "Mes sujets",
+  "canvasLabelGroups": "Groupes de sujets, {count} groupes. Glissez pour pivoter, faites défiler ou pincez pour zoomer, touchez un groupe pour le sélectionner, touchez deux fois pour zoomer.",
+  "nodeLabelGroup": "{label}, groupe, {count} non lus, {state}",
+  "manualEmpty": "Vous n'avez pas encore de sujets saisis.",
+  "groupEmpty": "Ce groupe ne contient plus de sujets."
 }

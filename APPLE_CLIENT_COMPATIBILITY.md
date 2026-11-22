@@ -313,5 +313,12 @@ built, so the Apple repo doesn't keep a stale, unused reference design.
 Endpoints: `GET /api/topics`, `GET /api/topics/<id>/preview`, `POST /api/topics/<id>/rules`, `GET /api/topic-rules`,
 `DELETE /api/topic-rules/<id>`, `POST /api/topic-rules/<id>/feedback`. `GET /api/stories` accepts
 `ignored=hide|include|only`; story items add `ignored`, `followed`, `topic_rule_id`; `/api/stories/counts` adds `ignored`.
+Topic groups (galaxies, Alembic 0033):
+- `GET /api/topic-groups` → `[{id,label,description,topic_count,story_count,unread_count,hue (int 0–359, (id*137)%360),position:[x,y,z],rule:{id,mode,until_fade,expires_at}|null}]` (all groups; positions from a PCA over group centroids, scaled like `/topics?all=true`).
+- `GET /api/topic-groups/<id>/preview` → `{would_hide_unread, samples:[{id,title}]}`.
+- `POST /api/topic-groups/<id>/rules` `{mode: mute|follow, duration: fade|7d|30d|forever}` → 201 rule (same shape as topic rules; `topic_id: null`, `group_id` set). One rule per user+group (replace). A story matches when cosine ≥ the match threshold with ANY current member-topic centroid; `until_fade` = group disappears.
+- `GET /api/topics` items gain `group_id` (null for typed topics); `?all=true&group=<id>` → only that group's topics, laid out among themselves; `?all=true&manual_only=true` → only typed topics (not in any group). `?all=true` without those params is unchanged. `GET /api/topic-rules` items gain `group_id`.
+- Settings `TOPIC_GROUP_THRESHOLD` (0.62), `TOPIC_GROUP_MAX` (12). 404 when topics are disabled.
+
 All additions are optional for old clients. The Apple client treats 404 as "topics unavailable". Apple standalone mode
 implements the same shapes locally.

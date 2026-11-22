@@ -56,5 +56,18 @@
   "showAll": "顯示全部",
   "listTitle": "依大小排序的話題",
   "details": "詳情",
-  "clearFocus": "取消聚焦"
+  "clearFocus": "取消聚焦",
+  "topicCount": "{count} 個話題",
+  "muteGroup": "靜音此群組",
+  "followGroup": "追蹤此群組",
+  "durationFadeGroup": "直到群組消失",
+  "zoomIn": "放大檢視",
+  "groupsTitle": "話題群組",
+  "breadcrumbRoot": "所有話題",
+  "breadcrumbLabel": "星座層級",
+  "myTopics": "我的話題",
+  "canvasLabelGroups": "話題群組，共 {count} 個群組。拖曳旋轉，捲動或捏合縮放，點按群組聚焦，連按兩下放大檢視。",
+  "nodeLabelGroup": "{label}，群組，{count} 則未讀，{state}",
+  "manualEmpty": "你還沒有手動輸入的話題。",
+  "groupEmpty": "此群組已沒有話題。"
 }

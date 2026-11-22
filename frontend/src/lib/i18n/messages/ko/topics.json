@@ -56,5 +56,18 @@
   "showAll": "모두 보기",
   "listTitle": "크기순 주제",
   "details": "상세 정보",
-  "clearFocus": "포커스 해제"
+  "clearFocus": "포커스 해제",
+  "topicCount": "주제 {count}개",
+  "muteGroup": "이 그룹 음소거",
+  "followGroup": "이 그룹 팔로우",
+  "durationFadeGroup": "그룹이 사라질 때까지",
+  "zoomIn": "확대",
+  "groupsTitle": "주제 그룹",
+  "breadcrumbRoot": "모든 주제",
+  "breadcrumbLabel": "별자리 단계",
+  "myTopics": "내 주제",
+  "canvasLabelGroups": "주제 그룹, 그룹 {count}개. 드래그하여 회전, 스크롤하거나 핀치하여 확대/축소, 그룹을 탭하여 선택, 두 번 탭하여 확대합니다.",
+  "nodeLabelGroup": "{label}, 그룹, 읽지 않음 {count}개, {state}",
+  "manualEmpty": "직접 입력한 주제가 아직 없습니다.",
+  "groupEmpty": "이 그룹에는 더 이상 주제가 없습니다."
 }

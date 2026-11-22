@@ -56,5 +56,18 @@
   "showAll": "Mostrar todos",
   "listTitle": "Temas por tamaño",
   "details": "Detalles",
-  "clearFocus": "Quitar el foco"
+  "clearFocus": "Quitar el foco",
+  "topicCount": "{count} temas",
+  "muteGroup": "Silenciar este grupo",
+  "followGroup": "Seguir este grupo",
+  "durationFadeGroup": "Hasta que el grupo desaparezca",
+  "zoomIn": "Acercar",
+  "groupsTitle": "Grupos de temas",
+  "breadcrumbRoot": "Todos los temas",
+  "breadcrumbLabel": "Nivel de la constelación",
+  "myTopics": "Mis temas",
+  "canvasLabelGroups": "Grupos de temas, {count} grupos. Arrastra para girar, desplaza o pellizca para hacer zoom, toca un grupo para enfocarlo, toca dos veces para acercar.",
+  "nodeLabelGroup": "{label}, grupo, {count} sin leer, {state}",
+  "manualEmpty": "Aún no tienes temas escritos.",
+  "groupEmpty": "Este grupo ya no tiene temas."
 }

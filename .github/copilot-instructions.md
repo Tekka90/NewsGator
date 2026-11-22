@@ -688,6 +688,6 @@ Topic Radar (2026-11-21, Alembic 0032): users mute/follow whole *topics* (cluste
 never marked read and never pushed to reader APIs. Topic discovery is generic (embeddings + one LLM
 label per topic, rule 0 — no keyword lists); the `topic_refresh_sweep` job + `evaluate_story` hook in
 `cluster_article` maintain it. Tunables are `TOPIC_*` settings. Semantics are shared with the Apple
-standalone pipeline through `tests/fixtures/topic_vectors.json`. Typed topics (`/topic-rules/custom`, `manual` stars with negative id), PATCH rule mode and `stories?followed=true` are documented in SPEC.md. See SPEC.md "Topic Radar" and
+standalone pipeline through `tests/fixtures/topic_vectors.json`. Typed topics (`/topic-rules/custom`, `manual` stars with negative id), PATCH rule mode and `stories?followed=true` are documented in SPEC.md. Topic groups (Alembic 0033, `topic_group` table, `Topic.group_id`, `TopicRule.source_group_id`, `TOPIC_GROUP_*` settings): the sweep regroups topics into ~6–12 "galaxies" (`group_topics`, identity kept by centroid matching), group rules match live against member-topic centroids, `/topic-groups*` endpoints and `/topics?group=|manual_only=` serve the two-level `/ai` constellation; the `_LEGACY_STAMPS` entry in `main.py` covers `topic_rule.source_group_id`. See SPEC.md "Topic Radar" and
 `docs/TOPIC_RADAR_PLAN.md`.
 

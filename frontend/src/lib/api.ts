@@ -21,6 +21,7 @@ import type {
   StoryPreset,
   Topic,
   TopicDuration,
+  TopicGroup,
   TopicMode,
   TopicPreview,
   TopicRule,
@@ -344,7 +345,13 @@ export const api = {
 
   // Topic Radar: trending topics + per-user mute/follow rules (404 when disabled server-side)
   topics: {
-    list: (all = false) => req<Topic[]>(all ? '/topics?all=true' : '/topics'),
+    list: (all = false, opts: { group?: number; manualOnly?: boolean } = {}) => {
+      if (!all) return req<Topic[]>('/topics');
+      const q = new URLSearchParams({ all: 'true' });
+      if (opts.group !== undefined) q.set('group', String(opts.group));
+      if (opts.manualOnly) q.set('manual_only', 'true');
+      return req<Topic[]>(`/topics?${q}`);
+    },
     preview: (id: number) => req<TopicPreview>(`/topics/${id}/preview`),
     createRule: (id: number, mode: TopicMode, duration: TopicDuration) =>
       req<TopicRule>(`/topics/${id}/rules`, { method: 'POST', body: { mode, duration } }),
@@ -360,6 +367,14 @@ export const api = {
         method: 'POST',
         body: { story_id: storyId }
       })
+  },
+
+  // Topic groups ("galaxies"): the top level of the constellation
+  topicGroups: {
+    list: () => req<TopicGroup[]>('/topic-groups'),
+    preview: (id: number) => req<TopicPreview>(`/topic-groups/${id}/preview`),
+    createRule: (id: number, mode: TopicMode, duration: TopicDuration) =>
+      req<TopicRule>(`/topic-groups/${id}/rules`, { method: 'POST', body: { mode, duration } })
   },
 
   presets: {

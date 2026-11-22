@@ -56,5 +56,18 @@
   "showAll": "Mostrar todos",
   "listTitle": "Tópicos por tamanho",
   "details": "Detalhes",
-  "clearFocus": "Limpar o foco"
+  "clearFocus": "Limpar o foco",
+  "topicCount": "{count} tópicos",
+  "muteGroup": "Silenciar este grupo",
+  "followGroup": "Seguir este grupo",
+  "durationFadeGroup": "Até o grupo desaparecer",
+  "zoomIn": "Aproximar",
+  "groupsTitle": "Grupos de tópicos",
+  "breadcrumbRoot": "Todos os tópicos",
+  "breadcrumbLabel": "Nível da constelação",
+  "myTopics": "Meus tópicos",
+  "canvasLabelGroups": "Grupos de tópicos, {count} grupos. Arraste para girar, role ou faça pinça para dar zoom, toque num grupo para focá-lo, toque duas vezes para aproximar.",
+  "nodeLabelGroup": "{label}, grupo, {count} não lidos, {state}",
+  "manualEmpty": "Você ainda não tem tópicos digitados.",
+  "groupEmpty": "Este grupo não tem mais tópicos."
 }

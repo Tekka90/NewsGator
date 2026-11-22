@@ -9,6 +9,19 @@ export function hueFromPosition(pos: [number, number, number]): number {
   return HUE_MIN + (HUE_MAX - HUE_MIN) * ((az + Math.PI) / (2 * Math.PI));
 }
 
+export const GROUP_SAT = 0.65;
+export const GROUP_LIGHT = 0.55;
+export const TINT_SPREAD = 36; // degrees of hue variation among the topics of one group
+
+/** CSS colour of a topic group: hsl(hue, 65%, 55%). */
+export const groupCss = (hue: number) => `hsl(${((hue % 360) + 360) % 360}, ${Math.round(GROUP_SAT * 100)}%, ${Math.round(GROUP_LIGHT * 100)}%)`;
+
+/** Topic hue inside a group: the group hue, nudged by position so neighbours stay distinguishable. */
+export function tintHue(groupHue: number, pos: [number, number, number], spread = TINT_SPREAD): number {
+  const k = (hueFromPosition(pos) - HUE_MIN) / (HUE_MAX - HUE_MIN) - 0.5; // -0.5..0.5
+  return (((groupHue + k * spread) % 360) + 360) % 360;
+}
+
 /** h in degrees, s and l in 0..1 → [r, g, b] in 0..255. */
 export function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   const hh = (((h % 360) + 360) % 360) / 60;

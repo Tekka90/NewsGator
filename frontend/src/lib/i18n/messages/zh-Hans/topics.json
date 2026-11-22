@@ -56,5 +56,18 @@
   "showAll": "显示全部",
   "listTitle": "按大小排序的话题",
   "details": "详情",
-  "clearFocus": "取消聚焦"
+  "clearFocus": "取消聚焦",
+  "topicCount": "{count} 个话题",
+  "muteGroup": "静音此分组",
+  "followGroup": "关注此分组",
+  "durationFadeGroup": "直到分组消失",
+  "zoomIn": "放大查看",
+  "groupsTitle": "话题分组",
+  "breadcrumbRoot": "全部话题",
+  "breadcrumbLabel": "星座层级",
+  "myTopics": "我的话题",
+  "canvasLabelGroups": "话题分组，共 {count} 个分组。拖动旋转，滚动或捏合缩放，点按分组聚焦，双击放大查看。",
+  "nodeLabelGroup": "{label}，分组，{count} 条未读，{state}",
+  "manualEmpty": "你还没有手动输入的话题。",
+  "groupEmpty": "此分组已没有话题。"
 }
