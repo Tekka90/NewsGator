@@ -145,7 +145,7 @@ def test_story_list_detail_revision_and_feed_options(live: httpx.Client) -> None
         "first_seen_at", "last_updated_at", "published_at", "is_read",
         "updated_since_read", "saved", "saved_at", "articles", "revisions",
         "readeck_bookmark_id", "video_id", "media_kind", "video_url", "video_embed_url",
-        "video_provider", "video_duration",
+        "video_provider", "video_duration", "ignored",
     }
     assert detail["revisions"] == [
         {"version": 1, "summary": "Original RSS facts.", "created_at": STAMP},
