@@ -19,7 +19,8 @@
     "category_ids": [],
     "source_kinds": [],
     "query": null,
-    "max_age_days": null
+    "max_age_days": null,
+    "followed_only": false
    }
   },
   {
@@ -39,7 +40,8 @@
     "category_ids": [],
     "source_kinds": [],
     "query": null,
-    "max_age_days": null
+    "max_age_days": null,
+    "followed_only": false
    }
   },
   {
@@ -59,7 +61,8 @@
     "category_ids": [],
     "source_kinds": [],
     "query": null,
-    "max_age_days": null
+    "max_age_days": null,
+    "followed_only": false
    }
   },
   {
@@ -79,7 +82,29 @@
     "category_ids": [],
     "source_kinds": [],
     "query": null,
-    "max_age_days": null
+    "max_age_days": null,
+    "followed_only": false
+   }
+  },
+  {
+   "id": "followed",
+   "kind": "builtin",
+   "label": null,
+   "icon": "star",
+   "display": "icon+label",
+   "enabled": true,
+   "position": 4,
+   "sort": "published",
+   "order": "asc",
+   "show_count": true,
+   "criteria": {
+    "status": "unread",
+    "feed_ids": [],
+    "category_ids": [],
+    "source_kinds": [],
+    "query": null,
+    "max_age_days": null,
+    "followed_only": true
    }
   }
  ],
@@ -305,7 +330,8 @@
    6,
    4,
    3
-  ]
+  ],
+  "followed": []
  },
  "criteria_matrix": [
   {
@@ -4371,7 +4397,8 @@
     "unread",
     "saved",
     "updated",
-    "all"
+    "all",
+    "followed"
    ]
   }
  },

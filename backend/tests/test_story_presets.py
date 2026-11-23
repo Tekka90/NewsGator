@@ -247,8 +247,10 @@ async def test_get_defaults_not_persisted_and_roundtrip(client: AsyncClient) -> 
     r = await _put(client, presets, last_preset_id="c1", compact=True)
     assert r.status_code == 200, r.text
     out = r.json()
-    assert [p["id"] for p in out["presets"]] == ["c1", "all", "unread", "updated", "saved"]
-    assert [p["position"] for p in out["presets"]] == [0, 1, 2, 3, 4]
+    assert [p["id"] for p in out["presets"]] == [
+        "c1", "all", "unread", "updated", "saved", "followed"
+    ]
+    assert [p["position"] for p in out["presets"]] == [0, 1, 2, 3, 4, 5]
     assert out["presets"][0]["criteria"]["query"] == "garage"
     assert out["last_preset_id"] == "c1" and out["compact"] is True
     assert (await client.get("/api/me/presets")).json() == out
@@ -286,7 +288,9 @@ async def test_reset_scopes(client: AsyncClient) -> None:
 
     r = await client.post("/api/me/presets/reset", json={"scope": "builtin"})
     out = r.json()
-    assert [p["id"] for p in out["presets"]] == ["all", "unread", "updated", "saved", "c1"]
+    assert [p["id"] for p in out["presets"]] == [
+        "all", "unread", "updated", "saved", "followed", "c1"
+    ]
     assert out["presets"][1] == {**VECTORS["defaults"][1]}
     assert out["last_preset_id"] == "c1" and out["compact"] is True
 

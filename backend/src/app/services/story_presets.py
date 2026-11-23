@@ -286,7 +286,9 @@ def _validate_preset(raw: Any, index: int) -> dict[str, Any]:
     position = raw.get("position", index)
     if not _is_int(position):
         raise _fail("invalid_payload", "position must be an integer")
-    raw_criteria = dict(raw["criteria"]) if isinstance(raw["criteria"], Mapping) else raw["criteria"]
+    raw_criteria = (
+        dict(raw["criteria"]) if isinstance(raw["criteria"], Mapping) else raw["criteria"]
+    )
     if kind == "builtin" and pid == "followed" and isinstance(raw_criteria, dict):
         raw_criteria.setdefault("followed_only", True)
     criteria = _validate_criteria(raw_criteria)
