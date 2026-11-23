@@ -198,7 +198,7 @@
             >⠿</span>
             <span class="glyph"><PresetIcon icon={p.icon} size={16} /></span>
             <span class="vname">
-              {presetLabel(p)}
+              {p.kind === 'builtin' && p.id === 'followed' && !p.label ? $t('presetbar.followed') : presetLabel(p)}
               {#if p.kind === 'builtin'}<span class="tag">{$t('views.builtinTag')}</span>{/if}
             </span>
             <span class="actions">
@@ -286,6 +286,7 @@
                   <input bind:value={e.criteria.query} maxlength={MAX_QUERY} placeholder={$t('views.keywordsPlaceholder')} />
                   <span class="hint">{$t('views.keywordsHint')}</span>
                 </label>
+                <label class="check"><input type="checkbox" bind:checked={e.criteria.followed_only} /> {$t('views.onlyFollowed')}</label>
                 <fieldset>
                   <legend>{$t('views.sourceTypes')} <span class="hint">{$t('views.anyOf')}</span></legend>
                   <div class="checks">

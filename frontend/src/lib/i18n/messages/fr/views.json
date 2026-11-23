@@ -50,6 +50,7 @@
   "keywords": "Mots-clés",
   "keywordsPlaceholder": "p. ex. vélo électrique",
   "keywordsHint": "Tous les mots doivent figurer dans le titre ou le résumé. La casse et les accents sont ignorés.",
+  "onlyFollowed": "Uniquement les sujets que je suis",
   "sourceTypes": "Types de source",
   "anyOf": "(l’un d’eux)",
   "kindRss": "RSS",

@@ -57,10 +57,6 @@
   let saving = $state<Record<number, boolean>>({});
   let presetCounts = $state<Record<string, number>>({});
   let showIgnored = $state(false);
-  // Topic Radar "Followed" view: layered on the active preset, not a preset itself
-  let followedMode = $state(false);
-  let hasFollowRule = $state(false);
-  let followedCount = $state(0);
   // Sticky title + filter bar — its height is measured at click time so a
   // just-read story can be scrolled out exactly behind it.
   let pagehead = $state<HTMLElement>();
@@ -83,7 +79,7 @@
   let anchorIndex = $state(0);
   let historyDone = $state(true);
   let historyLoading = false;
-  let historyEnabled = $derived(isMobile && !followedMode && supportsHistory(activePreset, sort));
+  let historyEnabled = $derived(isMobile && supportsHistory(activePreset, sort));
 
   let current = $derived(index < stories.length ? stories[index] : null);
   // Past the last card = the "all caught up" end card
@@ -232,16 +228,14 @@
     }
     const [fetchedStories, counts] = await Promise.all([
       api.stories.listPreset({
-        preset: followedMode ? undefined : activeId,
+        preset: activeId,
         sort: sortOverride ?? undefined,
         order: orderOverride ?? undefined,
         category: category || undefined,
         feedId: feedId || undefined,
-        ignored: showIgnored ? 'only' : undefined,
-        followed: followedMode || undefined
+        ignored: showIgnored ? 'only' : undefined
       }),
-      api.presets.counts().catch(() => null),
-      loadFollowed()
+      api.presets.counts().catch(() => null)
     ]);
     stories = fetchedStories;
     if (counts) presetCounts = counts.counts;
@@ -254,25 +248,6 @@
     loading = false;
   }
 
-  async function loadFollowed() {
-    try {
-      followedCount = (await api.stories.counts()).followed ?? 0;
-      hasFollowRule = (await api.topics.rules()).some((r) => r.mode === 'follow');
-    } catch {
-      followedCount = 0;
-      hasFollowRule = false;
-    }
-  }
-
-  function toggleFollowed() {
-    followedMode = !followedMode;
-    sortOverride = null;
-    orderOverride = null;
-    category = '';
-    feedId = 0;
-    void load();
-  }
-
   function historyQuery(extra: Partial<ListQuery>): ListQuery {
     return {
       preset: activeId ?? 'all',
@@ -280,7 +255,6 @@
       order: orderOverride ?? undefined,
       category: category || undefined,
       feedId: feedId || undefined,
-      followed: followedMode || undefined,
       includeRead: true,
       limit: HISTORY_PAGE,
       ...extra
@@ -337,7 +311,6 @@
   /** Selecting a view applies its criteria + sort/order and drops every manual override. */
   function selectPreset(p: StoryPreset) {
     activeId = p.id;
-    followedMode = false;
     sortOverride = null;
     orderOverride = null;
     category = '';
@@ -346,7 +319,9 @@
     api
       .patchMe({
         last_preset_id: p.id,
-        ...(p.kind === 'builtin' ? { story_filter: p.id as 'all' } : {})
+        ...(p.kind === 'builtin' && p.id !== 'followed'
+          ? { story_filter: p.id as 'all' }
+          : {})
       })
       .then((u) => ($currentUser = u))
       .catch(() => {});
@@ -607,12 +582,10 @@
     <div class="filters">
       <PresetBar
         {presets}
-        activeId={followedMode ? null : activeId}
+        activeId={activeId}
         counts={presetCounts}
         {compact}
         onselect={selectPreset}
-        followed={hasFollowRule ? { active: followedMode, count: followedCount } : null}
-        onfollowed={toggleFollowed}
       />
     </div>
     {#if isMobile}

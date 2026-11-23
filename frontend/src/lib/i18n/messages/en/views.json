@@ -50,6 +50,7 @@
   "keywords": "Keywords",
   "keywordsPlaceholder": "e.g. electric bike",
   "keywordsHint": "All words must appear in the title or summary. Case and accents are ignored.",
+  "onlyFollowed": "Only topics I follow",
   "sourceTypes": "Source types",
   "anyOf": "(any of)",
   "kindRss": "RSS",
@@ -73,6 +74,6 @@
   "resetAll": "Reset everything",
   "saved": "Saved ✓",
   "resetDone": "Reset ✓",
-  "confirmResetAll": "Delete all your custom views and restore the four default views? This cannot be undone.",
-  "confirmResetBuiltin": "Restore the four default views (names, icons, order, sorting)? Your custom views are kept."
+  "confirmResetAll": "Delete all your custom views and restore the built-in views? This cannot be undone.",
+  "confirmResetBuiltin": "Restore the built-in views (names, icons, order, sorting)? Your custom views are kept."
 }

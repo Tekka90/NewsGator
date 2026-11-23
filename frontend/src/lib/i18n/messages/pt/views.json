@@ -50,6 +50,7 @@
   "keywords": "Palavras-chave",
   "keywordsPlaceholder": "ex.: bicicleta elétrica",
   "keywordsHint": "Todas as palavras têm de aparecer no título ou no resumo. Maiúsculas e acentos são ignorados.",
+  "onlyFollowed": "Apenas os tópicos que sigo",
   "sourceTypes": "Tipos de fonte",
   "anyOf": "(qualquer um)",
   "kindRss": "RSS",

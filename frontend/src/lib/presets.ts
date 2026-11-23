@@ -6,7 +6,7 @@ import type {
   StoryPreset
 } from './types';
 
-export const BUILTIN_IDS = ['all', 'unread', 'updated', 'saved'] as const;
+export const BUILTIN_IDS = ['all', 'unread', 'updated', 'saved', 'followed'] as const;
 export const MAX_LABEL = 40;
 export const MAX_QUERY = 200;
 export const MAX_PRESETS = 200;
@@ -15,7 +15,8 @@ const BUILTIN_NAMES: Record<string, string> = {
   all: 'All',
   unread: 'Unread',
   updated: 'Updated',
-  saved: 'Saved'
+  saved: 'Saved',
+  followed: 'Followed'
 };
 
 export const SORT_LABELS: Record<PresetSort, string> = {
@@ -26,7 +27,10 @@ export const SORT_LABELS: Record<PresetSort, string> = {
 };
 
 export function emptyCriteria(): PresetCriteria {
-  return { status: 'any', feed_ids: [], category_ids: [], source_kinds: [], query: null, max_age_days: null };
+  return {
+    status: 'any', feed_ids: [], category_ids: [], source_kinds: [], query: null,
+    max_age_days: null, followed_only: false
+  };
 }
 
 function builtin(
@@ -35,7 +39,8 @@ function builtin(
   status: PresetCriteria['status'],
   sort: PresetSort,
   order: PresetOrder,
-  position: number
+  position: number,
+  followedOnly = false
 ): StoryPreset {
   return {
     id,
@@ -48,7 +53,7 @@ function builtin(
     sort,
     order,
     show_count: true,
-    criteria: { ...emptyCriteria(), status }
+    criteria: { ...emptyCriteria(), status, followed_only: followedOnly }
   };
 }
 
@@ -58,7 +63,8 @@ export function defaultPresets(): StoryPreset[] {
     builtin('all', 'list', 'any', 'published', 'desc', 0),
     builtin('unread', 'circle-dot', 'unread', 'published', 'asc', 1),
     builtin('updated', 'refresh', 'updated', 'sources', 'desc', 2),
-    builtin('saved', 'bookmark', 'saved', 'saved_at', 'desc', 3)
+    builtin('saved', 'bookmark', 'saved', 'saved_at', 'desc', 3),
+    builtin('followed', 'star', 'unread', 'published', 'asc', 4, true)
   ];
 }
 
@@ -133,8 +139,6 @@ export interface ListQuery {
   includeRead?: boolean;
   /** Topic Radar: `only` lists just the stories hidden by mute rules. */
   ignored?: 'only';
-  /** Topic Radar: only stories of followed topics. */
-  followed?: boolean;
   /** Cursor paging: the `limit` stories right before this story id (needs `limit`). */
   before?: number;
   limit?: number;
@@ -148,17 +152,12 @@ export function supportsHistory(p: StoryPreset | null, sort: PresetSort): boolea
 /** Query string of GET /stories — overrides are sent only when the user set them. */
 export function storiesQuery(q: ListQuery): URLSearchParams {
   const params = new URLSearchParams();
-  if (q.followed) {
-    params.set('filter', 'unread');
-    params.set('followed', 'true');
-  } else if (q.preset) {
-    params.set('preset', q.preset);
-  }
+  if (q.preset) params.set('preset', q.preset);
   if (q.sort) params.set('sort', q.sort);
   if (q.order) params.set('order', q.order);
   if (q.category) params.set('category', q.category);
   if (q.feedId) params.set('feed', String(q.feedId));
-  if (q.includeRead && !q.followed) params.set('include_read', 'true');
+  if (q.includeRead) params.set('include_read', 'true');
   if (q.ignored) params.set('ignored', q.ignored);
   if (q.before) params.set('before', String(q.before));
   if (q.limit) params.set('limit', String(q.limit));

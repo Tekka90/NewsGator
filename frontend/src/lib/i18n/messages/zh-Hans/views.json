@@ -50,6 +50,7 @@
   "keywords": "关键词",
   "keywordsPlaceholder": "例如：电动自行车",
   "keywordsHint": "所有词都必须出现在标题或摘要中。忽略大小写和重音。",
+  "onlyFollowed": "仅显示我关注的话题",
   "sourceTypes": "来源类型",
   "anyOf": "（任一）",
   "kindRss": "RSS",

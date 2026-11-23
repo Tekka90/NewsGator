@@ -50,6 +50,7 @@
   "keywords": "關鍵字",
   "keywordsPlaceholder": "例如：電動自行車",
   "keywordsHint": "所有字詞都必須出現在標題或摘要中。大小寫與重音符號會被忽略。",
+  "onlyFollowed": "僅顯示我追蹤的主題",
   "sourceTypes": "來源類型",
   "anyOf": "（任一）",
   "kindRss": "RSS",

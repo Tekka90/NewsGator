@@ -22,6 +22,7 @@ class PresetCriteriaOut(BaseModel):
     source_kinds: list[str]
     query: str | None
     max_age_days: int | None
+    followed_only: bool = False
 
 
 class PresetOut(BaseModel):

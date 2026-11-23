@@ -204,6 +204,67 @@ async def list_topics(
         await session.scalars(select(TopicRule).where(TopicRule.user_id == user.id))
     ).all()
     rules = {r.source_topic_id: r for r in all_rules if r.source_topic_id is not None}
+    ruled_story_count: dict[int, int] = {}
+    ruled_ids = [r.id for r in rules.values()]
+    if ruled_ids:
+        ruled_rows = (
+            await session.execute(
+                select(
+                    StoryRuleMatch.rule_id,
+                    func.coalesce(StoryState.is_read, False),
+                    Story.last_updated_at,
+                    _ignored_sql(user.id),
+                )
+                .join(Story, Story.id == StoryRuleMatch.story_id)
+                .outerjoin(
+                    StoryState,
+                    and_(
+                        StoryState.story_id == Story.id,
+                        StoryState.user_id == user.id,
+                    ),
+                )
+                .where(
+                    StoryRuleMatch.rule_id.in_(ruled_ids),
+                    StoryRuleMatch.story_id.in_(visible),
+                )
+            )
+        ).all()
+        ruled_by_id = {r.id: r.source_topic_id for r in rules.values()}
+        for rule_id, is_read, updated, hidden in ruled_rows:
+            tid = ruled_by_id.get(rule_id)
+            if tid is None or hidden:
+                continue
+            if rules[tid].mode == topics_svc.MODE_FOLLOW:
+                ruled_story_count[tid] = ruled_story_count.get(tid, 0) + 1
+            if not is_read:
+                unread[tid] = unread.get(tid, 0) + 1
+            ts = updated if updated.tzinfo else updated.replace(tzinfo=recent_cut.tzinfo)
+            if ts >= recent_cut:
+                recent[tid] = recent.get(tid, 0) + 1
+        # Rule matches are the user's live semantic topic. Replace the static
+        # StoryTopic contribution rather than counting both representations.
+        for topic_id in rules:
+            base = [
+                row
+                for row in rows
+                if row[0] == topic_id and not row[4] and not row[2]
+            ]
+            unread_base = len(base)
+            if unread_base:
+                unread[topic_id] = max(0, unread.get(topic_id, 0) - unread_base)
+            recent_base = sum(
+                1
+                for row in rows
+                if row[0] == topic_id
+                and not row[4]
+                and (
+                    row[3]
+                    if row[3].tzinfo
+                    else row[3].replace(tzinfo=recent_cut.tzinfo)
+                )
+                >= recent_cut
+            )
+            recent[topic_id] = max(0, recent.get(topic_id, 0) - recent_base)
     manual_stars = (
         []
         if all and group is not None and not manual_only
@@ -221,7 +282,7 @@ async def list_topics(
             id=t.id,
             label=t.label,
             description=t.description,
-            story_count=t.story_count,
+            story_count=ruled_story_count.get(t.id, t.story_count),
             source_count=t.source_count,
             unread_count=unread.get(t.id, 0),
             recent_count=recent.get(t.id, 0),

@@ -67,15 +67,15 @@ test('last enabled preset cannot be disabled or deleted', () => {
   const custom = { ...newCustomPreset(4, 'c1'), enabled: true };
   list = [...list, custom];
   assert.equal(removePreset(list, 'all'), list);
-  assert.equal(removePreset(list, 'c1').length, 4);
+  assert.equal(removePreset(list, 'c1').length, 5);
 });
 
 test('move and duplicate keep positions dense', () => {
   const moved = movePreset(defaultPresets(), 3, 0);
-  assert.deepEqual(moved.map((p) => p.id), ['saved', 'all', 'unread', 'updated']);
-  assert.deepEqual(moved.map((p) => p.position), [0, 1, 2, 3]);
+  assert.deepEqual(moved.map((p) => p.id), ['saved', 'all', 'unread', 'updated', 'followed']);
+  assert.deepEqual(moved.map((p) => p.position), [0, 1, 2, 3, 4]);
   const dup = duplicatePreset(defaultPresets(), 'unread', 'copy1');
-  assert.deepEqual(dup.map((p) => p.id), ['all', 'unread', 'copy1', 'updated', 'saved']);
+  assert.deepEqual(dup.map((p) => p.id), ['all', 'unread', 'copy1', 'updated', 'saved', 'followed']);
   assert.equal(dup[2].kind, 'custom');
   assert.equal(dup[2].label, 'Unread copy');
 });
@@ -94,10 +94,6 @@ test('stories query sends overrides only when set', () => {
   assert.equal(
     storiesQuery({ preset: 'x', sort: 'saved_at', order: 'asc', category: 'Tech', feedId: 3 }).toString(),
     'preset=x&sort=saved_at&order=asc&category=Tech&feed=3'
-  );
-  assert.equal(
-    storiesQuery({ preset: 'all', followed: true, sort: 'published', order: 'desc' }).toString(),
-    'filter=unread&followed=true&sort=published&order=desc'
   );
 });
 
@@ -123,7 +119,7 @@ test('draft validation and normalisation', () => {
   assert.match(validateDraft([...defaultPresets(), ok]) ?? '', /age/);
   ok.criteria.max_age_days = 30;
   assert.equal(validateDraft([...defaultPresets(), ok]), null);
-  assert.equal(normalizeForSave([...defaultPresets(), ok])[4].criteria.query, 'garage');
+  assert.equal(normalizeForSave([...defaultPresets(), ok])[5].criteria.query, 'garage');
   ok.criteria.query = '  ';
   assert.equal(normalizeForSave([ok])[0].criteria.query, null);
 });

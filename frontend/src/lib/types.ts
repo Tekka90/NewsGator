@@ -324,6 +324,7 @@ export interface PresetCriteria {
   source_kinds: PresetSourceKind[];
   query: string | null;
   max_age_days: number | null;
+  followed_only: boolean;
 }
 
 export interface StoryPreset {

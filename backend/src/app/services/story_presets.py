@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-BUILTIN_IDS: tuple[str, ...] = ("all", "unread", "updated", "saved")
+BUILTIN_IDS: tuple[str, ...] = ("all", "unread", "updated", "saved", "followed")
 STATUSES: tuple[str, ...] = ("any", "unread", "updated", "saved")
 # `video` is not a feed kind: any story with a flagged video article (VIDEO_ARTICLES_PLAN D8).
 # The former `youtube` kind is gone (unknown kind → validation error).
@@ -50,6 +50,7 @@ _PRESET_FIELDS = {
 }
 _CRITERIA_FIELDS = {
     "status", "feed_ids", "category_ids", "source_kinds", "query", "max_age_days",
+    "followed_only",
 }
 
 
@@ -73,6 +74,7 @@ def empty_criteria(status: str = "any") -> dict[str, Any]:
         "source_kinds": [],
         "query": None,
         "max_age_days": None,
+        "followed_only": False,
     }
 
 
@@ -82,6 +84,7 @@ _DEFAULT_SPECS: tuple[tuple[str, str, str, str, str], ...] = (
     ("unread", "circle-dot", "unread", "published", "asc"),
     ("updated", "refresh", "updated", "sources", "desc"),
     ("saved", "bookmark", "saved", "saved_at", "desc"),
+    ("followed", "star", "unread", "published", "asc"),
 )
 
 
@@ -100,7 +103,10 @@ def default_preset(preset_id: str) -> dict[str, Any]:
                 "sort": sort,
                 "order": order,
                 "show_count": True,
-                "criteria": empty_criteria(status),
+                "criteria": {
+                    **empty_criteria(status),
+                    "followed_only": pid == "followed",
+                },
             }
     raise KeyError(preset_id)
 
@@ -110,7 +116,7 @@ def default_presets() -> list[dict[str, Any]]:
 
 
 def builtin_criteria(preset_id: str) -> dict[str, Any]:
-    return empty_criteria(str(default_preset(preset_id)["criteria"]["status"]))
+    return dict(default_preset(preset_id)["criteria"])
 
 
 # --- keyword normalisation ----------------------------------------------------------
@@ -237,6 +243,10 @@ def _validate_criteria(raw: Any) -> dict[str, Any]:
         if not _is_int(max_age) or not MAX_AGE_RANGE[0] <= max_age <= MAX_AGE_RANGE[1]:
             raise _fail("invalid_max_age", "criteria.max_age_days must be an integer 1-3650")
     out["max_age_days"] = max_age
+    followed_only = raw.get("followed_only", False)
+    if not isinstance(followed_only, bool):
+        raise _fail("invalid_payload", "criteria.followed_only must be a boolean")
+    out["followed_only"] = followed_only
     return out
 
 
@@ -276,7 +286,10 @@ def _validate_preset(raw: Any, index: int) -> dict[str, Any]:
     position = raw.get("position", index)
     if not _is_int(position):
         raise _fail("invalid_payload", "position must be an integer")
-    criteria = _validate_criteria(raw["criteria"])
+    raw_criteria = dict(raw["criteria"]) if isinstance(raw["criteria"], Mapping) else raw["criteria"]
+    if kind == "builtin" and pid == "followed" and isinstance(raw_criteria, dict):
+        raw_criteria.setdefault("followed_only", True)
+    criteria = _validate_criteria(raw_criteria)
     if kind == "builtin" and criteria != builtin_criteria(pid):
         raise _fail("builtin_criteria_locked", "built-in presets have fixed criteria")
     return {
@@ -301,6 +314,15 @@ def validate_presets(raw: Any) -> list[dict[str, Any]]:
     if len(raw) > MAX_PRESETS:
         raise _fail("too_many_presets", f"at most {MAX_PRESETS} presets")
     presets = [_validate_preset(item, i) for i, item in enumerate(raw)]
+    missing_followed = (
+        not any(p["id"] == "followed" for p in presets)
+        and all(p["id"] in BUILTIN_IDS[:-1] or p["kind"] == "custom" for p in presets)
+    )
+    if missing_followed:
+        followed = default_preset("followed")
+        followed["enabled"] = False
+        followed["position"] = max((p["position"] for p in presets), default=-1) + 1
+        presets.append(followed)
     ids = [p["id"] for p in presets]
     if len(set(ids)) != len(ids):
         raise _fail("duplicate_id", "preset ids must be unique")
@@ -343,7 +365,26 @@ def load_presets(stored: str | None) -> list[dict[str, Any]]:
     if not stored:
         return default_presets()
     try:
-        return validate_presets(json.loads(stored))
+        loaded = json.loads(stored)
+        if isinstance(loaded, list):
+            loaded = [
+                {
+                    **item,
+                    "criteria": {**item.get("criteria", {}), "followed_only": False},
+                }
+                if isinstance(item, dict)
+                and isinstance(item.get("criteria"), dict)
+                and "followed_only" not in item["criteria"]
+                and item.get("id") != "followed"
+                else item
+                for item in loaded
+            ]
+        presets = validate_presets(loaded)
+        if isinstance(loaded, list) and not any(
+            isinstance(item, dict) and item.get("id") == "followed" for item in loaded
+        ):
+            next(p for p in presets if p["id"] == "followed")["enabled"] = True
+        return presets
     except (ValueError, TypeError):
         return default_presets()
 
@@ -353,7 +394,7 @@ def dump_presets(presets: list[dict[str, Any]]) -> str:
 
 
 def reset_builtin(presets: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Restore the four built-ins to their defaults (first, in default order); keep customs."""
+    """Restore the built-ins to their defaults (first, in default order); keep customs."""
     customs = [p for p in presets if p["kind"] == "custom"]
     return validate_presets(default_presets() + customs)
 
@@ -398,6 +439,7 @@ class EvalStory:
     is_read: bool = False
     read_at_version: int = 0
     saved_at: datetime | None = None
+    followed: bool = False
 
 
 def _matches_source_kinds(
@@ -427,6 +469,8 @@ def story_matches(
     if status == "updated" and not (story.is_read and story.version > story.read_at_version):
         return False
     if status == "saved" and story.saved_at is None:
+        return False
+    if criteria.get("followed_only") and not story.followed:
         return False
     feeds = set(story.article_feed_ids)
     feed_ids = criteria.get("feed_ids") or []

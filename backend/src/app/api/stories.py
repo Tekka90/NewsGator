@@ -516,7 +516,7 @@ def _stories_with_video(feed_ids: Iterable[int]) -> ColumnElement[bool]:
 
 
 def _criteria_conditions(
-    criteria: dict[str, Any], feed_kinds: dict[int, str], now: datetime
+    criteria: dict[str, Any], feed_kinds: dict[int, str], now: datetime, user_id: int
 ) -> list[ColumnElement[bool]] | None:
     """SQL twin of ``story_presets.story_matches`` (needs StoryState outer-joined).
 
@@ -524,6 +524,8 @@ def _criteria_conditions(
     status_ = criteria["status"]
     conditions = _flag_conditions(status_ if status_ in ("unread", "updated") else "all",
                                   status_ == "saved")
+    if criteria.get("followed_only"):
+        conditions.append(_followed_sql(user_id))
     if criteria["feed_ids"]:
         conditions.append(_stories_of_feeds(criteria["feed_ids"]))
     if criteria["category_ids"]:
@@ -630,7 +632,7 @@ async def list_stories(
         kinds = (
             await _feed_source_kinds(session, user_feed_ids) if criteria["source_kinds"] else {}
         )
-        conditions = _criteria_conditions(criteria, kinds, utcnow())
+        conditions = _criteria_conditions(criteria, kinds, utcnow(), user.id)
         if conditions is None:
             return []
         extra.extend(conditions)
@@ -887,11 +889,12 @@ async def preset_counts(
         return bool(p["criteria"] == presets_svc.empty_criteria(p["criteria"]["status"]))
 
     by_status: dict[str, int] = {}
-    if any(only_status(p) for p in presets):
+    followed_count = 0
+    if any(only_status(p) or p["id"] == "followed" for p in presets):
         hidden = _ignored_sql(user.id)
         unread = _is_read_sql().is_(False)
         updated = and_(StoryState.is_read.is_(True), Story.version > StoryState.read_at_version)
-        total, n_unread, n_updated, n_saved = (
+        total, n_unread, n_updated, n_saved, n_followed = (
             await session.execute(
                 select(
                     func.count(),
@@ -899,6 +902,18 @@ async def preset_counts(
                     func.coalesce(func.sum(case((updated, 1), else_=0)), 0),
                     func.coalesce(
                         func.sum(case((StoryState.saved_at.is_not(None), 1), else_=0)), 0
+                    ),
+                    func.coalesce(
+                        func.sum(
+                            case(
+                                (
+                                    and_(unread, _followed_sql(user.id)),
+                                    1,
+                                ),
+                                else_=0,
+                            )
+                        ),
+                        0,
                     ),
                 )
                 .select_from(Story)
@@ -909,16 +924,20 @@ async def preset_counts(
             )
         ).one()
         by_status = {"any": total, "unread": n_unread, "updated": n_updated, "saved": n_saved}
+        followed_count = n_followed
     now = utcnow()
     kinds: dict[int, str] | None = None
     counts: dict[str, int] = {}
     for p in presets:
+        if p["id"] == "followed":
+            counts[p["id"]] = followed_count
+            continue
         if only_status(p):
             counts[p["id"]] = by_status[p["criteria"]["status"]]
             continue
         if kinds is None:
             kinds = await _feed_source_kinds(session, user_feed_ids)
-        conditions = _criteria_conditions(p["criteria"], kinds, now)
+        conditions = _criteria_conditions(p["criteria"], kinds, now, user.id)
         if conditions is None:
             counts[p["id"]] = 0
             continue
