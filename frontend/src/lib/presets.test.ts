@@ -95,6 +95,10 @@ test('stories query sends overrides only when set', () => {
     storiesQuery({ preset: 'x', sort: 'saved_at', order: 'asc', category: 'Tech', feedId: 3 }).toString(),
     'preset=x&sort=saved_at&order=asc&category=Tech&feed=3'
   );
+  assert.equal(
+    storiesQuery({ preset: 'all', followed: true, sort: 'published', order: 'desc' }).toString(),
+    'filter=unread&followed=true&sort=published&order=desc'
+  );
 });
 
 test('history query and eligibility', () => {

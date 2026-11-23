@@ -124,7 +124,7 @@ export function adjustSavedCounts(
 }
 
 export interface ListQuery {
-  preset: string;
+  preset?: string;
   sort?: PresetSort;
   order?: PresetOrder;
   category?: string;
@@ -147,14 +147,19 @@ export function supportsHistory(p: StoryPreset | null, sort: PresetSort): boolea
 
 /** Query string of GET /stories — overrides are sent only when the user set them. */
 export function storiesQuery(q: ListQuery): URLSearchParams {
-  const params = new URLSearchParams({ preset: q.preset });
+  const params = new URLSearchParams();
+  if (q.followed) {
+    params.set('filter', 'unread');
+    params.set('followed', 'true');
+  } else if (q.preset) {
+    params.set('preset', q.preset);
+  }
   if (q.sort) params.set('sort', q.sort);
   if (q.order) params.set('order', q.order);
   if (q.category) params.set('category', q.category);
   if (q.feedId) params.set('feed', String(q.feedId));
-  if (q.includeRead) params.set('include_read', 'true');
+  if (q.includeRead && !q.followed) params.set('include_read', 'true');
   if (q.ignored) params.set('ignored', q.ignored);
-  if (q.followed) params.set('followed', 'true');
   if (q.before) params.set('before', String(q.before));
   if (q.limit) params.set('limit', String(q.limit));
   return params;

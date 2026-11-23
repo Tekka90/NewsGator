@@ -83,7 +83,7 @@
   let anchorIndex = $state(0);
   let historyDone = $state(true);
   let historyLoading = false;
-  let historyEnabled = $derived(isMobile && supportsHistory(activePreset, sort));
+  let historyEnabled = $derived(isMobile && !followedMode && supportsHistory(activePreset, sort));
 
   let current = $derived(index < stories.length ? stories[index] : null);
   // Past the last card = the "all caught up" end card
@@ -232,7 +232,7 @@
     }
     const [fetchedStories, counts] = await Promise.all([
       api.stories.listPreset({
-        preset: activeId,
+        preset: followedMode ? undefined : activeId,
         sort: sortOverride ?? undefined,
         order: orderOverride ?? undefined,
         category: category || undefined,
