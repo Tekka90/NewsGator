@@ -588,7 +588,7 @@ Story presets / "Smart Views" (2026-10-21, Alembic 0024): per-user JSON document
 `GET /api/stories?preset=&feed_ids=` and `sort=saved_at` (`api/presets.py`, `api/stories.py`
 `_criteria_conditions`). **Invariants**: semantics live in `services/story_presets.py` and
 are mirrored (not shared) by the Apple standalone pipeline — both must pass
-`backend/tests/fixtures/story_presets_vectors.json`; the icon catalog (47 keys) has one list
+`backend/tests/fixtures/story_presets_vectors.json`; the icon catalog (48 keys) has one list
 there and one key→glyph map per platform; criteria are AND across types / OR within a list;
 keyword match is accent- and case-insensitive on stored `title + summary` (SQLite UDF
 `ng_norm`, registered in `core/db.py`); validation errors are `422 {detail:{code,message}}`;

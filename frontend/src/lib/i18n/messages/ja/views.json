@@ -51,6 +51,7 @@
   "keywordsPlaceholder": "例: 電動自転車",
   "keywordsHint": "すべての語がタイトルまたは要約に含まれている必要があります。大文字小文字とアクセントは区別されません。",
   "onlyFollowed": "フォロー中のトピックのみ",
+  "onlyHidden": "非表示のストーリーのみ",
   "sourceTypes": "ソースの種類",
   "anyOf": "（いずれか）",
   "kindRss": "RSS",

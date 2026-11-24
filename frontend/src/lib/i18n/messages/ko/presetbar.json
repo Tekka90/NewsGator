@@ -1,5 +1,6 @@
 {
   "label": "스토리 보기",
   "itemCount": "{name}, {count}",
-  "followed": "팔로우 중"
+  "followed": "팔로우 중",
+  "hidden": "숨김"
 }

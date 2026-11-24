@@ -1,5 +1,6 @@
 {
   "label": "Story-Ansichten",
   "itemCount": "{name}, {count}",
-  "followed": "Gefolgt"
+  "followed": "Gefolgt",
+  "hidden": "Ausgeblendet"
 }

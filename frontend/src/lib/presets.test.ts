@@ -26,7 +26,7 @@ const vectors = JSON.parse(
 
 test('icon keys equal the shared catalog, in order', () => {
   assert.deepEqual(ICON_KEYS, vectors.icon_catalog);
-  assert.equal(ICON_KEYS.length, 47);
+  assert.equal(ICON_KEYS.length, 48);
 });
 
 test('every catalog key resolves to its own glyph', () => {
@@ -67,15 +67,15 @@ test('last enabled preset cannot be disabled or deleted', () => {
   const custom = { ...newCustomPreset(4, 'c1'), enabled: true };
   list = [...list, custom];
   assert.equal(removePreset(list, 'all'), list);
-  assert.equal(removePreset(list, 'c1').length, 5);
+  assert.equal(removePreset(list, 'c1').length, 6);
 });
 
 test('move and duplicate keep positions dense', () => {
   const moved = movePreset(defaultPresets(), 3, 0);
-  assert.deepEqual(moved.map((p) => p.id), ['saved', 'all', 'unread', 'updated', 'followed']);
-  assert.deepEqual(moved.map((p) => p.position), [0, 1, 2, 3, 4]);
+  assert.deepEqual(moved.map((p) => p.id), ['saved', 'all', 'unread', 'updated', 'followed', 'hidden']);
+  assert.deepEqual(moved.map((p) => p.position), [0, 1, 2, 3, 4, 5]);
   const dup = duplicatePreset(defaultPresets(), 'unread', 'copy1');
-  assert.deepEqual(dup.map((p) => p.id), ['all', 'unread', 'copy1', 'updated', 'saved', 'followed']);
+  assert.deepEqual(dup.map((p) => p.id), ['all', 'unread', 'copy1', 'updated', 'saved', 'followed', 'hidden']);
   assert.equal(dup[2].kind, 'custom');
   assert.equal(dup[2].label, 'Unread copy');
 });
@@ -119,7 +119,10 @@ test('draft validation and normalisation', () => {
   assert.match(validateDraft([...defaultPresets(), ok]) ?? '', /age/);
   ok.criteria.max_age_days = 30;
   assert.equal(validateDraft([...defaultPresets(), ok]), null);
-  assert.equal(normalizeForSave([...defaultPresets(), ok])[5].criteria.query, 'garage');
+  assert.equal(
+    normalizeForSave([...defaultPresets(), ok]).find((p) => p.id === ok.id)?.criteria.query,
+    'garage'
+  );
   ok.criteria.query = '  ';
   assert.equal(normalizeForSave([ok])[0].criteria.query, null);
 });

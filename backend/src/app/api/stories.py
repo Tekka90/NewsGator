@@ -526,6 +526,8 @@ def _criteria_conditions(
                                   status_ == "saved")
     if criteria.get("followed_only"):
         conditions.append(_followed_sql(user_id))
+    if criteria.get("hidden_only"):
+        conditions.append(_ignored_sql(user_id))
     if criteria["feed_ids"]:
         conditions.append(_stories_of_feeds(criteria["feed_ids"]))
     if criteria["category_ids"]:
@@ -636,6 +638,8 @@ async def list_stories(
         if conditions is None:
             return []
         extra.extend(conditions)
+        if criteria.get("hidden_only"):
+            ignored = "only"
     if followed:
         extra.append(_followed_sql(user.id))
     if feed_ids:
@@ -890,24 +894,24 @@ async def preset_counts(
 
     by_status: dict[str, int] = {}
     followed_count = 0
-    if any(only_status(p) or p["id"] == "followed" for p in presets):
+    hidden_count = 0
+    if any(
+        only_status(p) or p["id"] in ("followed", "hidden") for p in presets
+    ):
         hidden = _ignored_sql(user.id)
         unread = _is_read_sql().is_(False)
         updated = and_(StoryState.is_read.is_(True), Story.version > StoryState.read_at_version)
-        total, n_unread, n_updated, n_saved, n_followed = (
+        total, n_unread, n_updated, n_saved, n_followed, n_hidden = (
             await session.execute(
                 select(
                     func.count(),
-                    func.coalesce(func.sum(case((unread, 1), else_=0)), 0),
-                    func.coalesce(func.sum(case((updated, 1), else_=0)), 0),
-                    func.coalesce(
-                        func.sum(case((StoryState.saved_at.is_not(None), 1), else_=0)), 0
-                    ),
+                    func.coalesce(func.sum(case((and_(~hidden, unread), 1), else_=0)), 0),
+                    func.coalesce(func.sum(case((and_(~hidden, updated), 1), else_=0)), 0),
                     func.coalesce(
                         func.sum(
                             case(
                                 (
-                                    and_(unread, _followed_sql(user.id)),
+                                    and_(~hidden, StoryState.saved_at.is_not(None)),
                                     1,
                                 ),
                                 else_=0,
@@ -915,22 +919,44 @@ async def preset_counts(
                         ),
                         0,
                     ),
+                    func.coalesce(
+                        func.sum(
+                            case(
+                                (
+                                    and_(~hidden, unread, _followed_sql(user.id)),
+                                    1,
+                                ),
+                                else_=0,
+                            )
+                        ),
+                        0,
+                    ),
+                    func.coalesce(func.sum(case((hidden, 1), else_=0)), 0),
                 )
                 .select_from(Story)
                 .outerjoin(
                     StoryState, and_(StoryState.story_id == Story.id, StoryState.user_id == user.id)
                 )
-                .where(Story.id.in_(visible), ~hidden)
+                .where(Story.id.in_(visible))
             )
         ).one()
-        by_status = {"any": total, "unread": n_unread, "updated": n_updated, "saved": n_saved}
+        by_status = {
+            "any": total - n_hidden,
+            "unread": n_unread,
+            "updated": n_updated,
+            "saved": n_saved,
+        }
         followed_count = n_followed
+        hidden_count = n_hidden
     now = utcnow()
     kinds: dict[int, str] | None = None
     counts: dict[str, int] = {}
     for p in presets:
         if p["id"] == "followed":
             counts[p["id"]] = followed_count
+            continue
+        if p["id"] == "hidden":
+            counts[p["id"]] = hidden_count
             continue
         if only_status(p):
             counts[p["id"]] = by_status[p["criteria"]["status"]]
@@ -945,7 +971,10 @@ async def preset_counts(
             await session.scalar(
                 select(func.count()).select_from(
                     joined.where(
-                        Story.id.in_(visible), ~_ignored_sql(user.id), *conditions
+                        Story.id.in_(visible),
+                        _ignored_sql(user.id) if p["criteria"].get("hidden_only")
+                        else ~_ignored_sql(user.id),
+                        *conditions,
                     ).subquery()
                 )
             )

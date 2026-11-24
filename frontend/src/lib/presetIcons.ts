@@ -54,7 +54,8 @@ export const ICON_GLYPHS: Record<string, string> = {
   moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
   trophy: '<path d="M8 21h8M12 17v4M7 4h10v6a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a4 4 0 0 1-3 4M7 5H4v2a4 4 0 0 0 3 4"/>',
   gamepad: '<rect x="2" y="6" width="20" height="12" rx="4"/><path d="M6 12h4M8 10v4"/><circle cx="15" cy="11" r=".8" fill="currentColor"/><circle cx="18" cy="13" r=".8" fill="currentColor"/>',
-  filter: '<path d="M22 3H2l8 9.460V19l4 2v-8.540z"/>'
+  filter: '<path d="M22 3H2l8 9.460V19l4 2v-8.540z"/>',
+  scope: '<circle cx="12" cy="12" r="7"/><path d="M12 1v5M12 18v5M1 12h5M18 12h5"/>'
 };
 
 /** Ordered catalog keys (same order as the shared vectors). */

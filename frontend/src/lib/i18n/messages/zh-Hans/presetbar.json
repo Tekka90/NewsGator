@@ -1,5 +1,6 @@
 {
   "label": "故事视图",
   "itemCount": "{name}，{count}",
-  "followed": "已关注"
+  "followed": "已关注",
+  "hidden": "已隐藏"
 }

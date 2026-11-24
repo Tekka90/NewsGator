@@ -198,7 +198,9 @@
             >⠿</span>
             <span class="glyph"><PresetIcon icon={p.icon} size={16} /></span>
             <span class="vname">
-              {p.kind === 'builtin' && p.id === 'followed' && !p.label ? $t('presetbar.followed') : presetLabel(p)}
+              {p.kind === 'builtin' && !p.label
+                ? (p.id === 'followed' ? $t('presetbar.followed') : p.id === 'hidden' ? $t('presetbar.hidden') : presetLabel(p))
+                : presetLabel(p)}
               {#if p.kind === 'builtin'}<span class="tag">{$t('views.builtinTag')}</span>{/if}
             </span>
             <span class="actions">
@@ -287,6 +289,7 @@
                   <span class="hint">{$t('views.keywordsHint')}</span>
                 </label>
                 <label class="check"><input type="checkbox" bind:checked={e.criteria.followed_only} /> {$t('views.onlyFollowed')}</label>
+                <label class="check"><input type="checkbox" bind:checked={e.criteria.hidden_only} /> {$t('views.onlyHidden')}</label>
                 <fieldset>
                   <legend>{$t('views.sourceTypes')} <span class="hint">{$t('views.anyOf')}</span></legend>
                   <div class="checks">

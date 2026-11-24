@@ -56,7 +56,6 @@
   let readeckSaving = $state<Record<number, boolean>>({});
   let saving = $state<Record<number, boolean>>({});
   let presetCounts = $state<Record<string, number>>({});
-  let showIgnored = $state(false);
   // Sticky title + filter bar — its height is measured at click time so a
   // just-read story can be scrolled out exactly behind it.
   let pagehead = $state<HTMLElement>();
@@ -80,6 +79,7 @@
   let historyDone = $state(true);
   let historyLoading = false;
   let historyEnabled = $derived(isMobile && supportsHistory(activePreset, sort));
+  let hiddenOnly = $derived(activePreset?.criteria.hidden_only === true);
 
   let current = $derived(index < stories.length ? stories[index] : null);
   // Past the last card = the "all caught up" end card
@@ -176,13 +176,16 @@
     // ?feed=N pre-selects the feed filter (linked from the Feeds page counts)
     const qFeed = Number(page.url.searchParams.get('feed'));
     if (qFeed > 0) feedId = qFeed;
-    if (page.url.searchParams.get('hidden') === '1') showIgnored = true;
     void (async () => {
       try {
         const doc = await api.presets.get();
         presets = doc.presets;
         compact = doc.compact;
         activeId = pickActivePreset(doc.presets, doc.last_preset_id, $currentUser?.story_filter)?.id ?? null;
+        if (
+          page.url.searchParams.get('hidden') === '1'
+          && doc.presets.some((p) => p.id === 'hidden' && p.enabled)
+        ) activeId = 'hidden';
       } catch {
         activeId = pickActivePreset(presets, null, $currentUser?.story_filter)?.id ?? null;
       }
@@ -233,7 +236,6 @@
         order: orderOverride ?? undefined,
         category: category || undefined,
         feedId: feedId || undefined,
-        ignored: showIgnored ? 'only' : undefined
       }),
       api.presets.counts().catch(() => null)
     ]);
@@ -311,6 +313,12 @@
   /** Selecting a view applies its criteria + sort/order and drops every manual override. */
   function selectPreset(p: StoryPreset) {
     activeId = p.id;
+    if (page.url.searchParams.has('hidden')) {
+      const next = new URL(window.location.href);
+      if (p.id === 'hidden') next.searchParams.set('hidden', '1');
+      else next.searchParams.delete('hidden');
+      history.replaceState(history.state, '', next);
+    }
     sortOverride = null;
     orderOverride = null;
     category = '';
@@ -319,7 +327,7 @@
     api
       .patchMe({
         last_preset_id: p.id,
-        ...(p.kind === 'builtin' && p.id !== 'followed'
+        ...(p.kind === 'builtin' && !['followed', 'hidden'].includes(p.id)
           ? { story_filter: p.id as 'all' }
           : {})
       })
@@ -412,7 +420,6 @@
   async function showAllHidden() {
     if (!confirm(tNow('topics.confirmShowAll', { count: stories.length }))) return;
     await api.stories.unhideAll().catch(() => {});
-    showIgnored = false;
     await load();
   }
 
@@ -563,9 +570,7 @@
     {/if}
   </h1>
 
-  {#if showIgnored}
-    <a class="hiddenback" href="/ai">{$t('topics.backToAi')}</a>
-    <button class="hiddenback" onclick={() => { showIgnored = false; load(); }}>{$t('stories.backToStories')}</button>
+  {#if hiddenOnly}
     {#if stories.length}
       <button class="hiddenback" onclick={showAllHidden}>{$t('topics.showAllHidden')}</button>
     {/if}
@@ -717,7 +722,7 @@
       <div class="row">
         <span class="chip">{current.category}</span>
         {#if !current.is_read}<span class="dot" title={$t('stories.unreadStory')}></span>{/if}
-        {#if showIgnored || current.ignored}<button class="linkbtn" onclick={(e) => showAgainStory(current!, e)}>{$t('topics.showAgain')}</button>{/if}
+        {#if hiddenOnly || current.ignored}<button class="linkbtn" onclick={(e) => showAgainStory(current!, e)}>{$t('topics.showAgain')}</button>{/if}
         {#if current.followed}<span class="fstar" title={$t('stories.followedBadge')} aria-label={$t('stories.followedBadge')}>★</span>{/if}
         {#if current.updated_since_read}<span class="badge updated">{$t('stories.updatedBadge')}</span>{/if}
         {#if current.media_kind === 'video'}<span class="badge video">▶ {providerLabel(current.video_provider)}{#if current.video_duration} · {formatDuration(current.video_duration)}{/if}</span>{/if}
@@ -803,7 +808,7 @@
       <div class="row">
         <span class="chip">{story.category}</span>
         {#if !story.is_read}<span class="dot" title={$t('stories.unreadStory')}></span>{/if}
-        {#if showIgnored || story.ignored}<button class="linkbtn" onclick={(e) => showAgainStory(story, e)}>{$t('topics.showAgain')}</button>{/if}
+        {#if hiddenOnly || story.ignored}<button class="linkbtn" onclick={(e) => showAgainStory(story, e)}>{$t('topics.showAgain')}</button>{/if}
         {#if story.followed}<span class="fstar" title={$t('stories.followedBadge')} aria-label={$t('stories.followedBadge')}>★</span>{/if}
         {#if story.updated_since_read}<span class="badge updated">{$t('stories.updatedBadge')}</span>{/if}
         {#if story.media_kind === 'video'}<span class="badge video">▶ {providerLabel(story.video_provider)}{#if story.video_duration} · {formatDuration(story.video_duration)}{/if}</span>{/if}

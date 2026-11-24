@@ -165,6 +165,10 @@ async def test_mute_hides_and_unmute_restores(client: AsyncClient, db_session, s
     assert visible == {ids[0], ids[5], ids[6]}
     counts = (await client.get("/api/stories/counts")).json()
     assert counts["all"] == 3 and counts["ignored"] == 4 and counts["saved"] == 1
+    preset_counts = (await client.get("/api/stories/preset-counts")).json()["counts"]
+    assert preset_counts["hidden"] == 4
+    hidden_view = (await client.get("/api/stories?preset=hidden")).json()
+    assert {s["id"] for s in hidden_view} == set(ids[1:5])
     only = (await client.get("/api/stories?ignored=only")).json()
     assert {s["id"] for s in only} == set(ids[1:5]) and all(s["ignored"] for s in only)
     everything = (await client.get("/api/stories?ignored=include")).json()

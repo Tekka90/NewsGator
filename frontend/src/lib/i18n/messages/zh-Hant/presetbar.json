@@ -1,5 +1,6 @@
 {
   "label": "事件檢視",
   "itemCount": "{name}，{count}",
-  "followed": "已追蹤"
+  "followed": "已追蹤",
+  "hidden": "已隱藏"
 }

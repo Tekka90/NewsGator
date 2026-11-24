@@ -1,5 +1,6 @@
 {
   "label": "Viste delle storie",
   "itemCount": "{name}, {count}",
-  "followed": "Seguiti"
+  "followed": "Seguiti",
+  "hidden": "Nascoste"
 }

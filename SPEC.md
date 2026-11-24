@@ -502,13 +502,14 @@ and `user.presets_compact` (global icon-only bar). Reference implementation:
   sort published|updated|sources|saved_at, order asc|desc, show_count, criteria{status any|unread|updated|saved,
   feed_ids[], category_ids[] (category names), source_kinds[] (rss|mail|video|saved|reader_api),
   query, max_age_days 1–3650, followed_only bool}}`. AND across criteria types, OR within a list; empty = no constraint.
-  Built-in ids `all|unread|updated|saved|followed` always exist once, cannot be deleted, have fixed criteria
+  Built-in ids `all|unread|updated|saved|followed|hidden` always exist once, cannot be deleted, have fixed criteria
   (editing them → `builtin_criteria_locked`); custom ids are `[A-Za-z0-9_-]{1,64}` (clients use UUIDs).
   Built-in `label: null` means "client shows its localized default name". Server sanity cap: 200 presets.
 - **Defaults** (behaviour change for users with nothing stored): All = published desc; **Unread = published asc
   (oldest first)**; **Updated = sources desc (most sources first)**; Saved = saved_at desc;
-  **Followed = unread stories matching a follow rule, published asc**. All enabled, `icon+label`,
-  `show_count`. Icons `list`, `circle-dot`, `refresh`, `bookmark`, `star`.
+  **Followed = unread stories matching a follow rule, published asc**; **Hidden = ignored stories,
+  processing date desc**. All enabled, `icon+label`, `show_count`. Icons `list`, `circle-dot`,
+  `refresh`, `bookmark`, `scope`, `eye-off`. Followed and Hidden are visually distinct system views.
 - **Criteria semantics**: status as in the read-state rules (updated = read ∧ `version > read_at_version`;
   never unread); `followed_only`: story matches an active follow rule for the user; `feed_ids`: story has an article from a listed feed; `source_kinds`: story has an article from
   one of the user's feeds of that kind (**YouTube channel feeds count as `youtube`, not `rss`**); `video` matches a story with an article flagged `media_kind="video"` (see *Video articles*) in one of the user's feeds, so kinds are **not** disjoint: a shared video link is both `saved` and `video`; the former preset kind `youtube` was migrated to `video` by Alembic `0027` (the *feed* kind `youtube` for channel feeds stays);
@@ -519,12 +520,12 @@ and `user.presets_compact` (global icon-only bar). Reference implementation:
 - **Sort `saved_at`**: user's `story_state.saved_at`; never-saved = smallest value (last when desc, first when asc);
   ties `last_updated_at`, then id, in the same direction (same tie rule as the other keys).
 - **Validation** (`PUT`): whole list; unique ids; every built-in present; ≥ 1 enabled; enums; label rules
-  (custom 1–40 chars; built-in null/≤40); icon = catalog key (47 keys) or one emoji; lists ≤ 500; `query` ≤ 200
+  (custom 1–40 chars; built-in null/≤40); icon = catalog key (48 keys) or one emoji; lists ≤ 500; `query` ≤ 200
   (trimmed, empty → null); positions renumbered densely (stable on ties); unknown fields rejected. Codes:
   `invalid_payload, invalid_enum, invalid_id, invalid_label, invalid_icon, invalid_max_age, query_too_long,
   list_too_large, too_many_presets, duplicate_id, builtin_missing, builtin_criteria_locked, no_enabled_preset,
   invalid_scope`. `last_preset_id` that is unknown collapses to null.
-- **Reset**: `builtin` restores the five built-ins (first, default order) and keeps customs, `compact` and a still-valid
+- **Reset**: `builtin` restores the six built-ins (first, default order) and keeps customs, `compact` and a still-valid
   `last_preset_id`; `all` removes customs and clears `last_preset_id`/`compact`.
 - **Visibility**: feed ids the user is not subscribed to (deleted, hidden) are dropped from presets on every read.
 - No activity events (not a pipeline transition). The legacy `story_filter/story_sort/story_order` columns remain.

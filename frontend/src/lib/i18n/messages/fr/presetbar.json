@@ -1,5 +1,6 @@
 {
   "label": "Vues des récits",
   "itemCount": "{name}, {count}",
-  "followed": "Suivis"
+  "followed": "Suivis",
+  "hidden": "Masquées"
 }

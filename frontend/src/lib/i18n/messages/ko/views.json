@@ -51,6 +51,7 @@
   "keywordsPlaceholder": "예: 전기 자전거",
   "keywordsHint": "모든 단어가 제목 또는 요약에 있어야 합니다. 대소문자와 악센트는 무시됩니다.",
   "onlyFollowed": "팔로우 중인 주제만",
+  "onlyHidden": "숨긴 스토리만",
   "sourceTypes": "출처 유형",
   "anyOf": "(하나라도)",
   "kindRss": "RSS",

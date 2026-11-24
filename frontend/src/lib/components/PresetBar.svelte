@@ -54,14 +54,17 @@
 <div class="presetbar" role="group" aria-label={label ?? $t('presetbar.label')} bind:this={bar}>
   {#each shown as p (p.id)}
     {@const display = effectiveDisplay(p, compact)}
-    {@const name = p.kind === 'builtin' && p.id === 'followed' && !p.label
-      ? $t('presetbar.followed')
-      : presetLabel(p)}
+    {@const specialName = p.kind === 'builtin' && !p.label
+      ? (p.id === 'followed' ? $t('presetbar.followed') : p.id === 'hidden' ? $t('presetbar.hidden') : null)
+      : null}
+    {@const name = specialName ?? presetLabel(p)}
     {@const count = p.show_count ? counts[p.id] : undefined}
     <button
       type="button"
       class:active={p.id === activeId}
       class:icononly={display === 'icon'}
+      class:followed={p.id === 'followed'}
+      class:hidden={p.id === 'hidden'}
       aria-pressed={p.id === activeId}
       aria-label={count !== undefined ? $t('presetbar.itemCount', { name, count }) : name}
       title={name}
@@ -121,6 +124,24 @@
     background: var(--accent);
     color: var(--gator-surface);
     box-shadow: 0 2px 6px rgba(20, 107, 58, 0.22);
+  }
+  button.followed:not(.active) {
+    color: var(--gator-forest-dark);
+    background: color-mix(in srgb, var(--gator-gold) 22%, transparent);
+  }
+  button.followed.active {
+    color: var(--gator-forest-dark);
+    background: var(--gator-gold);
+    box-shadow: 0 2px 6px color-mix(in srgb, var(--gator-gold) 40%, transparent);
+  }
+  button.hidden:not(.active) {
+    color: var(--muted);
+    background: var(--disabled-bg);
+  }
+  button.hidden.active {
+    color: var(--gator-paper);
+    background: var(--muted);
+    box-shadow: 0 2px 6px color-mix(in srgb, var(--muted) 35%, transparent);
   }
   .pill-count {
     font-size: 0.75em;

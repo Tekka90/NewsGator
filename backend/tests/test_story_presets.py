@@ -64,12 +64,21 @@ def _custom(**kw: Any) -> dict[str, Any]:
 def test_defaults_and_icon_catalog_match_vectors() -> None:
     assert sp.default_presets() == VECTORS["defaults"]
     assert list(sp.ICON_CATALOG) == VECTORS["icon_catalog"]
-    assert len(VECTORS["icon_catalog"]) == 47
+    assert len(VECTORS["icon_catalog"]) == 48
     by_id = {p["id"]: p for p in VECTORS["defaults"]}
     assert (by_id["unread"]["sort"], by_id["unread"]["order"]) == ("published", "asc")
     assert (by_id["updated"]["sort"], by_id["updated"]["order"]) == ("sources", "desc")
     assert (by_id["saved"]["sort"], by_id["saved"]["order"]) == ("saved_at", "desc")
     assert (by_id["all"]["sort"], by_id["all"]["order"]) == ("published", "desc")
+
+
+def test_legacy_followed_icon_migrates_to_radar_scope() -> None:
+    stored = [*sp.default_presets()]
+    stored = [p for p in stored if p["id"] != "hidden"]
+    next(p for p in stored if p["id"] == "followed")["icon"] = "star"
+    loaded = sp.load_presets(sp.dump_presets(stored))
+    assert next(p for p in loaded if p["id"] == "followed")["icon"] == "scope"
+    assert next(p for p in loaded if p["id"] == "hidden")["enabled"] is True
 
 
 def test_keyword_normalisation_vectors() -> None:
@@ -248,9 +257,9 @@ async def test_get_defaults_not_persisted_and_roundtrip(client: AsyncClient) -> 
     assert r.status_code == 200, r.text
     out = r.json()
     assert [p["id"] for p in out["presets"]] == [
-        "c1", "all", "unread", "updated", "saved", "followed"
+        "c1", "all", "unread", "updated", "saved", "followed", "hidden"
     ]
-    assert [p["position"] for p in out["presets"]] == [0, 1, 2, 3, 4, 5]
+    assert [p["position"] for p in out["presets"]] == [0, 1, 2, 3, 4, 5, 6]
     assert out["presets"][0]["criteria"]["query"] == "garage"
     assert out["last_preset_id"] == "c1" and out["compact"] is True
     assert (await client.get("/api/me/presets")).json() == out
@@ -289,7 +298,7 @@ async def test_reset_scopes(client: AsyncClient) -> None:
     r = await client.post("/api/me/presets/reset", json={"scope": "builtin"})
     out = r.json()
     assert [p["id"] for p in out["presets"]] == [
-        "all", "unread", "updated", "saved", "followed", "c1"
+        "all", "unread", "updated", "saved", "followed", "hidden", "c1"
     ]
     assert out["presets"][1] == {**VECTORS["defaults"][1]}
     assert out["last_preset_id"] == "c1" and out["compact"] is True
@@ -328,7 +337,7 @@ async def test_presets_are_per_user_and_hidden_feeds_are_dropped(
     mine = _custom(criteria=_criteria({"feed_ids": [1, 99]}))
     await _put(client, [*sp.default_presets(), mine])
     out = (await client.get("/api/me/presets")).json()
-    assert out["presets"][-1]["criteria"]["feed_ids"] == [1]  # 99 is not subscribed → dropped
+    assert next(p for p in out["presets"] if p["id"] == "c1")["criteria"]["feed_ids"] == [1]
 
     await client.post("/api/auth/logout")
     await client.post("/api/auth/login", json={"username": "reader", "password": "readerpass1"})

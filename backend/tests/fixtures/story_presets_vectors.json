@@ -20,7 +20,8 @@
     "source_kinds": [],
     "query": null,
     "max_age_days": null,
-    "followed_only": false
+    "followed_only": false,
+    "hidden_only": false
    }
   },
   {
@@ -41,7 +42,8 @@
     "source_kinds": [],
     "query": null,
     "max_age_days": null,
-    "followed_only": false
+    "followed_only": false,
+    "hidden_only": false
    }
   },
   {
@@ -62,7 +64,8 @@
     "source_kinds": [],
     "query": null,
     "max_age_days": null,
-    "followed_only": false
+    "followed_only": false,
+    "hidden_only": false
    }
   },
   {
@@ -83,14 +86,15 @@
     "source_kinds": [],
     "query": null,
     "max_age_days": null,
-    "followed_only": false
+    "followed_only": false,
+    "hidden_only": false
    }
   },
   {
    "id": "followed",
    "kind": "builtin",
    "label": null,
-   "icon": "star",
+   "icon": "scope",
    "display": "icon+label",
    "enabled": true,
    "position": 4,
@@ -104,7 +108,30 @@
     "source_kinds": [],
     "query": null,
     "max_age_days": null,
-    "followed_only": true
+    "followed_only": true,
+    "hidden_only": false
+   }
+  },
+  {
+   "id": "hidden",
+   "kind": "builtin",
+   "label": null,
+   "icon": "eye-off",
+   "display": "icon+label",
+   "enabled": true,
+   "position": 5,
+   "sort": "updated",
+   "order": "desc",
+   "show_count": true,
+   "criteria": {
+    "status": "any",
+    "feed_ids": [],
+    "category_ids": [],
+    "source_kinds": [],
+    "query": null,
+    "max_age_days": null,
+    "followed_only": false,
+    "hidden_only": true
    }
   }
  ],
@@ -155,7 +182,8 @@
   "moon",
   "trophy",
   "gamepad",
-  "filter"
+  "filter",
+  "scope"
  ],
  "dataset": {
   "feeds": [
@@ -331,7 +359,8 @@
    4,
    3
   ],
-  "followed": []
+  "followed": [],
+  "hidden": []
  },
  "criteria_matrix": [
   {
@@ -4398,7 +4427,8 @@
     "saved",
     "updated",
     "all",
-    "followed"
+    "followed",
+    "hidden"
    ]
   }
  },

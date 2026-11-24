@@ -51,6 +51,7 @@
   "keywordsPlaceholder": "p. ej. bicicleta eléctrica",
   "keywordsHint": "Todas las palabras deben aparecer en el título o el resumen. Se ignoran mayúsculas y acentos.",
   "onlyFollowed": "Solo los temas que sigo",
+  "onlyHidden": "Solo historias ocultas",
   "sourceTypes": "Tipos de fuente",
   "anyOf": "(cualquiera)",
   "kindRss": "RSS",

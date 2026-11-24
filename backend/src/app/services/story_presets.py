@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-BUILTIN_IDS: tuple[str, ...] = ("all", "unread", "updated", "saved", "followed")
+BUILTIN_IDS: tuple[str, ...] = ("all", "unread", "updated", "saved", "followed", "hidden")
 STATUSES: tuple[str, ...] = ("any", "unread", "updated", "saved")
 # `video` is not a feed kind: any story with a flagged video article (VIDEO_ARTICLES_PLAN D8).
 # The former `youtube` kind is gone (unknown kind → validation error).
@@ -33,7 +33,7 @@ ICON_CATALOG: tuple[str, ...] = (
     "mail", "rss", "video", "play", "music", "mic", "camera", "image", "book",
     "graduation-cap", "briefcase", "wrench", "car", "home", "globe", "map-pin", "cart",
     "money", "chart", "cpu", "code", "flask", "shield", "leaf", "sun", "moon", "trophy",
-    "gamepad", "filter",
+    "gamepad", "filter", "scope",
 )
 
 MAX_PRESETS = 200
@@ -49,8 +49,14 @@ _PRESET_FIELDS = {
     "show_count", "criteria",
 }
 _CRITERIA_FIELDS = {
-    "status", "feed_ids", "category_ids", "source_kinds", "query", "max_age_days",
+    "status",
+    "feed_ids",
+    "category_ids",
+    "source_kinds",
+    "query",
+    "max_age_days",
     "followed_only",
+    "hidden_only",
 }
 
 
@@ -75,6 +81,7 @@ def empty_criteria(status: str = "any") -> dict[str, Any]:
         "query": None,
         "max_age_days": None,
         "followed_only": False,
+        "hidden_only": False,
     }
 
 
@@ -84,7 +91,8 @@ _DEFAULT_SPECS: tuple[tuple[str, str, str, str, str], ...] = (
     ("unread", "circle-dot", "unread", "published", "asc"),
     ("updated", "refresh", "updated", "sources", "desc"),
     ("saved", "bookmark", "saved", "saved_at", "desc"),
-    ("followed", "star", "unread", "published", "asc"),
+    ("followed", "scope", "unread", "published", "asc"),
+    ("hidden", "eye-off", "any", "updated", "desc"),
 )
 
 
@@ -106,6 +114,7 @@ def default_preset(preset_id: str) -> dict[str, Any]:
                 "criteria": {
                     **empty_criteria(status),
                     "followed_only": pid == "followed",
+                    "hidden_only": pid == "hidden",
                 },
             }
     raise KeyError(preset_id)
@@ -247,6 +256,10 @@ def _validate_criteria(raw: Any) -> dict[str, Any]:
     if not isinstance(followed_only, bool):
         raise _fail("invalid_payload", "criteria.followed_only must be a boolean")
     out["followed_only"] = followed_only
+    hidden_only = raw.get("hidden_only", False)
+    if not isinstance(hidden_only, bool):
+        raise _fail("invalid_payload", "criteria.hidden_only must be a boolean")
+    out["hidden_only"] = hidden_only
     return out
 
 
@@ -316,15 +329,13 @@ def validate_presets(raw: Any) -> list[dict[str, Any]]:
     if len(raw) > MAX_PRESETS:
         raise _fail("too_many_presets", f"at most {MAX_PRESETS} presets")
     presets = [_validate_preset(item, i) for i, item in enumerate(raw)]
-    missing_followed = (
-        not any(p["id"] == "followed" for p in presets)
-        and all(p["id"] in BUILTIN_IDS[:-1] or p["kind"] == "custom" for p in presets)
-    )
-    if missing_followed:
-        followed = default_preset("followed")
-        followed["enabled"] = False
-        followed["position"] = max((p["position"] for p in presets), default=-1) + 1
-        presets.append(followed)
+    for builtin_id in ("followed", "hidden"):
+        if any(p["id"] == builtin_id for p in presets):
+            continue
+        preset = default_preset(builtin_id)
+        preset["enabled"] = False
+        preset["position"] = max((p["position"] for p in presets), default=-1) + 1
+        presets.append(preset)
     ids = [p["id"] for p in presets]
     if len(set(ids)) != len(ids):
         raise _fail("duplicate_id", "preset ids must be unique")
@@ -372,20 +383,33 @@ def load_presets(stored: str | None) -> list[dict[str, Any]]:
             loaded = [
                 {
                     **item,
-                    "criteria": {**item.get("criteria", {}), "followed_only": False},
+                    "criteria": {
+                        **item.get("criteria", {}),
+                        **(
+                            {"followed_only": False}
+                            if item.get("id") != "followed"
+                            and "followed_only" not in item["criteria"]
+                            else {}
+                        ),
+                    },
+                    **(
+                        {"icon": "scope"}
+                        if item.get("id") == "followed" and item.get("icon") == "star"
+                        else {}
+                    ),
                 }
                 if isinstance(item, dict)
                 and isinstance(item.get("criteria"), dict)
-                and "followed_only" not in item["criteria"]
-                and item.get("id") != "followed"
                 else item
                 for item in loaded
             ]
         presets = validate_presets(loaded)
-        if isinstance(loaded, list) and not any(
-            isinstance(item, dict) and item.get("id") == "followed" for item in loaded
-        ):
-            next(p for p in presets if p["id"] == "followed")["enabled"] = True
+        if isinstance(loaded, list):
+            for builtin_id in ("followed", "hidden"):
+                if not any(
+                    isinstance(item, dict) and item.get("id") == builtin_id for item in loaded
+                ):
+                    next(p for p in presets if p["id"] == builtin_id)["enabled"] = True
         return presets
     except (ValueError, TypeError):
         return default_presets()
@@ -442,6 +466,7 @@ class EvalStory:
     read_at_version: int = 0
     saved_at: datetime | None = None
     followed: bool = False
+    ignored: bool = False
 
 
 def _matches_source_kinds(
@@ -473,6 +498,10 @@ def story_matches(
     if status == "saved" and story.saved_at is None:
         return False
     if criteria.get("followed_only") and not story.followed:
+        return False
+    if criteria.get("hidden_only") and not story.ignored:
+        return False
+    if not criteria.get("hidden_only") and story.ignored:
         return False
     feeds = set(story.article_feed_ids)
     feed_ids = criteria.get("feed_ids") or []

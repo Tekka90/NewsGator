@@ -6,7 +6,7 @@ import type {
   StoryPreset
 } from './types';
 
-export const BUILTIN_IDS = ['all', 'unread', 'updated', 'saved', 'followed'] as const;
+export const BUILTIN_IDS = ['all', 'unread', 'updated', 'saved', 'followed', 'hidden'] as const;
 export const MAX_LABEL = 40;
 export const MAX_QUERY = 200;
 export const MAX_PRESETS = 200;
@@ -16,7 +16,8 @@ const BUILTIN_NAMES: Record<string, string> = {
   unread: 'Unread',
   updated: 'Updated',
   saved: 'Saved',
-  followed: 'Followed'
+  followed: 'Followed',
+  hidden: 'Hidden'
 };
 
 export const SORT_LABELS: Record<PresetSort, string> = {
@@ -29,7 +30,7 @@ export const SORT_LABELS: Record<PresetSort, string> = {
 export function emptyCriteria(): PresetCriteria {
   return {
     status: 'any', feed_ids: [], category_ids: [], source_kinds: [], query: null,
-    max_age_days: null, followed_only: false
+    max_age_days: null, followed_only: false, hidden_only: false
   };
 }
 
@@ -40,7 +41,8 @@ function builtin(
   sort: PresetSort,
   order: PresetOrder,
   position: number,
-  followedOnly = false
+  followedOnly = false,
+  hiddenOnly = false
 ): StoryPreset {
   return {
     id,
@@ -53,7 +55,9 @@ function builtin(
     sort,
     order,
     show_count: true,
-    criteria: { ...emptyCriteria(), status, followed_only: followedOnly }
+    criteria: {
+      ...emptyCriteria(), status, followed_only: followedOnly, hidden_only: hiddenOnly
+    }
   };
 }
 
@@ -64,7 +68,8 @@ export function defaultPresets(): StoryPreset[] {
     builtin('unread', 'circle-dot', 'unread', 'published', 'asc', 1),
     builtin('updated', 'refresh', 'updated', 'sources', 'desc', 2),
     builtin('saved', 'bookmark', 'saved', 'saved_at', 'desc', 3),
-    builtin('followed', 'star', 'unread', 'published', 'asc', 4, true)
+    builtin('followed', 'scope', 'unread', 'published', 'asc', 4, true),
+    builtin('hidden', 'eye-off', 'any', 'updated', 'desc', 5, false, true)
   ];
 }
 

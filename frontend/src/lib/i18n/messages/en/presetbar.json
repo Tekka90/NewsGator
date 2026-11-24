@@ -1,5 +1,6 @@
 {
   "label": "Story views",
   "itemCount": "{name}, {count}",
-  "followed": "Followed"
+  "followed": "Followed",
+  "hidden": "Hidden"
 }

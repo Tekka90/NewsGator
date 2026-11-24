@@ -23,6 +23,7 @@ class PresetCriteriaOut(BaseModel):
     query: str | None
     max_age_days: int | None
     followed_only: bool = False
+    hidden_only: bool = False
 
 
 class PresetOut(BaseModel):

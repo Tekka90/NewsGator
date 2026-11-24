@@ -1,5 +1,6 @@
 {
   "label": "ストーリービュー",
   "itemCount": "{name}、{count}",
-  "followed": "フォロー中"
+  "followed": "フォロー中",
+  "hidden": "非表示"
 }

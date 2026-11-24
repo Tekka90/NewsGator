@@ -51,6 +51,7 @@
   "keywordsPlaceholder": "z. B. E-Bike",
   "keywordsHint": "Alle Wörter müssen im Titel oder in der Zusammenfassung vorkommen. Groß-/Kleinschreibung und Akzente werden ignoriert.",
   "onlyFollowed": "Nur Themen, denen ich folge",
+  "onlyHidden": "Nur ausgeblendete Storys",
   "sourceTypes": "Quellentypen",
   "anyOf": "(einer davon)",
   "kindRss": "RSS",

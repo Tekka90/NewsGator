@@ -51,6 +51,7 @@
   "keywordsPlaceholder": "e.g. electric bike",
   "keywordsHint": "All words must appear in the title or summary. Case and accents are ignored.",
   "onlyFollowed": "Only topics I follow",
+  "onlyHidden": "Only hidden stories",
   "sourceTypes": "Source types",
   "anyOf": "(any of)",
   "kindRss": "RSS",
