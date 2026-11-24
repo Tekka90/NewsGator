@@ -17,6 +17,7 @@ import {
   setEnabled,
   storiesQuery,
   supportsHistory,
+  visiblePresets,
   validateDraft
 } from './presets.ts';
 
@@ -58,6 +59,14 @@ test('active preset: last used, legacy filter, then first enabled', () => {
   assert.equal(pickActivePreset(list, null, 'updated')?.id, 'updated');
   const off = setEnabled(setEnabled(list, 'unread', false), 'saved', false);
   assert.equal(pickActivePreset(off, 'saved')?.id, 'all');
+});
+
+test('special Radar views disappear only when their count is zero', () => {
+  const list = defaultPresets();
+  assert.equal(visiblePresets(list, {}).length, 6);
+  assert.equal(visiblePresets(list, { followed: 0 }).some((p) => p.id === 'followed'), false);
+  assert.equal(visiblePresets(list, { hidden: 0 }).some((p) => p.id === 'hidden'), false);
+  assert.equal(visiblePresets(list, { followed: 1, hidden: 2 }).length, 6);
 });
 
 test('last enabled preset cannot be disabled or deleted', () => {

@@ -56,6 +56,9 @@
   let readeckSaving = $state<Record<number, boolean>>({});
   let saving = $state<Record<number, boolean>>({});
   let presetCounts = $state<Record<string, number>>({});
+  let specialViewWasSelected = $derived(
+    activeId === 'followed' || activeId === 'hidden'
+  );
   // Sticky title + filter bar — its height is measured at click time so a
   // just-read story can be scrolled out exactly behind it.
   let pagehead = $state<HTMLElement>();
@@ -240,7 +243,21 @@
       api.presets.counts().catch(() => null)
     ]);
     stories = fetchedStories;
-    if (counts) presetCounts = counts.counts;
+    if (counts) {
+      presetCounts = counts.counts;
+      if (
+        specialViewWasSelected
+        && activeId
+        && presetCounts[activeId] === 0
+      ) {
+        const fallback = pickActivePreset(presets, null)?.id ?? null;
+        if (fallback && fallback !== activeId) {
+          activeId = fallback;
+          await load();
+          return;
+        }
+      }
+    }
     index = 0;
     anchorIndex = 0;
     historyDone = true;
@@ -417,12 +434,6 @@
     stories = stories.filter((s) => s.id !== story.id);
   }
 
-  async function showAllHidden() {
-    if (!confirm(tNow('topics.confirmShowAll', { count: stories.length }))) return;
-    await api.stories.unhideAll().catch(() => {});
-    await load();
-  }
-
   async function toggleSaved(story: StoryListItem, e?: Event) {
     e?.preventDefault();
     e?.stopPropagation();
@@ -569,12 +580,6 @@
       </span>
     {/if}
   </h1>
-
-  {#if hiddenOnly}
-    {#if stories.length}
-      <button class="hiddenback" onclick={showAllHidden}>{$t('topics.showAllHidden')}</button>
-    {/if}
-  {/if}
 
   {#if isMobile && (pullDist > 0 || refreshing)}
     <div class="pullhint" style:height="{refreshing ? 36 : pullDist}px">
@@ -878,10 +883,6 @@
 {/if}
 
 <style>
-  .hiddenback {
-    background: none; border: none; padding: 0.1rem 0.6rem 0.4rem 0; color: var(--accent);
-    font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; text-decoration: none;
-  }
   .deckvideo { margin: 0.5rem 0; }
   /* Sticky header: the title + filter bar stay put while stories scroll behind.
      top: --nav-h (measured in the layout) keeps it tucked right under the nav.

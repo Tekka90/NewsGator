@@ -2,7 +2,7 @@
   import { tick } from 'svelte';
   import PresetIcon from './PresetIcon.svelte';
   import { t } from '$lib/i18n';
-  import { effectiveDisplay, enabledPresets, presetLabel } from '$lib/presets';
+  import { effectiveDisplay, presetLabel, visiblePresets } from '$lib/presets';
   import type { StoryPreset } from '$lib/types';
 
   let {
@@ -21,7 +21,7 @@
     label?: string;
   } = $props();
 
-  let shown = $derived(enabledPresets(presets));
+  let shown = $derived(visiblePresets(presets, counts));
   let bar = $state<HTMLElement>();
 
   // keep the active pill visible when the bar scrolls horizontally

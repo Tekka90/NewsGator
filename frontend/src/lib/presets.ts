@@ -93,6 +93,18 @@ export function enabledPresets(list: StoryPreset[]): StoryPreset[] {
   return sortedPresets(list).filter((p) => p.enabled);
 }
 
+export function visiblePresets(
+  list: StoryPreset[],
+  counts: Record<string, number | undefined>
+): StoryPreset[] {
+  return enabledPresets(list).filter(
+    (preset) =>
+      !['followed', 'hidden'].includes(preset.id)
+      || counts[preset.id] === undefined
+      || counts[preset.id]! > 0
+  );
+}
+
 /** Active preset on load: last used, else the legacy story_filter, else the first enabled. */
 export function pickActivePreset(
   list: StoryPreset[],
