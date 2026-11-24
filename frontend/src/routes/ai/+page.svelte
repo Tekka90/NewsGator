@@ -862,11 +862,20 @@
           {#if focused.description}<span class="fdesc">{focused.description}</span>{/if}
           <span>
             {$t('topics.topicCount', { count: focused.group.topic_count })} ·
-            {$t('topics.storyCount', { count: focused.story_count })} ·
-            {$t('topics.unreadCount', { count: focused.unread_count })}
+            {$t('topics.primaryCount', { count: focused.story_count, unread: focused.unread_count })} ·
+            {$t('topics.coveredCount', {
+              count: focused.covered_story_count ?? focused.story_count,
+              unread: focused.covered_unread_count ?? focused.unread_count
+            })}
           </span>
         {:else}
-          <span>{$t('topics.unreadCount', { count: focused.unread_count })}</span>
+          <span>
+            {$t('topics.primaryCount', { count: focused.story_count, unread: focused.unread_count })} ·
+            {$t('topics.coveredCount', {
+              count: focused.covered_story_count ?? focused.story_count,
+              unread: focused.covered_unread_count ?? focused.unread_count
+            })}
+          </span>
         {/if}
       </div>
       {#if focused.group}
@@ -900,7 +909,12 @@
         <button type="button" class="rowmain" onclick={() => focusTopic(tp)}>
           <span class="sd {st}" aria-hidden="true"></span>
           <span class="rl">{tp.label}</span>
-          <span class="rc">{tp.unread_count}</span>
+          <span class="rc">
+            {tp.unread_count}
+            {#if (tp.covered_unread_count ?? tp.unread_count) !== tp.unread_count}
+              <span class="covered">/ {tp.covered_unread_count}</span>
+            {/if}
+          </span>
           <span class="sr-only">{stateText(tp)}</span>
         </button>
         <button type="button" class="rowbtn" onclick={() => quickToggle(tp)}>

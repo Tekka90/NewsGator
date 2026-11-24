@@ -452,11 +452,11 @@ topics idle for `TOPIC_FADE_DAYS`, and expires user rules. `cluster_article` cal
 `evaluate_story` (no LLM; savepoint-isolated) so new stories join topics/rules immediately.
 Topic centroids are stored in the DB (few rows, brute-force numpy) — not in the `VectorStore`.
 
-Users act through a **rule** (`topic_rule`, per user, mode `mute|follow`). While a
-detected source topic is active, the rule matches exactly its materialized `StoryTopic` members;
-it does **not** become a second broad semantic search. It still snapshots the topic centroid +
-threshold + `embed_model`, so a fixed-duration rule can re-match a returning subject after that
-topic has faded.
+Users act through a **rule** (`topic_rule`, per user, mode `mute|follow`). It snapshots the topic
+centroid + threshold + `embed_model` and semantically covers **the topic's primary members plus
+overlapping stories**. The matched set is materialized in `story_rule_match`; the topic's
+materialized `StoryTopic` membership remains the narrower "primary" population. Both populations
+are exposed so Radar can show `primary` and `covered` counts while mute/follow acts on covered.
 Duration: `fade` (default: ends when the source topic fades), `7d`, `30d`, `forever`. One rule per
 user+topic. Matches are materialized in `story_rule_match`. **Ignored** is derived: a story matching a
 mute rule and no follow rule, and not saved (follow beats mute; saved is never ignored). Ignored

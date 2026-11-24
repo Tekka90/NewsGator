@@ -92,7 +92,11 @@
   {:else}
   {#if topic.description}<p class="desc">{topic.description}</p>{/if}
   <p class="meta">
-    {$t('topics.storyCount', { count: topic.story_count })} ·
+    {$t('topics.primaryCount', { count: topic.story_count, unread: topic.unread_count })} ·
+    {$t('topics.coveredCount', {
+      count: topic.covered_story_count ?? topic.story_count,
+      unread: topic.covered_unread_count ?? topic.unread_count
+    })} ·
     {$t('topics.sourceCount', { count: topic.source_count })}
   </p>
   {#if topic.rule}

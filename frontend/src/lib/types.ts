@@ -364,6 +364,8 @@ export interface Topic {
   story_count: number;
   source_count: number;
   unread_count: number;
+  covered_story_count?: number;
+  covered_unread_count?: number;
   recent_count: number;
   last_story_at: string;
   /** topic group (galaxy) it belongs to; null for typed topics (absent on old servers) */

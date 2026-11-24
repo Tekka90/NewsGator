@@ -181,20 +181,22 @@ async def test_follow_beats_mute_and_rule_expiry(client: AsyncClient, db_session
     await _discover(db_session)
     topic_id = (await client.get("/api/topics")).json()[0]["id"]
     async with db_session() as s:
-        # Semantically close, but this story was not assigned to the detected topic.
-        # A rule created from the topic must not turn into a second broad search.
+        # Semantically close, but assigned elsewhere. It is covered by the rule,
+        # not part of the topic's primary membership.
         await store.upsert_story_centroid(ids[5], _vec(0, jitter=0.02))
         await s.commit()
     await client.post(f"/api/topics/{topic_id}/rules", json={"mode": "follow", "duration": "30d"})
     listed = (await client.get("/api/stories")).json()
-    assert len(listed) == 7 and sum(s["followed"] for s in listed) == 5
-    assert ids[5] not in {s["id"] for s in listed if s["followed"]}
+    assert len(listed) == 7 and sum(s["followed"] for s in listed) == 6
+    assert ids[5] in {s["id"] for s in listed if s["followed"]}
     assert [r["mode"] for r in (await client.get("/api/topic-rules")).json()] == ["follow"]
-    assert (await client.get("/api/topics")).json()[0]["unread_count"] == 5
+    topic = (await client.get("/api/topics")).json()[0]
+    assert topic["story_count"] == 5 and topic["unread_count"] == 5
+    assert topic["covered_story_count"] == 6 and topic["covered_unread_count"] == 6
     # replacing the rule keeps one rule per topic
     await client.post(f"/api/topics/{topic_id}/rules", json={"mode": "mute", "duration": "7d"})
     assert [r["mode"] for r in (await client.get("/api/topic-rules")).json()] == ["mute"]
-    assert len((await client.get("/api/stories")).json()) == 2
+    assert len((await client.get("/api/stories")).json()) == 1
     assert ids
 
 
@@ -297,6 +299,7 @@ async def test_manual_topic_follow_filter_and_mode_switch(
     star = (await client.get("/api/topics", params={"all": "true"})).json()[0]
     assert star["manual"] is True and star["id"] == -rule["id"] and len(star["position"]) == 3
     assert star["story_count"] == 5 and star["unread_count"] == 5
+    assert star["covered_story_count"] == 5 and star["covered_unread_count"] == 5
 
     followed = (await client.get("/api/stories", params={"followed": "true"})).json()
     assert {s["id"] for s in followed} == set(ids[:5]) and all(s["followed"] for s in followed)

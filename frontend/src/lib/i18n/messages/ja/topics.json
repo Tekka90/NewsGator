@@ -52,6 +52,8 @@
   "nodeLabelManual": "{label}、手動トピック、未読{count}件、{state}",
   "removeTopic": "トピックを削除",
   "unreadCount": "未読{count}件",
+  "primaryCount": "主要{count}件（未読{unread}件）",
+  "coveredCount": "対象{count}件（未読{unread}件）",
   "toastFollowed": "{label}をフォローしました",
   "showAll": "すべて表示",
   "listTitle": "サイズ順のトピック",

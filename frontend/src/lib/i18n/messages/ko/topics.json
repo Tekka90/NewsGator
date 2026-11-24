@@ -52,6 +52,8 @@
   "nodeLabelManual": "{label}, 직접 추가한 주제, 읽지 않음 {count}개, {state}",
   "removeTopic": "주제 삭제",
   "unreadCount": "읽지 않음 {count}개",
+  "primaryCount": "주요 {count}개 (읽지 않음 {unread}개)",
+  "coveredCount": "적용 대상 {count}개 (읽지 않음 {unread}개)",
   "toastFollowed": "{label} 팔로우함",
   "showAll": "모두 보기",
   "listTitle": "크기순 주제",

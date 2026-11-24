@@ -52,6 +52,8 @@
   "nodeLabelManual": "{label}, tópico manual, {count} não lidas, {state}",
   "removeTopic": "Remover tópico",
   "unreadCount": "{count} não lidas",
+  "primaryCount": "{count} principais ({unread} não lidas)",
+  "coveredCount": "{count} abrangidas ({unread} não lidas)",
   "toastFollowed": "{label} seguido",
   "showAll": "Mostrar todos",
   "listTitle": "Tópicos por tamanho",

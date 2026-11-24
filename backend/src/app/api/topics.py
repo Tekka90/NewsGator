@@ -50,6 +50,9 @@ class TopicOut(BaseModel):
     source_count: int
     # the user's unread, non-ignored stories in this topic
     unread_count: int
+    # Semantic rule coverage, including primary members and overlapping stories.
+    covered_story_count: int
+    covered_unread_count: int
     # stories updated in the last 48 h — how fast the topic is growing
     recent_count: int
     last_story_at: str
@@ -204,6 +207,36 @@ async def list_topics(
         await session.scalars(select(TopicRule).where(TopicRule.user_id == user.id))
     ).all()
     rules = {r.source_topic_id: r for r in all_rules if r.source_topic_id is not None}
+    covered_stories: dict[int, int] = {}
+    covered_unread: dict[int, int] = {}
+    if rules:
+        covered_rows = (
+            await session.execute(
+                select(
+                    StoryRuleMatch.rule_id,
+                    func.coalesce(StoryState.is_read, False),
+                    _ignored_sql(user.id),
+                )
+                .join(Story, Story.id == StoryRuleMatch.story_id)
+                .outerjoin(
+                    StoryState,
+                    and_(
+                        StoryState.story_id == Story.id,
+                        StoryState.user_id == user.id,
+                    ),
+                )
+                .where(
+                    StoryRuleMatch.rule_id.in_([r.id for r in rules.values()]),
+                    StoryRuleMatch.story_id.in_(visible),
+                )
+            )
+        ).all()
+        topic_by_rule = {rule.id: topic_id for topic_id, rule in rules.items()}
+        for rule_id, is_read, hidden in covered_rows:
+            topic_id = topic_by_rule[rule_id]
+            covered_stories[topic_id] = covered_stories.get(topic_id, 0) + 1
+            if not is_read and not hidden:
+                covered_unread[topic_id] = covered_unread.get(topic_id, 0) + 1
     manual_stars = (
         []
         if all and group is not None and not manual_only
@@ -224,6 +257,8 @@ async def list_topics(
             story_count=t.story_count,
             source_count=t.source_count,
             unread_count=unread.get(t.id, 0),
+            covered_story_count=covered_stories.get(t.id, t.story_count),
+            covered_unread_count=covered_unread.get(t.id, unread.get(t.id, 0)),
             recent_count=recent.get(t.id, 0),
             last_story_at=t.last_story_at.isoformat(),
             group_id=t.group_id,
@@ -304,6 +339,8 @@ async def _manual_topics(
                     story_count=st["n"],
                     source_count=0,
                     unread_count=st["unread"],
+                    covered_story_count=st["n"],
+                    covered_unread_count=st["unread"],
                     recent_count=st["recent"],
                     last_story_at=last.isoformat(),
                     rule=TopicRuleBrief(id=rule.id, mode=rule.mode),

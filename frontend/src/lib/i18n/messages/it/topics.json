@@ -52,6 +52,8 @@
   "nodeLabelManual": "{label}, tema manuale, {count} non lette, {state}",
   "removeTopic": "Rimuovi tema",
   "unreadCount": "{count} non lette",
+  "primaryCount": "{count} principali ({unread} non lette)",
+  "coveredCount": "{count} coperte ({unread} non lette)",
   "toastFollowed": "{label} seguito",
   "showAll": "Mostra tutti",
   "listTitle": "Temi per dimensione",

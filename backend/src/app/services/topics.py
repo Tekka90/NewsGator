@@ -218,7 +218,7 @@ async def evaluate_story(session: AsyncSession, story_id: int) -> None:
     if best[0] is not None:
         session.add(StoryTopic(story_id=story_id, topic_id=best[0].id, similarity=best[1]))
         best[0].last_story_at = utcnow()
-    await _match_story_rules(session, story_id, vec, best[0].id if best[0] else None)
+    await _match_story_rules(session, story_id, vec)
 
 
 async def _group_centroids(session: AsyncSession) -> dict[int, list[np.ndarray]]:
@@ -248,26 +248,12 @@ def _any_match(vec: np.ndarray, centroids: list[np.ndarray], threshold: float) -
     return any(rule_matches(vec, c, threshold) for c in centroids)
 
 
-async def _match_story_rules(
-    session: AsyncSession,
-    story_id: int,
-    vec: np.ndarray,
-    assigned_topic_id: int | None,
-) -> None:
+async def _match_story_rules(session: AsyncSession, story_id: int, vec: np.ndarray) -> None:
     await session.execute(delete(StoryRuleMatch).where(StoryRuleMatch.story_id == story_id))
     rules = (await session.scalars(select(TopicRule))).all()
     groups = await _group_centroids(session)
-    active_topic_ids = set(
-        (await session.scalars(select(Topic.id).where(Topic.status == "active"))).all()
-    )
     for rule in rules:
-        if rule.source_topic_id in active_topic_ids:
-            matched = assigned_topic_id == rule.source_topic_id
-        else:
-            matched = _rule_usable(rule) and _any_match(
-                vec, _rule_centroids(rule, groups), rule.threshold
-            )
-        if matched:
+        if _rule_usable(rule) and _any_match(vec, _rule_centroids(rule, groups), rule.threshold):
             session.add(
                 StoryRuleMatch(
                     rule_id=rule.id, story_id=story_id, user_id=rule.user_id, mode=rule.mode
@@ -280,28 +266,6 @@ async def sync_rule_matches(session: AsyncSession, rule: TopicRule) -> int:
     await session.execute(delete(StoryRuleMatch).where(StoryRuleMatch.rule_id == rule.id))
     if not _rule_usable(rule):
         return 0
-    if rule.source_topic_id is not None:
-        topic_status = await session.scalar(
-            select(Topic.status).where(Topic.id == rule.source_topic_id)
-        )
-        if topic_status == "active":
-            story_ids = (
-                await session.scalars(
-                    select(StoryTopic.story_id).where(
-                        StoryTopic.topic_id == rule.source_topic_id
-                    )
-                )
-            ).all()
-            for story_id in story_ids:
-                session.add(
-                    StoryRuleMatch(
-                        rule_id=rule.id,
-                        story_id=story_id,
-                        user_id=rule.user_id,
-                        mode=rule.mode,
-                    )
-                )
-            return len(story_ids)
     since = utcnow() - timedelta(days=settings.topic_rule_scan_days)
     ids = (await session.scalars(select(Story.id).where(Story.last_updated_at >= since))).all()
     centroids = _rule_centroids(rule, await _group_centroids(session))
@@ -316,16 +280,9 @@ async def sync_rule_matches(session: AsyncSession, rule: TopicRule) -> int:
 
 
 async def reconcile_topic_rules(session: AsyncSession) -> int:
-    """Repair materialized matches after upgrading an active detected-topic rule."""
+    """Refresh materialized semantic matches after changing the rule-matching contract."""
     count = 0
-    rules = (
-        await session.scalars(
-            select(TopicRule)
-            .join(Topic, Topic.id == TopicRule.source_topic_id)
-            .where(Topic.status == "active")
-        )
-    ).all()
-    for rule in rules:
+    for rule in (await session.scalars(select(TopicRule))).all():
         count += await sync_rule_matches(session, rule)
     await session.commit()
     return count
@@ -524,27 +481,7 @@ async def preview_mute(
     session: AsyncSession, topic: Topic, user_feed_ids: set[int], user_id: int
 ) -> tuple[int, list[tuple[int, str]]]:
     """Unread stories (of this user) a rule built from ``topic`` would hide + sample titles."""
-    visible = select(Article.story_id).where(
-        Article.feed_id.in_(user_feed_ids), Article.story_id.is_not(None)
-    )
-    rows = (
-        await session.execute(
-            select(Story.id, Story.title, StoryState.is_read, StoryState.saved_at)
-            .join(StoryTopic, StoryTopic.story_id == Story.id)
-            .outerjoin(
-                StoryState,
-                (StoryState.story_id == Story.id) & (StoryState.user_id == user_id),
-            )
-            .where(
-                StoryTopic.topic_id == topic.id,
-                Story.id.in_(visible),
-                func.coalesce(StoryState.is_read, False).is_(False),
-                StoryState.saved_at.is_(None),
-            )
-            .order_by(Story.last_updated_at.desc())
-        )
-    ).all()
-    return len(rows), [(sid, title) for sid, title, _read, _saved in rows[:5]]
+    return await _preview_hidden(session, [decode(topic.centroid)], user_feed_ids, user_id)
 
 
 async def preview_group_mute(
@@ -742,13 +679,6 @@ async def _refresh_topics(session: AsyncSession) -> dict[str, int]:
             await expire_rule(session, rule)
             report["rules_expired"] += 1
             await activity.emit(session, "topics", "rule_expired", {"rule_id": rule.id})
-    for rule in (
-        await session.scalars(
-            select(TopicRule).where(TopicRule.source_topic_id.is_not(None))
-        )
-    ).all():
-        if rule.source_topic_id not in faded_ids:
-            await sync_rule_matches(session, rule)
     await session.commit()
     return report
 

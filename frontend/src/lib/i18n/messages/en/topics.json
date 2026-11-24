@@ -52,6 +52,8 @@
   "nodeLabelManual": "{label}, manual topic, {count} unread, {state}",
   "removeTopic": "Remove topic",
   "unreadCount": "{count} unread",
+  "primaryCount": "{count} primary ({unread} unread)",
+  "coveredCount": "{count} covered ({unread} unread)",
   "toastFollowed": "{label} followed",
   "showAll": "Show all",
   "listTitle": "Topics by size",

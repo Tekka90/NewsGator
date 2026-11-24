@@ -52,6 +52,8 @@
   "nodeLabelManual": "{label}, sujet manuel, {count} non lus, {state}",
   "removeTopic": "Supprimer le sujet",
   "unreadCount": "{count} non lus",
+  "primaryCount": "{count} primaires ({unread} non lus)",
+  "coveredCount": "{count} couvertes ({unread} non lues)",
   "toastFollowed": "{label} suivi",
   "showAll": "Tout afficher",
   "listTitle": "Sujets par taille",
