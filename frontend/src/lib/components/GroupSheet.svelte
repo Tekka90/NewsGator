@@ -70,6 +70,12 @@
     {$t('topics.storyCount', { count: group.story_count })} ·
     {$t('topics.unreadCount', { count: group.unread_count })}
   </p>
+  {#if (group.followed_topic_count ?? 0) > 0 || (group.muted_topic_count ?? 0) > 0}
+    <p class="meta">
+      {$t('topics.followedTopics', { count: group.followed_topic_count ?? 0 })} ·
+      {$t('topics.mutedTopics', { count: group.muted_topic_count ?? 0 })}
+    </p>
+  {/if}
   {#if group.rule}
     <button class="primary" disabled={busy} onclick={removeRule}>
       {group.rule.mode === 'follow' ? $t('topics.unfollow') : $t('topics.unmute')}

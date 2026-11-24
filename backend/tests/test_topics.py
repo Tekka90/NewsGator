@@ -197,6 +197,9 @@ async def test_follow_beats_mute_and_rule_expiry(client: AsyncClient, db_session
     topic = (await client.get("/api/topics")).json()[0]
     assert topic["story_count"] == 5 and topic["unread_count"] == 5
     assert topic["covered_story_count"] == 6 and topic["covered_unread_count"] == 6
+    groups = (await client.get("/api/topic-groups")).json()
+    if groups:
+        assert sum(g["followed_topic_count"] for g in groups) == 1
     # replacing the rule keeps one rule per topic
     await client.post(f"/api/topics/{topic_id}/rules", json={"mode": "mute", "duration": "7d"})
     assert [r["mode"] for r in (await client.get("/api/topic-rules")).json()] == ["mute"]
@@ -425,6 +428,7 @@ async def test_group_rule_mutes_live_and_replaces(client: AsyncClient, db_sessio
     assert not visible & set(ids[:5]) and len(visible) == 7  # 2 plain + 5 of the other topic
     group = next(g for g in (await client.get("/api/topic-groups")).json() if g["id"] == gid)
     assert group["rule"]["id"] == rule["id"] and group["rule"]["mode"] == "mute"
+    assert group["muted_topic_count"] == 0
     assert (await client.get("/api/topic-rules")).json()[0]["group_id"] == gid
     # a typed-topic list is not polluted by the group rule
     manual = await client.get("/api/topics", params={"all": "true", "manual_only": "true"})

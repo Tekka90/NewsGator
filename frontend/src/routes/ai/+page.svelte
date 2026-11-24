@@ -71,12 +71,14 @@
   let selectedGroup = $state<TopicGroup | null>(null);
   let loading = $state(true);
   let view = $state<View>('mix');
+  let ruleFilter = $state<'all' | 'follow' | 'mute'>('all');
   let selected = $state<Topic | null>(null);
   let focused = $state<Star | null>(null);
   let showAll = $state(false);
   let ranked = $state<Star[]>([]);
   let listOpen = $state(false);
   let hiddenCount = $state(0);
+  let manualCount = $state(0);
   let toast = $state('');
   let addQuery = $state('');
   let addMode = $state<TopicMode>('follow');
@@ -165,7 +167,9 @@
     last_story_at: '',
     rule: g.rule ? { id: g.rule.id, mode: g.rule.mode } : null,
     position: g.position,
-    group: g
+    group: g,
+    followed_topic_count: g.followed_topic_count,
+    muted_topic_count: g.muted_topic_count
   });
 
   function hueOf(tp: Star, p: [number, number, number]): number {
@@ -212,12 +216,30 @@
   async function fetchLevel(lv: Level): Promise<{ stars: Star[]; level: Level }> {
     if (lv === 'groups') {
       groups = await api.topicGroups.list().catch(() => []);
-      if (groups.length) return { stars: groups.map(groupStar), level: lv };
+      manualCount = (await api.topics.list(true, { manualOnly: true }).catch(() => [])).length;
+      if (groups.length) {
+        const selected = groups.filter((group) => {
+          if (ruleFilter === 'follow') {
+            return group.rule?.mode === 'follow' || (group.followed_topic_count ?? 0) > 0;
+          }
+          if (ruleFilter === 'mute') {
+            return group.rule?.mode === 'mute' || (group.muted_topic_count ?? 0) > 0;
+          }
+          return true;
+        });
+        return { stars: selected.map(groupStar), level: lv };
+      }
       return { stars: await api.topics.list(true), level: 'flat' }; // server without groups
     }
     if (lv === 'manual') return { stars: await api.topics.list(true, { manualOnly: true }), level: lv };
     if (lv === 'flat') return { stars: await api.topics.list(true), level: lv };
-    return { stars: await api.topics.list(true, { group: lv }), level: lv };
+    const children = await api.topics.list(true, { group: lv });
+    return {
+      stars: ruleFilter === 'all'
+        ? children
+        : children.filter((topic) => topic.rule?.mode === ruleFilter),
+      level: lv
+    };
   }
 
   async function load() {
@@ -797,9 +819,33 @@
       <button type="button" class="pill" aria-pressed={showAll} class:on={showAll} onclick={() => { showAll = !showAll; applyView(); }}>
         {$t('topics.showAll')}
       </button>
+      <div class="rulefilter" role="group" aria-label={$t('topics.ruleFilterLabel')}>
+        <button type="button" class:active={ruleFilter === 'all'} onclick={() => { ruleFilter = 'all'; void load(); }}>
+          {$t('topics.ruleFilterAll')}
+        </button>
+        <button type="button" class:active={ruleFilter === 'follow'} onclick={() => { ruleFilter = 'follow'; void load(); }}>
+          {$t('topics.ruleFilterFollowed')}
+        </button>
+        <button type="button" class:active={ruleFilter === 'mute'} onclick={() => { ruleFilter = 'mute'; void load(); }}>
+          {$t('topics.ruleFilterMuted')}
+        </button>
+      </div>
     {/if}
     {:else}
-      <button type="button" class="pill" onclick={() => enterLevel('manual')}>{$t('topics.myTopics')}</button>
+      <div class="rulefilter" role="group" aria-label={$t('topics.ruleFilterLabel')}>
+        <button type="button" class:active={ruleFilter === 'all'} onclick={() => { ruleFilter = 'all'; void load(); }}>
+          {$t('topics.ruleFilterAll')}
+        </button>
+        <button type="button" class:active={ruleFilter === 'follow'} onclick={() => { ruleFilter = 'follow'; void load(); }}>
+          {$t('topics.ruleFilterFollowed')}
+        </button>
+        <button type="button" class:active={ruleFilter === 'mute'} onclick={() => { ruleFilter = 'mute'; void load(); }}>
+          {$t('topics.ruleFilterMuted')}
+        </button>
+      </div>
+      {#if manualCount > 0}
+        <button type="button" class="pill" onclick={() => enterLevel('manual')}>{$t('topics.myTopics')}</button>
+      {/if}
     {/if}
     <button type="button" class="pill listtoggle" aria-expanded={listOpen} onclick={() => (listOpen = !listOpen)}>
       {$t(atGroups() ? 'topics.groupsTitle' : 'topics.listTitle')}
@@ -910,9 +956,16 @@
           <span class="sd {st}" aria-hidden="true"></span>
           <span class="rl">{tp.label}</span>
           <span class="rc">
-            {tp.unread_count}
-            {#if (tp.covered_unread_count ?? tp.unread_count) !== tp.unread_count}
-              <span class="covered">/ {tp.covered_unread_count}</span>
+            {#if tp.group && ((tp.group.followed_topic_count ?? 0) + (tp.group.muted_topic_count ?? 0) > 0)}
+              <span class="groupmarks">
+                {#if tp.group.followed_topic_count}<b class="followmark">★ {tp.group.followed_topic_count}</b>{/if}
+                {#if tp.group.muted_topic_count}<b class="mutemark">× {tp.group.muted_topic_count}</b>{/if}
+              </span>
+            {:else}
+              {tp.unread_count}
+              {#if (tp.covered_unread_count ?? tp.unread_count) !== tp.unread_count}
+                <span class="covered">/ {tp.covered_unread_count}</span>
+              {/if}
             {/if}
           </span>
           <span class="sr-only">{stateText(tp)}</span>
@@ -1067,6 +1120,31 @@
     background: var(--gator-forest);
     border-color: var(--gator-gold);
   }
+  .rulefilter {
+    display: inline-flex;
+    padding: 0.2rem;
+    gap: 0.15rem;
+    border-radius: var(--radius-pill);
+    background: rgba(248, 247, 241, 0.12);
+  }
+  .rulefilter button {
+    border: 0;
+    border-radius: var(--radius-pill);
+    padding: 0.28rem 0.7rem;
+    color: var(--gator-paper);
+    background: transparent;
+    font-weight: 600;
+  }
+  .rulefilter button.active {
+    color: var(--gator-forest-dark);
+    background: var(--gator-gold);
+  }
+  .groupmarks {
+    display: inline-flex;
+    gap: 0.3rem;
+  }
+  .followmark { color: var(--gator-gold); }
+  .mutemark { color: var(--gator-muted); }
   .listtoggle {
     display: inline-block;
   }

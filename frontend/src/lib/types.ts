@@ -372,6 +372,8 @@ export interface Topic {
   /** topic group (galaxy) it belongs to; null for typed topics (absent on old servers) */
   group_id?: number | null;
   rule: { id: number; mode: TopicMode } | null;
+  followed_topic_count?: number;
+  muted_topic_count?: number;
   /** user-typed topic (negated rule id as `id`; remove it via its rule) */
   manual?: boolean;
   /** 3D constellation coordinates in [-1, 1] (only with `?all=true`). */
@@ -411,4 +413,6 @@ export interface TopicGroup {
   hue: number;
   position: [number, number, number];
   rule: { id: number; mode: TopicMode; until_fade: boolean; expires_at: string | null } | null;
+  followed_topic_count?: number;
+  muted_topic_count?: number;
 }

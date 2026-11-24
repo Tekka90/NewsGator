@@ -82,6 +82,8 @@ class TopicGroupOut(BaseModel):
     hue: int
     position: list[float]
     rule: GroupRuleBrief | None = None
+    followed_topic_count: int = 0
+    muted_topic_count: int = 0
 
 
 class ManualRuleCreate(BaseModel):
@@ -399,12 +401,28 @@ async def list_topic_groups(
             )
         ).all()
     }
+    member_rules: dict[int, dict[str, int]] = {}
+    for rule in (
+        await session.scalars(
+            select(TopicRule).where(
+                TopicRule.user_id == user.id, TopicRule.source_topic_id.is_not(None)
+            )
+        )
+    ).all():
+        group_id = await session.scalar(
+            select(Topic.group_id).where(Topic.id == rule.source_topic_id)
+        )
+        if group_id is None:
+            continue
+        counts = member_rules.setdefault(group_id, {"follow": 0, "mute": 0})
+        if rule.mode in counts:
+            counts[rule.mode] += 1
     positions = topics_svc.layout_positions(
         {g.id: topics_svc.decode(g.centroid) for g in groups}
     )
     out: list[TopicGroupOut] = []
     for g in groups:
-        rule = rules.get(g.id)
+        group_rule = rules.get(g.id)
         out.append(
             TopicGroupOut(
                 id=g.id,
@@ -416,13 +434,15 @@ async def list_topic_groups(
                 hue=(g.id * 137) % 360,
                 position=list(positions[g.id]),
                 rule=GroupRuleBrief(
-                    id=rule.id,
-                    mode=rule.mode,
-                    until_fade=rule.until_fade,
-                    expires_at=rule.expires_at.isoformat() if rule.expires_at else None,
+                    id=group_rule.id,
+                    mode=group_rule.mode,
+                    until_fade=group_rule.until_fade,
+                    expires_at=group_rule.expires_at.isoformat() if group_rule.expires_at else None,
                 )
-                if rule
+                if group_rule
                 else None,
+                followed_topic_count=member_rules.get(g.id, {}).get("follow", 0),
+                muted_topic_count=member_rules.get(g.id, {}).get("mute", 0),
             )
         )
     return out
