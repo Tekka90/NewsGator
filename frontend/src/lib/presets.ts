@@ -42,7 +42,8 @@ function builtin(
   order: PresetOrder,
   position: number,
   followedOnly = false,
-  hiddenOnly = false
+  hiddenOnly = false,
+  enabled = true
 ): StoryPreset {
   return {
     id,
@@ -50,7 +51,7 @@ function builtin(
     label: null,
     icon,
     display: 'icon+label',
-    enabled: true,
+    enabled,
     position,
     sort,
     order,
@@ -69,7 +70,7 @@ export function defaultPresets(): StoryPreset[] {
     builtin('updated', 'refresh', 'updated', 'sources', 'desc', 2),
     builtin('saved', 'bookmark', 'saved', 'saved_at', 'desc', 3),
     builtin('followed', 'scope', 'unread', 'published', 'asc', 4, true),
-    builtin('hidden', 'eye-off', 'any', 'updated', 'desc', 5, false, true)
+    builtin('hidden', 'eye-off', 'any', 'updated', 'desc', 5, false, true, false)
   ];
 }
 

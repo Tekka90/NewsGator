@@ -78,7 +78,15 @@ def test_legacy_followed_icon_migrates_to_radar_scope() -> None:
     next(p for p in stored if p["id"] == "followed")["icon"] = "star"
     loaded = sp.load_presets(sp.dump_presets(stored))
     assert next(p for p in loaded if p["id"] == "followed")["icon"] == "scope"
-    assert next(p for p in loaded if p["id"] == "hidden")["enabled"] is True
+    assert next(p for p in loaded if p["id"] == "hidden")["enabled"] is False
+
+
+def test_existing_disabled_hidden_preset_stays_disabled() -> None:
+    stored = sp.default_presets()
+    hidden = next(p for p in stored if p["id"] == "hidden")
+    hidden["enabled"] = False
+    loaded = sp.load_presets(sp.dump_presets(stored))
+    assert next(p for p in loaded if p["id"] == "hidden")["enabled"] is False
 
 
 def test_keyword_normalisation_vectors() -> None:
@@ -194,7 +202,9 @@ async def test_default_presets_order_lists_and_counts(
     assert _ids(await client.get("/api/stories?preset=saved")) == [6, 4, 3] == expected["saved"]
     assert _ids(await client.get("/api/stories?preset=all")) == expected["all"]
     counts = (await client.get("/api/stories/preset-counts")).json()["counts"]
-    assert counts == {k: len(v) for k, v in expected.items()}
+    assert counts == {
+        k: len(v) for k, v in expected.items() if k != "hidden"
+    }
 
 
 async def test_include_read_and_cursor_paging(client: AsyncClient, db_session, fixed_now) -> None:
@@ -345,7 +355,7 @@ async def test_presets_are_per_user_and_hidden_feeds_are_dropped(
     assert other == {"presets": VECTORS["defaults"], "last_preset_id": None, "compact": False}
     assert (await client.get("/api/stories?preset=c1")).status_code == 404
     assert (await client.get("/api/stories/preset-counts")).json()["counts"] == {
-        k: 0 for k in VECTORS["default_preset_results"]
+        k: 0 for k in VECTORS["default_preset_results"] if k != "hidden"
     }
 
 

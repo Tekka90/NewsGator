@@ -118,7 +118,7 @@
    "label": null,
    "icon": "eye-off",
    "display": "icon+label",
-   "enabled": true,
+   "enabled": false,
    "position": 5,
    "sort": "updated",
    "order": "desc",

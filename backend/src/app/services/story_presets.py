@@ -106,7 +106,7 @@ def default_preset(preset_id: str) -> dict[str, Any]:
                 "label": None,
                 "icon": icon,
                 "display": "icon+label",
-                "enabled": True,
+                "enabled": pid != "hidden",
                 "position": position,
                 "sort": sort,
                 "order": order,
@@ -404,12 +404,10 @@ def load_presets(stored: str | None) -> list[dict[str, Any]]:
                 for item in loaded
             ]
         presets = validate_presets(loaded)
-        if isinstance(loaded, list):
-            for builtin_id in ("followed", "hidden"):
-                if not any(
-                    isinstance(item, dict) and item.get("id") == builtin_id for item in loaded
-                ):
-                    next(p for p in presets if p["id"] == builtin_id)["enabled"] = True
+        if isinstance(loaded, list) and not any(
+            isinstance(item, dict) and item.get("id") == "followed" for item in loaded
+        ):
+            next(p for p in presets if p["id"] == "followed")["enabled"] = True
         return presets
     except (ValueError, TypeError):
         return default_presets()

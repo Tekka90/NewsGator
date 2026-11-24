@@ -63,10 +63,18 @@ test('active preset: last used, legacy filter, then first enabled', () => {
 
 test('special Radar views disappear only when their count is zero', () => {
   const list = defaultPresets();
-  assert.equal(visiblePresets(list, {}).length, 6);
+  assert.equal(visiblePresets(list, {}).length, 5);
   assert.equal(visiblePresets(list, { followed: 0 }).some((p) => p.id === 'followed'), false);
   assert.equal(visiblePresets(list, { hidden: 0 }).some((p) => p.id === 'hidden'), false);
-  assert.equal(visiblePresets(list, { followed: 1, hidden: 2 }).length, 6);
+  assert.equal(visiblePresets(list, { followed: 1, hidden: 2 }).length, 5);
+  const hiddenEnabled = setEnabled(list, 'hidden', true);
+  assert.equal(visiblePresets(hiddenEnabled, { followed: 1, hidden: 2 }).length, 6);
+});
+
+test('Hidden is disabled by default but can be explicitly shown', () => {
+  const hidden = defaultPresets().find((p) => p.id === 'hidden')!;
+  assert.equal(hidden.enabled, false);
+  assert.equal(setEnabled(defaultPresets(), 'hidden', true).find((p) => p.id === 'hidden')?.enabled, true);
 });
 
 test('last enabled preset cannot be disabled or deleted', () => {
