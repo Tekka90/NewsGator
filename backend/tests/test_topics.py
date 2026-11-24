@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from tests.conftest import setup_admin
 
 from app.api import stories as stories_api
@@ -180,12 +180,15 @@ async def test_follow_beats_mute_and_rule_expiry(client: AsyncClient, db_session
     ids = await _seed(db_session, store)
     await _discover(db_session)
     topic_id = (await client.get("/api/topics")).json()[0]["id"]
-    await client.post(f"/api/topics/{topic_id}/rules", json={"mode": "follow", "duration": "30d"})
     async with db_session() as s:
-        await s.execute(delete(StoryTopic).where(StoryTopic.story_id == ids[0]))
+        # Semantically close, but this story was not assigned to the detected topic.
+        # A rule created from the topic must not turn into a second broad search.
+        await store.upsert_story_centroid(ids[5], _vec(0, jitter=0.02))
         await s.commit()
+    await client.post(f"/api/topics/{topic_id}/rules", json={"mode": "follow", "duration": "30d"})
     listed = (await client.get("/api/stories")).json()
     assert len(listed) == 7 and sum(s["followed"] for s in listed) == 5
+    assert ids[5] not in {s["id"] for s in listed if s["followed"]}
     assert [r["mode"] for r in (await client.get("/api/topic-rules")).json()] == ["follow"]
     assert (await client.get("/api/topics")).json()[0]["unread_count"] == 5
     # replacing the rule keeps one rule per topic

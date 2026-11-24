@@ -75,6 +75,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         async for session in get_session():
             await enqueue_backlog(session)
             break
+        async for session in get_session():
+            from app.services.topics import reconcile_topic_rules
+
+            await reconcile_topic_rules(session)
+            break
         start_scheduler()
         try:
             yield
