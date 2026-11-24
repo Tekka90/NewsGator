@@ -1,0 +1,14 @@
+apiVersion: v2
+name: newsgator
+description: A Helm chart for NewsGator subcomponent newsgator
+type: application
+appVersion: "1.7.0"
+version: "0.1.0"
+
+dependencies: []
+
+maintainers:
+  - name: "webofmars"
+    email: "contact@webofmars.com"
+  - name: 'Tekka90'
+    email: 'dev@Tekka90.com'

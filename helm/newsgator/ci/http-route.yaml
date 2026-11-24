@@ -1,0 +1,5 @@
+httpRoute:
+  enabled: true
+  hostnames:
+  - newsgator.local
+  rules: []
