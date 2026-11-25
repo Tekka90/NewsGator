@@ -384,6 +384,22 @@ async def _seed_topic(db_session, store: InMemoryVectorStore, axis: int, first: 
     return ids
 
 
+async def test_story_detail_reports_radar_topic_and_galaxy(
+    client: AsyncClient, db_session, store
+) -> None:
+    await setup_admin(client)
+    ids = await _seed(db_session, store)
+    await _discover(db_session)
+    topic = (await client.get("/api/topics", params={"all": "true"})).json()[0]
+    group = (await client.get("/api/topic-groups")).json()[0]
+    radar = (await client.get(f"/api/stories/{ids[0]}")).json()["radar"]
+    assert radar["topic"]["id"] == topic["id"] and radar["topic"]["label"] == topic["label"]
+    assert 0.0 < radar["topic"]["score"] <= 1.0
+    assert radar["group"]["id"] == group["id"] and 0.0 < radar["group"]["score"] <= 1.0
+    # a story outside every topic has no radar block
+    assert (await client.get(f"/api/stories/{ids[-1]}")).json()["radar"] is None
+
+
 async def test_groups_api_scoping_and_identity(client: AsyncClient, db_session, store) -> None:
     await setup_admin(client)
     await _seed(db_session, store)

@@ -175,6 +175,19 @@
       {#if story.is_frozen}<span class="badge frozen">{$t('story.archived')}</span>{/if}
     </div>
     <h1>{story.title}</h1>
+    {#if story.radar}
+      {@const r = story.radar}
+      <div class="row radar-row">
+        <a class="chip radar" href={`/ai?topic=${r.topic.id}${r.group ? `&group=${r.group.id}` : ''}`}>
+          {r.topic.label}{#if r.topic.score != null} · {Math.round(r.topic.score * 100)}%{/if}
+        </a>
+        {#if r.group}
+          <a class="chip radar" href={`/ai?group=${r.group.id}`}>
+            {r.group.label}{#if r.group.score != null} · {Math.round(r.group.score * 100)}%{/if}
+          </a>
+        {/if}
+      </div>
+    {/if}
     {#if story.media_kind === 'video'}
       <div class="videowrap"><VideoPlayer videoId={story.video_id} provider={story.video_provider} url={story.video_url} embedUrl={story.video_embed_url} posterUrl={story.image_url} title={story.title} /></div>
     {:else if story.image_url}

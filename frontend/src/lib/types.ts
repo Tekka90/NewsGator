@@ -302,7 +302,14 @@ export interface StoryRevision {
   created_at: string;
 }
 
+export interface RadarRef {
+  id: number;
+  label: string;
+  score: number | null;
+}
+
 export interface StoryDetail extends StoryListItem {
+  radar?: { topic: RadarRef; group: RadarRef | null } | null;
   first_seen_at: string;
   articles: StoryArticle[];
   revisions: StoryRevision[];

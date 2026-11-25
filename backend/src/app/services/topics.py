@@ -837,6 +837,37 @@ async def _refresh_groups(session: AsyncSession) -> dict[str, int]:
     return report
 
 
+async def story_radar(session: AsyncSession, story_id: int) -> dict[str, dict[str, object]] | None:
+    """The active Radar topic a story belongs to, and that topic's galaxy, each with a 0..1 score.
+
+    The topic score is the stored similarity to the topic centroid; the galaxy score is the story's
+    similarity to the galaxy centroid. None when the story is in no active topic."""
+    if not settings.topics_enabled:
+        return None
+    row = (
+        await session.execute(
+            select(StoryTopic.similarity, Topic)
+            .join(Topic, Topic.id == StoryTopic.topic_id)
+            .where(StoryTopic.story_id == story_id, Topic.status == "active")
+        )
+    ).first()
+    if row is None:
+        return None
+    similarity, topic = row
+    result: dict[str, dict[str, object]] = {
+        "topic": {"id": topic.id, "label": topic.label, "score": round(float(similarity), 3)}
+    }
+    group = await session.get(TopicGroup, topic.group_id) if topic.group_id is not None else None
+    if group is not None:
+        score: float | None = None
+        vec = (await _story_vectors(session, [story_id])).get(story_id)
+        centroid = decode(group.centroid)
+        if vec is not None and vec.shape == centroid.shape:
+            score = round(float(cosine_similarity(vec, centroid)), 3)
+        result["group"] = {"id": group.id, "label": group.label, "score": score}
+    return result
+
+
 async def story_visibility_map(
     session: AsyncSession, user_id: int, story_ids: list[int]
 ) -> dict[int, tuple[str, int | None]]:

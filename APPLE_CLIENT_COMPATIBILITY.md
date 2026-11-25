@@ -325,6 +325,7 @@ Set aside (Alembic 0034): a mute rule that ends (expiry, until-fade, group gone)
 - `POST /api/stories/<id>/unhide` → 204: show a hidden story again (removes its set-aside row and the user's mute matches for it; a later story update may re-match).
 - `POST /api/stories/unhide-all` → `{"released": n}`: releases every hidden story; rules keep applying to future stories.
 - `GET /api/topic-rules` items gain `hidden_count: int` (stories that rule currently hides, 0 for follow rules; `hidden_unread` is the unread subset). Use it to ask "Also bring back the N hidden stories?" before removing a mute rule. `GET /api/stories/<id>` gains `ignored: bool`.
+- `GET /api/stories/<id>` gains `radar: {topic: {id,label,score}, group: {id,label,score}|null} | null` (additive; `score` is a 0..1 cosine, nullable; `null` when the story is in no active topic or Radar is disabled). Clients show it as a percentage chip and deep-link to the Radar topic (`topic.id`) or galaxy (`group.id`).
 
 All additions are optional for old clients. The Apple client treats 404 as "topics unavailable". Apple standalone mode
 implements the same shapes locally.

@@ -109,6 +109,18 @@ class RevisionOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class RadarRef(BaseModel):
+    id: int
+    label: str
+    # 0..1 similarity of the story to the topic (or galaxy) centroid; None when it can't be computed
+    score: float | None = None
+
+
+class StoryRadar(BaseModel):
+    topic: RadarRef
+    group: RadarRef | None = None
+
+
 class StoryDetail(BaseModel):
     id: int
     title: str
@@ -134,6 +146,7 @@ class StoryDetail(BaseModel):
     video_provider: str | None = None
     video_duration: int | None = None
     ignored: bool = False
+    radar: StoryRadar | None = None
 
 
 def _article_out(a: Article) -> ArticleOut:
@@ -1180,8 +1193,10 @@ async def story_detail(
     detail_vis = (await topics_svc.story_visibility_map(session, user.id, [story.id])).get(
         story.id, (topics_svc.VISIBLE, None)
     )[0]
+    radar = await topics_svc.story_radar(session, story.id)
     return StoryDetail(
         ignored=detail_vis == topics_svc.IGNORED,
+        radar=StoryRadar.model_validate(radar) if radar else None,
         id=story.id,
         title=detail_title,
         summary=detail_summary,

@@ -749,7 +749,16 @@
     };
     raf = requestAnimationFrame(frame);
 
-    void load();
+    // Deep link from a story: /ai?group=<id>&topic=<id> opens that galaxy and the topic's sheet
+    const params = new URLSearchParams(location.search);
+    const linkGroup = Number(params.get('group'));
+    const linkTopic = Number(params.get('topic'));
+    if (linkGroup) level = linkGroup;
+    void load().then(() => {
+      if (!linkTopic) return;
+      const hit = topics.find((x) => x.id === linkTopic);
+      if (hit) selected = hit;
+    });
     void loadHidden();
 
     return () => {
